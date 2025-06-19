@@ -41,7 +41,16 @@ auto sourcemeta::jsonschema::cli::metaschema(
 
     const auto dialect{
         sourcemeta::core::dialect(entry.second, default_dialect_option)};
-    assert(dialect.has_value());
+
+    if (!dialect.has_value()) {
+      std::cerr << "error: The schema file does not declare a dialect\n";
+      std::cerr << "  "
+                << sourcemeta::jsonschema::cli::safe_weakly_canonical(
+                       entry.first)
+                       .string()
+                << std::endl;
+      return EXIT_FAILURE;
+    }
 
     const auto metaschema{sourcemeta::core::metaschema(
         entry.second, custom_resolver, default_dialect_option)};
