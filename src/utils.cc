@@ -413,7 +413,7 @@ auto parse_ignore(
   if (options.contains("ignore")) {
     for (const auto &ignore : options.at("ignore")) {
       const auto canonical{std::filesystem::weakly_canonical(ignore)};
-      log_verbose(options) << "Ignoring path: " << canonical << "\n";
+      log_verbose(options) << "Ignoring path: " << canonical.string() << "\n";
       result.insert(canonical);
     }
   }
@@ -421,7 +421,7 @@ auto parse_ignore(
   if (options.contains("i")) {
     for (const auto &ignore : options.at("i")) {
       const auto canonical{std::filesystem::weakly_canonical(ignore)};
-      log_verbose(options) << "Ignoring path: " << canonical << "\n";
+      log_verbose(options) << "Ignoring path: " << canonical.string() << "\n";
       result.insert(canonical);
     }
   }

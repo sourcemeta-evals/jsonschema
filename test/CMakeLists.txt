@@ -248,6 +248,9 @@ add_jsonschema_test_unix(lint/pass_lint_list_long)
 add_jsonschema_test_unix(lint/pass_lint_list_short)
 add_jsonschema_test_unix(lint/pass_lint_fix_no_reformat)
 
+add_jsonschema_test_unix(lint/pass_lint_ignore_short_verbose)
+add_jsonschema_test_unix(lint/fail_lint_ignore_all)
+
 # Encode
 add_jsonschema_test_unix(encode/pass_schema_less)
 add_jsonschema_test_unix(encode/pass_schema_less_jsonl)
