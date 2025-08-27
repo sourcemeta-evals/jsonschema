@@ -12,7 +12,7 @@ if ./build/dist/bin/jsonschema lint -i .angular -i node_modules 2>&1 | grep -q "
 fi
 
 echo "Test 2: lint with glob patterns and ignore flags"
-echo '{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object"}' > test_schema.json
+echo "{\"\\$schema\": \"http://json-schema.org/draft-07/schema#\", \"type\": \"object\"}" > test_schema.json
 if ./build/dist/bin/jsonschema lint test_schema.json -i nonexistent 2>&1 | grep -q "unexpected error: map::at"; then
   echo "FAIL: Still getting map::at error with schema file"
   exit 1
