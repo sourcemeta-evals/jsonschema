@@ -39,8 +39,12 @@ auto ValidExamples::condition(
     return false;
   }
 
-  if (!schema.is_object() || !schema.defines("examples") ||
-      !schema.at("examples").is_array() || schema.at("examples").empty()) {
+  if (!schema.is_object() || !schema.defines("examples")) {
+    return false;
+  }
+  
+  const auto examples_it = schema.try_at("examples");
+  if (!examples_it || !examples_it->is_array() || examples_it->empty()) {
     return false;
   }
 
@@ -52,7 +56,7 @@ auto ValidExamples::condition(
 
   Evaluator evaluator;
   std::size_t cursor{0};
-  for (const auto &example : schema.at("examples").as_array()) {
+  for (const auto &example : examples_it->as_array()) {
     const std::string ref{"$ref"};
     SimpleOutput output{example, {std::cref(ref)}};
     const auto result{

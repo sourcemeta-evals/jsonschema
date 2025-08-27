@@ -29,7 +29,8 @@ auto sourcemeta::jsonschema::cli::decode(
     const std::span<const std::string> &arguments) -> int {
   const auto options{parse_options(arguments, {})};
 
-  if (options.at("").size() < 2) {
+  const auto &positional_args = options.at("");
+  if (positional_args.size() < 2) {
     std::cerr
         << "error: This command expects a path to a binary file and an "
            "output path. For example:\n\n"
@@ -50,12 +51,12 @@ auto sourcemeta::jsonschema::cli::decode(
   const auto encoding{sourcemeta::jsonbinpack::load(schema)};
 
   std::ifstream input_stream{sourcemeta::jsonschema::cli::safe_weakly_canonical(
-                                 options.at("").front()),
+                                 positional_args.front()),
                              std::ios::binary};
   assert(!input_stream.fail());
   assert(input_stream.is_open());
 
-  const std::filesystem::path output{options.at("").at(1)};
+  const std::filesystem::path output{positional_args.at(1)};
   std::ofstream output_stream(safe_weakly_canonical(output), std::ios::binary);
   output_stream.exceptions(std::ios_base::badbit);
   sourcemeta::jsonbinpack::Decoder decoder{input_stream};
@@ -63,7 +64,7 @@ auto sourcemeta::jsonschema::cli::decode(
   if (output.extension() == ".jsonl") {
     log_verbose(options)
         << "Interpreting input as JSONL: "
-        << safe_weakly_canonical(options.at("").front()).string() << "\n";
+        << safe_weakly_canonical(positional_args.front()).string() << "\n";
 
     std::size_t count{0};
     while (has_data(input_stream)) {

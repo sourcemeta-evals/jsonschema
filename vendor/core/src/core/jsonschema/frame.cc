@@ -307,9 +307,11 @@ static auto repopulate_instance_locations(
         destination.push_back(result);
       }
 
-      repopulate_instance_locations(
-          frame, instances, cache, cache_entry.parent.value(),
-          cache.at(cache_entry.parent.value()), destination, new_accumulator);
+      if (auto cache_it = cache.find(cache_entry.parent.value()); cache_it != cache.end()) {
+        repopulate_instance_locations(
+            frame, instances, cache, cache_entry.parent.value(),
+            cache_it->second, destination, new_accumulator);
+      }
     }
   }
 }

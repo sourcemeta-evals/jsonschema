@@ -320,9 +320,9 @@ auto resolver(const std::map<std::string, std::vector<std::string>> &options,
       }};
 
   if (options.contains("resolve")) {
-    for (const auto &entry :
-         for_each_json(options.at("resolve"), parse_ignore(options),
-                       parse_extensions(options))) {
+    const auto &resolve_args = options.at("resolve");
+    for (const auto &entry : for_each_json(resolve_args, parse_ignore(options),
+                                           parse_extensions(options))) {
       log_verbose(options) << "Detecting schema resources from file: "
                            << entry.first.string() << "\n";
       const auto result = dynamic_resolver.add(
@@ -342,9 +342,9 @@ auto resolver(const std::map<std::string, std::vector<std::string>> &options,
   }
 
   if (options.contains("r")) {
-    for (const auto &entry :
-         for_each_json(options.at("r"), parse_ignore(options),
-                       parse_extensions(options))) {
+    const auto &r_args = options.at("r");
+    for (const auto &entry : for_each_json(r_args, parse_ignore(options),
+                                           parse_extensions(options))) {
       log_verbose(options) << "Detecting schema resources from file: "
                            << entry.first.string() << "\n";
       const auto result = dynamic_resolver.add(
@@ -382,14 +382,16 @@ auto parse_extensions(
   std::set<std::string> result;
 
   if (options.contains("extension")) {
-    for (const auto &extension : options.at("extension")) {
+    const auto &extension_args = options.at("extension");
+    for (const auto &extension : extension_args) {
       log_verbose(options) << "Using extension: " << extension << "\n";
       result.insert(normalize_extension(extension));
     }
   }
 
   if (options.contains("e")) {
-    for (const auto &extension : options.at("e")) {
+    const auto &e_args = options.at("e");
+    for (const auto &extension : e_args) {
       log_verbose(options) << "Using extension: " << extension << "\n";
       result.insert(normalize_extension(extension));
     }
@@ -410,7 +412,8 @@ auto parse_ignore(
   std::set<std::filesystem::path> result;
 
   if (options.contains("ignore")) {
-    for (const auto &ignore : options.at("ignore")) {
+    const auto &ignore_args = options.at("ignore");
+    for (const auto &ignore : ignore_args) {
       const auto canonical{std::filesystem::weakly_canonical(ignore)};
       log_verbose(options) << "Ignoring path: " << canonical << "\n";
       result.insert(canonical);
@@ -418,7 +421,7 @@ auto parse_ignore(
   }
 
   if (options.contains("i")) {
-    for (const auto &ignore : options.at("e")) {
+    for (const auto &ignore : options.at("i")) {
       const auto canonical{std::filesystem::weakly_canonical(ignore)};
       log_verbose(options) << "Ignoring path: " << canonical << "\n";
       result.insert(canonical);
@@ -440,11 +443,17 @@ auto default_dialect(
     -> std::optional<std::string> {
 
   if (options.contains("default-dialect")) {
-    return options.at("default-dialect").front();
+    const auto &dialect_args = options.at("default-dialect");
+    if (!dialect_args.empty()) {
+      return dialect_args.front();
+    }
   }
 
   if (options.contains("d")) {
-    return options.at("d").front();
+    const auto &d_args = options.at("d");
+    if (!d_args.empty()) {
+      return d_args.front();
+    }
   }
 
   return std::nullopt;

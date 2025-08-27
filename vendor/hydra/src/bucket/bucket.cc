@@ -30,7 +30,10 @@ auto Bucket::fetch_json(const std::string &key)
   std::promise<std::optional<ResponseJSON>> promise;
   assert(key.front() == '/');
 
-  const auto cached_result{this->cache.at(key)};
+  std::optional<ResponseJSON> cached_result;
+  if (auto cache_it = this->cache.find(key); cache_it != this->cache.end()) {
+    cached_result = cache_it->second;
+  }
   if (cached_result.has_value() &&
       this->cache_policy == BucketCachePolicy::Indefinitely) {
     promise.set_value(cached_result.value());

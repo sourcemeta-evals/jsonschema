@@ -14,7 +14,8 @@ auto sourcemeta::jsonschema::cli::fmt(
   const auto options{
       parse_options(arguments, {"c", "check", "k", "keep-ordering"})};
 
-  for (const auto &entry : for_each_json(options.at(""), parse_ignore(options),
+  const auto &positional_args = options.at("");
+  for (const auto &entry : for_each_json(positional_args, parse_ignore(options),
                                          parse_extensions(options))) {
     if (entry.first.extension() == ".yaml" ||
         entry.first.extension() == ".yml") {

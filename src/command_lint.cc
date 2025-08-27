@@ -100,22 +100,24 @@ auto sourcemeta::jsonschema::cli::lint(
       sourcemeta::blaze::default_schema_compiler);
 
   if (options.contains("exclude")) {
-    disable_lint_rules(bundle, options, options.at("exclude").cbegin(),
-                       options.at("exclude").cend());
+    const auto &exclude_args = options.at("exclude");
+    disable_lint_rules(bundle, options, exclude_args.cbegin(),
+                       exclude_args.cend());
   }
 
   if (options.contains("x")) {
-    disable_lint_rules(bundle, options, options.at("x").cbegin(),
-                       options.at("x").cend());
+    const auto &x_args = options.at("x");
+    disable_lint_rules(bundle, options, x_args.cbegin(), x_args.cend());
   }
 
   bool result{true};
   auto errors_array = sourcemeta::core::JSON::make_array();
   const auto dialect{default_dialect(options)};
 
+  const auto &positional_args = options.at("");
   if (options.contains("f") || options.contains("fix")) {
     for (const auto &entry :
-         for_each_json(options.at(""), parse_ignore(options),
+         for_each_json(positional_args, parse_ignore(options),
                        parse_extensions(options))) {
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
       if (entry.first.extension() == ".yaml" ||
@@ -141,7 +143,7 @@ auto sourcemeta::jsonschema::cli::lint(
     }
   } else {
     for (const auto &entry :
-         for_each_json(options.at(""), parse_ignore(options),
+         for_each_json(positional_args, parse_ignore(options),
                        parse_extensions(options))) {
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
       const bool subresult = bundle.check(
