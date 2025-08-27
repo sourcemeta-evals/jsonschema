@@ -91,6 +91,13 @@ auto sourcemeta::jsonschema::cli::lint(
       arguments, {"f", "fix", "json", "j", "k", "keep-ordering"})};
   const bool output_json = options.contains("json") || options.contains("j");
 
+  if (!options.contains("") || options.at("").empty()) {
+    std::cerr << "error: This command expects one or more paths to schemas. "
+                 "For example:\n\n"
+              << "  jsonschema lint path/to/schema.json\n";
+    return EXIT_FAILURE;
+  }
+
   sourcemeta::core::SchemaTransformer bundle;
   sourcemeta::core::add(bundle, sourcemeta::core::AlterSchemaMode::Readability);
 
