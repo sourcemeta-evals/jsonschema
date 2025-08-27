@@ -320,45 +320,51 @@ auto resolver(const std::map<std::string, std::vector<std::string>> &options,
       }};
 
   if (options.contains("resolve")) {
-    for (const auto &entry :
-         for_each_json(options.at("resolve"), parse_ignore(options),
-                       parse_extensions(options))) {
-      log_verbose(options) << "Detecting schema resources from file: "
-                           << entry.first.string() << "\n";
-      const auto result = dynamic_resolver.add(
-          entry.second, default_dialect, std::nullopt,
-          [&options](const auto &identifier) {
-            log_verbose(options)
-                << "Importing schema into the resolution context: "
-                << identifier << "\n";
-          });
-      if (!result) {
-        std::cerr
-            << "warning: No schema resources were imported from this file\n";
-        std::cerr << "  at " << entry.first.string() << "\n";
-        std::cerr << "Are you sure this schema sets any identifiers?\n";
+    const auto it = options.find("resolve");
+    if (it != options.end()) {
+      for (const auto &entry : for_each_json(it->second, parse_ignore(options),
+                                             parse_extensions(options))) {
+        log_verbose(options)
+            << "Detecting schema resources from file: " << entry.first.string()
+            << "\n";
+        const auto result = dynamic_resolver.add(
+            entry.second, default_dialect, std::nullopt,
+            [&options](const auto &identifier) {
+              log_verbose(options)
+                  << "Importing schema into the resolution context: "
+                  << identifier << "\n";
+            });
+        if (!result) {
+          std::cerr
+              << "warning: No schema resources were imported from this file\n";
+          std::cerr << "  at " << entry.first.string() << "\n";
+          std::cerr << "Are you sure this schema sets any identifiers?\n";
+        }
       }
     }
   }
 
   if (options.contains("r")) {
-    for (const auto &entry :
-         for_each_json(options.at("r"), parse_ignore(options),
-                       parse_extensions(options))) {
-      log_verbose(options) << "Detecting schema resources from file: "
-                           << entry.first.string() << "\n";
-      const auto result = dynamic_resolver.add(
-          entry.second, default_dialect, std::nullopt,
-          [&options](const auto &identifier) {
-            log_verbose(options)
-                << "Importing schema into the resolution context: "
-                << identifier << "\n";
-          });
-      if (!result) {
-        std::cerr
-            << "warning: No schema resources were imported from this file\n";
-        std::cerr << "  at " << entry.first.string() << "\n";
-        std::cerr << "Are you sure this schema sets any identifiers?\n";
+    const auto it = options.find("r");
+    if (it != options.end()) {
+      for (const auto &entry : for_each_json(it->second, parse_ignore(options),
+                                             parse_extensions(options))) {
+        log_verbose(options)
+            << "Detecting schema resources from file: " << entry.first.string()
+            << "\n";
+        const auto result = dynamic_resolver.add(
+            entry.second, default_dialect, std::nullopt,
+            [&options](const auto &identifier) {
+              log_verbose(options)
+                  << "Importing schema into the resolution context: "
+                  << identifier << "\n";
+            });
+        if (!result) {
+          std::cerr
+              << "warning: No schema resources were imported from this file\n";
+          std::cerr << "  at " << entry.first.string() << "\n";
+          std::cerr << "Are you sure this schema sets any identifiers?\n";
+        }
       }
     }
   }
@@ -382,16 +388,22 @@ auto parse_extensions(
   std::set<std::string> result;
 
   if (options.contains("extension")) {
-    for (const auto &extension : options.at("extension")) {
-      log_verbose(options) << "Using extension: " << extension << "\n";
-      result.insert(normalize_extension(extension));
+    const auto it = options.find("extension");
+    if (it != options.end()) {
+      for (const auto &extension : it->second) {
+        log_verbose(options) << "Using extension: " << extension << "\n";
+        result.insert(normalize_extension(extension));
+      }
     }
   }
 
   if (options.contains("e")) {
-    for (const auto &extension : options.at("e")) {
-      log_verbose(options) << "Using extension: " << extension << "\n";
-      result.insert(normalize_extension(extension));
+    const auto it = options.find("e");
+    if (it != options.end()) {
+      for (const auto &extension : it->second) {
+        log_verbose(options) << "Using extension: " << extension << "\n";
+        result.insert(normalize_extension(extension));
+      }
     }
   }
 
@@ -410,18 +422,24 @@ auto parse_ignore(
   std::set<std::filesystem::path> result;
 
   if (options.contains("ignore")) {
-    for (const auto &ignore : options.at("ignore")) {
-      const auto canonical{std::filesystem::weakly_canonical(ignore)};
-      log_verbose(options) << "Ignoring path: " << canonical << "\n";
-      result.insert(canonical);
+    const auto it = options.find("ignore");
+    if (it != options.end()) {
+      for (const auto &ignore : it->second) {
+        const auto canonical{std::filesystem::weakly_canonical(ignore)};
+        log_verbose(options) << "Ignoring path: " << canonical << "\n";
+        result.insert(canonical);
+      }
     }
   }
 
   if (options.contains("i")) {
-    for (const auto &ignore : options.at("e")) {
-      const auto canonical{std::filesystem::weakly_canonical(ignore)};
-      log_verbose(options) << "Ignoring path: " << canonical << "\n";
-      result.insert(canonical);
+    const auto it = options.find("i");
+    if (it != options.end()) {
+      for (const auto &ignore : it->second) {
+        const auto canonical{std::filesystem::weakly_canonical(ignore)};
+        log_verbose(options) << "Ignoring path: " << canonical << "\n";
+        result.insert(canonical);
+      }
     }
   }
 
@@ -440,14 +458,28 @@ auto default_dialect(
     -> std::optional<std::string> {
 
   if (options.contains("default-dialect")) {
-    return options.at("default-dialect").front();
+    const auto &values = options.at("default-dialect");
+    if (!values.empty()) {
+      return values.front();
+    }
   }
 
   if (options.contains("d")) {
-    return options.at("d").front();
+    const auto &values = options.at("d");
+    if (!values.empty()) {
+      return values.front();
+    }
   }
 
   return std::nullopt;
+}
+
+auto get_positional_arguments(
+    const std::map<std::string, std::vector<std::string>> &options)
+    -> const std::vector<std::string> & {
+  static const std::vector<std::string> empty_vector;
+  const auto it = options.find("");
+  return (it != options.end()) ? it->second : empty_vector;
 }
 
 } // namespace sourcemeta::jsonschema::cli

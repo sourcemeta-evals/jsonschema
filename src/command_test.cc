@@ -50,8 +50,9 @@ auto sourcemeta::jsonschema::cli::test(
   const auto verbose{options.contains("verbose") || options.contains("v")};
   sourcemeta::blaze::Evaluator evaluator;
 
-  for (const auto &entry : for_each_json(options.at(""), parse_ignore(options),
-                                         parse_extensions(options))) {
+  for (const auto &entry :
+       for_each_json(get_positional_arguments(options), parse_ignore(options),
+                     parse_extensions(options))) {
     const sourcemeta::core::JSON test{
         sourcemeta::jsonschema::cli::read_file(entry.first)};
     std::cout << entry.first.string() << ":";

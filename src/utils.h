@@ -64,6 +64,10 @@ auto default_dialect(
     const std::map<std::string, std::vector<std::string>> &options)
     -> std::optional<std::string>;
 
+auto get_positional_arguments(
+    const std::map<std::string, std::vector<std::string>> &options)
+    -> const std::vector<std::string> &;
+
 } // namespace sourcemeta::jsonschema::cli
 
 #endif
