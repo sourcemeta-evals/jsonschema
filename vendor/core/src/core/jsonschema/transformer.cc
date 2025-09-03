@@ -144,17 +144,18 @@ auto SchemaTransformer::apply(
     JSON &schema, const SchemaWalker &walker, const SchemaResolver &resolver,
     const SchemaTransformer::Callback &callback,
     const std::optional<JSON::String> &default_dialect,
-    const std::optional<JSON::String> &default_id) const -> bool {
+    const std::optional<JSON::String> &default_id) const -> std::pair<bool, bool> {
   // There is no point in applying an empty bundle
   assert(!this->rules.empty());
   std::set<std::pair<Pointer, JSON::String>> processed_rules;
 
   bool result{true};
+  bool applied{false};
   while (true) {
     SchemaFrame frame{SchemaFrame::Mode::References};
     frame.analyse(schema, walker, resolver, default_dialect, default_id);
 
-    bool applied{false};
+    bool iteration_applied{false};
     for (const auto &entry : frame.locations()) {
       if (entry.second.type != SchemaFrame::LocationType::Resource &&
           entry.second.type != SchemaFrame::LocationType::Subschema) {
@@ -170,7 +171,8 @@ auto SchemaTransformer::apply(
                                          entry.second)};
         // This means the rule is fixable
         if (subresult.first) {
-          applied = is_true(subresult.second) || applied;
+          iteration_applied = is_true(subresult.second) || iteration_applied;
+          applied = iteration_applied || applied;
         } else {
           result = false;
           callback(entry.second.pointer, name, rule->message(),
@@ -179,7 +181,7 @@ auto SchemaTransformer::apply(
                        : *std::get_if<std::string>(&subresult.second));
         }
 
-        if (!applied) {
+        if (!iteration_applied) {
           continue;
         }
 
@@ -227,12 +229,12 @@ auto SchemaTransformer::apply(
     }
 
   core_transformer_start_again:
-    if (!applied) {
+    if (!iteration_applied) {
       break;
     }
   }
 
-  return result;
+  return {result, applied};
 }
 
 auto SchemaTransformer::remove(const std::string &name) -> bool {
