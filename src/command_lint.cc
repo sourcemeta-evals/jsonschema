@@ -151,6 +151,7 @@ auto sourcemeta::jsonschema::cli::lint(
       }
 
       auto copy = entry.second;
+      bool transformations_applied = false;
 
       try {
         bundle.apply(
@@ -158,15 +159,18 @@ auto sourcemeta::jsonschema::cli::lint(
             resolver(options, options.contains("h") || options.contains("http"),
                      dialect),
             get_lint_callback(errors_array, entry.first, output_json), dialect,
-            sourcemeta::core::URI::from_path(entry.first).recompose());
+            sourcemeta::core::URI::from_path(entry.first).recompose(),
+            transformations_applied);
       } catch (const sourcemeta::core::SchemaUnknownBaseDialectError &) {
         throw FileError<sourcemeta::core::SchemaUnknownBaseDialectError>(
             entry.first);
       }
 
-      std::ofstream output{entry.first};
-      sourcemeta::core::prettify(copy, output);
-      output << "\n";
+      if (transformations_applied) {
+        std::ofstream output{entry.first};
+        sourcemeta::core::prettify(copy, output);
+        output << "\n";
+      }
     }
   } else {
     for (const auto &entry :

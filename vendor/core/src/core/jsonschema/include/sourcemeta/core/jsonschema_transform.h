@@ -235,6 +235,13 @@ public:
              const std::optional<JSON::String> &default_id = std::nullopt) const
       -> bool;
 
+  /// Apply the bundle of rules to a schema and return transformation status
+  auto apply(JSON &schema, const SchemaWalker &walker,
+             const SchemaResolver &resolver, const Callback &callback,
+             const std::optional<JSON::String> &default_dialect,
+             const std::optional<JSON::String> &default_id,
+             bool &transformations_applied) const -> bool;
+
   /// Report back the rules from the bundle that need to be applied to a schema
   auto check(const JSON &schema, const SchemaWalker &walker,
              const SchemaResolver &resolver, const Callback &callback,

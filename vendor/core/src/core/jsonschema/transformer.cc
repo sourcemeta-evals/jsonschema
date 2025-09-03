@@ -235,6 +235,92 @@ auto SchemaTransformer::apply(
   return result;
 }
 
+auto SchemaTransformer::apply(
+    JSON &schema, const SchemaWalker &walker, const SchemaResolver &resolver,
+    const SchemaTransformer::Callback &callback,
+    const std::optional<JSON::String> &default_dialect,
+    const std::optional<JSON::String> &default_id,
+    bool &transformations_applied) const -> bool {
+  assert(!this->rules.empty());
+  std::set<std::pair<Pointer, JSON::String>> processed_rules;
+
+  bool result{true};
+  transformations_applied = false;
+  while (true) {
+    SchemaFrame frame{SchemaFrame::Mode::References};
+    frame.analyse(schema, walker, resolver, default_dialect, default_id);
+
+    bool applied{false};
+    for (const auto &entry : frame.locations()) {
+      if (entry.second.type != SchemaFrame::LocationType::Resource &&
+          entry.second.type != SchemaFrame::LocationType::Subschema) {
+        continue;
+      }
+
+      auto &current{get(schema, entry.second.pointer)};
+      const auto current_vocabularies{
+          vocabularies(schema, resolver, entry.second.dialect)};
+      for (const auto &[name, rule] : this->rules) {
+        const auto subresult{rule->apply(current, schema, current_vocabularies,
+                                         walker, resolver, frame,
+                                         entry.second)};
+        if (subresult.first) {
+          applied = is_true(subresult.second) || applied;
+        } else {
+          result = false;
+          callback(entry.second.pointer, name, rule->message(),
+                   subresult.second.index() == 0
+                       ? ""
+                       : *std::get_if<std::string>(&subresult.second));
+        }
+
+        if (!applied) {
+          continue;
+        }
+
+        if (processed_rules.contains({entry.second.pointer, name})) {
+          std::ostringstream error;
+          error << "Rules must only be processed once: " << name;
+          throw std::runtime_error(error.str());
+        }
+
+        for (const auto &reference : frame.references()) {
+          const auto destination{frame.traverse(reference.second.destination)};
+          if (!destination.has_value() ||
+              !reference.second.fragment.has_value() ||
+              !reference.second.fragment.value().starts_with('/')) {
+            continue;
+          }
+
+          const auto &target{destination.value().get().pointer};
+          if (try_get(schema, target)) {
+            continue;
+          }
+
+          const auto new_fragment{rule->rereference(
+              reference.second.destination, reference.first.second, target,
+              entry.second.pointer)};
+
+          URI original{reference.second.original};
+          original.fragment(to_string(new_fragment));
+          set(schema, reference.first.second, JSON{original.recompose()});
+        }
+
+        processed_rules.emplace(entry.second.pointer, name);
+        goto core_transformer_start_again;
+      }
+    }
+
+  core_transformer_start_again:
+    if (!applied) {
+      break;
+    }
+    transformations_applied = true;
+  }
+
+  return result;
+}
+
 auto SchemaTransformer::remove(const std::string &name) -> bool {
   return this->rules.erase(name) > 0;
 }
