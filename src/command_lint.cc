@@ -140,6 +140,23 @@ auto sourcemeta::jsonschema::cli::lint(
   const auto dialect{default_dialect(options)};
 
   if (options.contains("f") || options.contains("fix")) {
+    sourcemeta::core::SchemaTransformer lint_only_bundle;
+    lint_only_bundle.add<sourcemeta::blaze::ValidExamples>(
+        sourcemeta::blaze::default_schema_compiler);
+    lint_only_bundle.add<sourcemeta::blaze::ValidDefault>(
+        sourcemeta::blaze::default_schema_compiler);
+
+    if (options.contains("exclude")) {
+      disable_lint_rules(lint_only_bundle, options,
+                         options.at("exclude").cbegin(),
+                         options.at("exclude").cend());
+    }
+
+    if (options.contains("x")) {
+      disable_lint_rules(lint_only_bundle, options, options.at("x").cbegin(),
+                         options.at("x").cend());
+    }
+
     for (const auto &entry :
          for_each_json(options.at(""), parse_ignore(options),
                        parse_extensions(options))) {
@@ -151,6 +168,19 @@ auto sourcemeta::jsonschema::cli::lint(
       }
 
       auto copy = entry.second;
+
+      bool lint_warnings_found = false;
+      try {
+        lint_warnings_found = !lint_only_bundle.check(
+            copy, sourcemeta::core::schema_official_walker,
+            resolver(options, options.contains("h") || options.contains("http"),
+                     dialect),
+            [](const auto &, const auto &, const auto &, const auto &) {},
+            dialect, sourcemeta::core::URI::from_path(entry.first).recompose());
+      } catch (...) {
+        // If checking fails (e.g., invalid schema), assume no lint warnings
+        lint_warnings_found = false;
+      }
 
       try {
         bundle.apply(
@@ -164,9 +194,11 @@ auto sourcemeta::jsonschema::cli::lint(
             entry.first);
       }
 
-      std::ofstream output{entry.first};
-      sourcemeta::core::prettify(copy, output);
-      output << "\n";
+      if (lint_warnings_found || copy != entry.second) {
+        std::ofstream output{entry.first};
+        sourcemeta::core::prettify(copy, output);
+        output << "\n";
+      }
     }
   } else {
     for (const auto &entry :
