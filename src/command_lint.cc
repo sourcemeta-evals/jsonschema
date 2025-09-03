@@ -152,8 +152,12 @@ auto sourcemeta::jsonschema::cli::lint(
 
       auto copy = entry.second;
 
+      // Store original schema for comparison
+      auto original = entry.second;
+
+      bool changes_applied = false;
       try {
-        bundle.apply(
+        changes_applied = bundle.apply(
             copy, sourcemeta::core::schema_official_walker,
             resolver(options, options.contains("h") || options.contains("http"),
                      dialect),
@@ -164,9 +168,12 @@ auto sourcemeta::jsonschema::cli::lint(
             entry.first);
       }
 
-      std::ofstream output{entry.first};
-      sourcemeta::core::prettify(copy, output);
-      output << "\n";
+      // Only write if actual changes were made AND the schema content differs
+      if (changes_applied && original != copy) {
+        std::ofstream output{entry.first};
+        sourcemeta::core::prettify(copy, output);
+        output << "\n";
+      }
     }
   } else {
     for (const auto &entry :
