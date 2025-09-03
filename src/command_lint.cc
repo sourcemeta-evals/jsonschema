@@ -16,14 +16,19 @@
 template <typename Options, typename Iterator>
 static auto disable_lint_rules(sourcemeta::core::SchemaTransformer &bundle,
                                const Options &options, Iterator first,
-                               Iterator last) -> void {
+                               Iterator last, bool show_warnings = true)
+    -> void {
   for (auto iterator = first; iterator != last; ++iterator) {
     if (bundle.remove(*iterator)) {
-      sourcemeta::jsonschema::cli::log_verbose(options)
-          << "Disabling rule: " << *iterator << "\n";
+      if (show_warnings) {
+        sourcemeta::jsonschema::cli::log_verbose(options)
+            << "Disabling rule: " << *iterator << "\n";
+      }
     } else {
-      sourcemeta::jsonschema::cli::log_verbose(options)
-          << "warning: Cannot exclude unknown rule: " << *iterator << "\n";
+      if (show_warnings) {
+        sourcemeta::jsonschema::cli::log_verbose(options)
+            << "warning: Cannot exclude unknown rule: " << *iterator << "\n";
+      }
     }
   }
 }
@@ -91,29 +96,56 @@ auto sourcemeta::jsonschema::cli::lint(
       parse_options(arguments, {"f", "fix", "json", "j", "l", "list"})};
   const bool output_json = options.contains("json") || options.contains("j");
 
-  sourcemeta::core::SchemaTransformer bundle;
-  sourcemeta::core::add(bundle, sourcemeta::core::AlterSchemaMode::Readability);
+  sourcemeta::core::SchemaTransformer lint_bundle;
+  sourcemeta::core::SchemaTransformer readability_bundle;
+  sourcemeta::core::add(readability_bundle,
+                        sourcemeta::core::AlterSchemaMode::Readability);
 
-  bundle.add<sourcemeta::blaze::ValidExamples>(
+  lint_bundle.add<sourcemeta::blaze::ValidExamples>(
       sourcemeta::blaze::default_schema_compiler);
-  bundle.add<sourcemeta::blaze::ValidDefault>(
+  lint_bundle.add<sourcemeta::blaze::ValidDefault>(
       sourcemeta::blaze::default_schema_compiler);
 
   if (options.contains("exclude")) {
-    disable_lint_rules(bundle, options, options.at("exclude").cbegin(),
-                       options.at("exclude").cend());
+    for (auto iterator = options.at("exclude").cbegin();
+         iterator != options.at("exclude").cend(); ++iterator) {
+      const bool removed_from_lint = lint_bundle.remove(*iterator);
+      const bool removed_from_readability =
+          readability_bundle.remove(*iterator);
+      if (removed_from_lint || removed_from_readability) {
+        sourcemeta::jsonschema::cli::log_verbose(options)
+            << "Disabling rule: " << *iterator << "\n";
+      } else {
+        sourcemeta::jsonschema::cli::log_verbose(options)
+            << "warning: Cannot exclude unknown rule: " << *iterator << "\n";
+      }
+    }
   }
 
   if (options.contains("x")) {
-    disable_lint_rules(bundle, options, options.at("x").cbegin(),
-                       options.at("x").cend());
+    for (auto iterator = options.at("x").cbegin();
+         iterator != options.at("x").cend(); ++iterator) {
+      const bool removed_from_lint = lint_bundle.remove(*iterator);
+      const bool removed_from_readability =
+          readability_bundle.remove(*iterator);
+      if (removed_from_lint || removed_from_readability) {
+        sourcemeta::jsonschema::cli::log_verbose(options)
+            << "Disabling rule: " << *iterator << "\n";
+      } else {
+        sourcemeta::jsonschema::cli::log_verbose(options)
+            << "warning: Cannot exclude unknown rule: " << *iterator << "\n";
+      }
+    }
   }
 
   if (options.contains("list") || options.contains("l")) {
     std::vector<std::pair<std::reference_wrapper<const std::string>,
                           std::reference_wrapper<const std::string>>>
         rules;
-    for (const auto &entry : bundle) {
+    for (const auto &entry : lint_bundle) {
+      rules.emplace_back(entry.first, entry.second->message());
+    }
+    for (const auto &entry : readability_bundle) {
       rules.emplace_back(entry.first, entry.second->message());
     }
 
@@ -153,20 +185,34 @@ auto sourcemeta::jsonschema::cli::lint(
       auto copy = entry.second;
 
       try {
-        bundle.apply(
+        auto original_copy = copy;
+        lint_bundle.apply(
             copy, sourcemeta::core::schema_official_walker,
             resolver(options, options.contains("h") || options.contains("http"),
                      dialect),
             get_lint_callback(errors_array, entry.first, output_json), dialect,
             sourcemeta::core::URI::from_path(entry.first).recompose());
+        const bool lint_changes_applied = (copy != original_copy);
+
+        auto copy_after_lint = copy;
+        readability_bundle.apply(
+            copy, sourcemeta::core::schema_official_walker,
+            resolver(options, options.contains("h") || options.contains("http"),
+                     dialect),
+            get_lint_callback(errors_array, entry.first, output_json), dialect,
+            sourcemeta::core::URI::from_path(entry.first).recompose());
+        const bool readability_changes_applied = (copy != copy_after_lint);
+
+        // Only write the file if either lint or readability rules made changes
+        if (lint_changes_applied || readability_changes_applied) {
+          std::ofstream output{entry.first};
+          sourcemeta::core::prettify(copy, output);
+          output << "\n";
+        }
       } catch (const sourcemeta::core::SchemaUnknownBaseDialectError &) {
         throw FileError<sourcemeta::core::SchemaUnknownBaseDialectError>(
             entry.first);
       }
-
-      std::ofstream output{entry.first};
-      sourcemeta::core::prettify(copy, output);
-      output << "\n";
     }
   } else {
     for (const auto &entry :
@@ -174,12 +220,19 @@ auto sourcemeta::jsonschema::cli::lint(
                        parse_extensions(options))) {
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
       try {
-        const bool subresult = bundle.check(
+        const bool lint_result = lint_bundle.check(
             entry.second, sourcemeta::core::schema_official_walker,
             resolver(options, options.contains("h") || options.contains("http"),
                      dialect),
             get_lint_callback(errors_array, entry.first, output_json), dialect,
             sourcemeta::core::URI::from_path(entry.first).recompose());
+        const bool readability_result = readability_bundle.check(
+            entry.second, sourcemeta::core::schema_official_walker,
+            resolver(options, options.contains("h") || options.contains("http"),
+                     dialect),
+            get_lint_callback(errors_array, entry.first, output_json), dialect,
+            sourcemeta::core::URI::from_path(entry.first).recompose());
+        const bool subresult = lint_result && readability_result;
         if (!subresult) {
           result = false;
         }
