@@ -144,12 +144,13 @@ auto SchemaTransformer::apply(
     JSON &schema, const SchemaWalker &walker, const SchemaResolver &resolver,
     const SchemaTransformer::Callback &callback,
     const std::optional<JSON::String> &default_dialect,
-    const std::optional<JSON::String> &default_id) const -> bool {
+    const std::optional<JSON::String> &default_id) const -> std::pair<bool, bool> {
   // There is no point in applying an empty bundle
   assert(!this->rules.empty());
   std::set<std::pair<Pointer, JSON::String>> processed_rules;
 
   bool result{true};
+  bool applied_any_transformations{false};
   while (true) {
     SchemaFrame frame{SchemaFrame::Mode::References};
     frame.analyse(schema, walker, resolver, default_dialect, default_id);
@@ -170,7 +171,9 @@ auto SchemaTransformer::apply(
                                          entry.second)};
         // This means the rule is fixable
         if (subresult.first) {
-          applied = is_true(subresult.second) || applied;
+          const bool rule_applied = is_true(subresult.second);
+          applied = rule_applied || applied;
+          applied_any_transformations = rule_applied || applied_any_transformations;
         } else {
           result = false;
           callback(entry.second.pointer, name, rule->message(),
@@ -232,7 +235,7 @@ auto SchemaTransformer::apply(
     }
   }
 
-  return result;
+  return {result, applied_any_transformations};
 }
 
 auto SchemaTransformer::remove(const std::string &name) -> bool {
