@@ -39,6 +39,7 @@ auto handle_json_entry(
     const std::filesystem::path &entry_path,
     const std::set<std::filesystem::path> &blacklist,
     const std::set<std::string> &extensions,
+    const std::map<std::string, std::vector<std::string>> &options,
     std::vector<std::pair<std::filesystem::path, sourcemeta::core::JSON>>
         &result) -> void {
   if (std::filesystem::is_directory(entry_path)) {
@@ -60,7 +61,6 @@ auto handle_json_entry(
           continue;
         }
 
-        // TODO: Print a verbose message for what is getting parsed
         result.emplace_back(canonical,
                             sourcemeta::jsonschema::cli::read_file(canonical));
       }
@@ -87,7 +87,6 @@ auto handle_json_entry(
         return;
       }
 
-      // TODO: Print a verbose message for what is getting parsed
       result.emplace_back(canonical,
                           sourcemeta::jsonschema::cli::read_file(canonical));
     }
@@ -116,18 +115,20 @@ auto read_file(const std::filesystem::path &path) -> sourcemeta::core::JSON {
   return sourcemeta::core::read_json(path);
 }
 
-auto for_each_json(const std::vector<std::string> &arguments,
-                   const std::set<std::filesystem::path> &blacklist,
-                   const std::set<std::string> &extensions)
+auto for_each_json(
+    const std::vector<std::string> &arguments,
+    const std::set<std::filesystem::path> &blacklist,
+    const std::set<std::string> &extensions,
+    const std::map<std::string, std::vector<std::string>> &options)
     -> std::vector<std::pair<std::filesystem::path, sourcemeta::core::JSON>> {
   std::vector<std::pair<std::filesystem::path, sourcemeta::core::JSON>> result;
 
   if (arguments.empty()) {
     handle_json_entry(std::filesystem::current_path(), blacklist, extensions,
-                      result);
+                      options, result);
   } else {
     for (const auto &entry : arguments) {
-      handle_json_entry(entry, blacklist, extensions, result);
+      handle_json_entry(entry, blacklist, extensions, options, result);
     }
   }
 
@@ -322,7 +323,7 @@ auto resolver(const std::map<std::string, std::vector<std::string>> &options,
   if (options.contains("resolve")) {
     for (const auto &entry :
          for_each_json(options.at("resolve"), parse_ignore(options),
-                       parse_extensions(options))) {
+                       parse_extensions(options), options)) {
       log_verbose(options) << "Detecting schema resources from file: "
                            << entry.first.string() << "\n";
       const auto result = dynamic_resolver.add(
@@ -344,7 +345,7 @@ auto resolver(const std::map<std::string, std::vector<std::string>> &options,
   if (options.contains("r")) {
     for (const auto &entry :
          for_each_json(options.at("r"), parse_ignore(options),
-                       parse_extensions(options))) {
+                       parse_extensions(options), options)) {
       log_verbose(options) << "Detecting schema resources from file: "
                            << entry.first.string() << "\n";
       const auto result = dynamic_resolver.add(
@@ -418,7 +419,7 @@ auto parse_ignore(
   }
 
   if (options.contains("i")) {
-    for (const auto &ignore : options.at("e")) {
+    for (const auto &ignore : options.at("i")) {
       const auto canonical{std::filesystem::weakly_canonical(ignore)};
       log_verbose(options) << "Ignoring path: " << canonical << "\n";
       result.insert(canonical);

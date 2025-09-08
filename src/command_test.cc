@@ -51,7 +51,7 @@ auto sourcemeta::jsonschema::cli::test(
   sourcemeta::blaze::Evaluator evaluator;
 
   for (const auto &entry : for_each_json(options.at(""), parse_ignore(options),
-                                         parse_extensions(options))) {
+                                         parse_extensions(options), options)) {
     const sourcemeta::core::JSON test{
         sourcemeta::jsonschema::cli::read_file(entry.first)};
     std::cout << entry.first.string() << ":";

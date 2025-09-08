@@ -116,7 +116,7 @@ auto sourcemeta::jsonschema::cli::lint(
   if (options.contains("f") || options.contains("fix")) {
     for (const auto &entry :
          for_each_json(options.at(""), parse_ignore(options),
-                       parse_extensions(options))) {
+                       parse_extensions(options), options)) {
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
       if (entry.first.extension() == ".yaml" ||
           entry.first.extension() == ".yml") {
@@ -142,7 +142,7 @@ auto sourcemeta::jsonschema::cli::lint(
   } else {
     for (const auto &entry :
          for_each_json(options.at(""), parse_ignore(options),
-                       parse_extensions(options))) {
+                       parse_extensions(options), options)) {
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
       const bool subresult = bundle.check(
           entry.second, sourcemeta::core::schema_official_walker,

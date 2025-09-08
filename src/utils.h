@@ -25,9 +25,11 @@ auto parse_options(const std::span<const std::string> &arguments,
                    const std::set<std::string> &flags)
     -> std::map<std::string, std::vector<std::string>>;
 
-auto for_each_json(const std::vector<std::string> &arguments,
-                   const std::set<std::filesystem::path> &blacklist,
-                   const std::set<std::string> &extensions)
+auto for_each_json(
+    const std::vector<std::string> &arguments,
+    const std::set<std::filesystem::path> &blacklist,
+    const std::set<std::string> &extensions,
+    const std::map<std::string, std::vector<std::string>> &options)
     -> std::vector<std::pair<std::filesystem::path, sourcemeta::core::JSON>>;
 
 auto print(const sourcemeta::blaze::SimpleOutput &output, std::ostream &stream)
