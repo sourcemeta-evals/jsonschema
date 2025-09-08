@@ -27,8 +27,15 @@ auto sourcemeta::jsonschema::cli::metaschema(
 
   std::map<std::string, sourcemeta::blaze::Template> cache;
 
-  for (const auto &entry : for_each_json(options.at(""), parse_ignore(options),
-                                         parse_extensions(options))) {
+  // If no positional arguments provided, use current directory
+  std::vector<std::string> paths;
+  if (options.contains("") && !options.at("").empty()) {
+    paths.assign(options.at("").begin(), options.at("").end());
+  } else {
+    paths.push_back(".");
+  }
+  for (const auto &entry :
+       for_each_json(paths, parse_ignore(options), parse_extensions(options))) {
     if (!sourcemeta::core::is_schema(entry.second)) {
       std::cerr << "error: The schema file you provided does not represent a "
                    "valid JSON Schema\n  "
@@ -74,11 +81,23 @@ auto sourcemeta::jsonschema::cli::metaschema(
       sourcemeta::blaze::TraceOutput output{
           sourcemeta::core::schema_official_walker, custom_resolver,
           sourcemeta::core::empty_weak_pointer, frame};
+      if (!cache.contains(dialect.value())) {
+        std::cerr << "error: Internal error - metaschema template not found "
+                     "for dialect: "
+                  << dialect.value() << "\n";
+        return EXIT_FAILURE;
+      }
       result = evaluator.validate(cache.at(dialect.value()), entry.second,
                                   std::ref(output));
       print(output, std::cout);
     } else {
       sourcemeta::blaze::SimpleOutput output{entry.second};
+      if (!cache.contains(dialect.value())) {
+        std::cerr << "error: Internal error - metaschema template not found "
+                     "for dialect: "
+                  << dialect.value() << "\n";
+        return EXIT_FAILURE;
+      }
       if (evaluator.validate(cache.at(dialect.value()), entry.second,
                              std::ref(output))) {
         log_verbose(options)

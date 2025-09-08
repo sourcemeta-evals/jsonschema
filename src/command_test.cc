@@ -50,6 +50,10 @@ auto sourcemeta::jsonschema::cli::test(
   const auto verbose{options.contains("verbose") || options.contains("v")};
   sourcemeta::blaze::Evaluator evaluator;
 
+  if (!options.contains("") || options.at("").empty()) {
+    std::cerr << "error: No test files or directories specified\n";
+    return EXIT_FAILURE;
+  }
   for (const auto &entry : for_each_json(options.at(""), parse_ignore(options),
                                          parse_extensions(options))) {
     const sourcemeta::core::JSON test{
