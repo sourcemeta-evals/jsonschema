@@ -114,8 +114,10 @@ auto sourcemeta::jsonschema::cli::lint(
   const auto dialect{default_dialect(options)};
 
   if (options.contains("f") || options.contains("fix")) {
+    const auto &positional_args =
+        options.contains("") ? options.at("") : std::vector<std::string>{};
     for (const auto &entry :
-         for_each_json(options.at(""), parse_ignore(options),
+         for_each_json(positional_args, parse_ignore(options),
                        parse_extensions(options))) {
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
       if (entry.first.extension() == ".yaml" ||
@@ -140,8 +142,10 @@ auto sourcemeta::jsonschema::cli::lint(
       output << "\n";
     }
   } else {
+    const auto &positional_args =
+        options.contains("") ? options.at("") : std::vector<std::string>{};
     for (const auto &entry :
-         for_each_json(options.at(""), parse_ignore(options),
+         for_each_json(positional_args, parse_ignore(options),
                        parse_extensions(options))) {
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
       const bool subresult = bundle.check(
