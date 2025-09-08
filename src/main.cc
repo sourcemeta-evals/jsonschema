@@ -208,6 +208,11 @@ auto main(int argc, char *argv[]) noexcept -> int {
     }
 
     return EXIT_FAILURE;
+  } catch (const std::out_of_range &error) {
+    std::cerr << "error: Internal options parsing error\n";
+    std::cerr << "This might be caused by missing command arguments or invalid "
+                 "option usage\n";
+    return EXIT_FAILURE;
   } catch (const std::runtime_error &error) {
     std::cerr << "error: " << error.what() << "\n";
     return EXIT_FAILURE;
