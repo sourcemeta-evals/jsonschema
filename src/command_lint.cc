@@ -5,10 +5,11 @@
 
 #include <sourcemeta/blaze/linter.h>
 
-#include <cstdlib>  // EXIT_SUCCESS, EXIT_FAILURE
-#include <fstream>  // std::ofstream
-#include <iostream> // std::cerr, std::cout
-#include <sstream>  // std::ostringstream
+#include <cstdlib>   // EXIT_SUCCESS, EXIT_FAILURE
+#include <fstream>   // std::ofstream
+#include <iostream>  // std::cerr, std::cout
+#include <sstream>   // std::ostringstream
+#include <stdexcept> // std::out_of_range
 
 #include "command.h"
 #include "utils.h"
@@ -125,11 +126,21 @@ auto sourcemeta::jsonschema::cli::lint(
       }
 
       auto copy = entry.second;
-      bundle.apply(
-          copy, sourcemeta::core::schema_official_walker,
-          resolver(options, options.contains("h") || options.contains("http"),
-                   dialect),
-          get_lint_callback(errors_array, entry.first, output_json), dialect);
+      try {
+        bundle.apply(
+            copy, sourcemeta::core::schema_official_walker,
+            resolver(options, options.contains("h") || options.contains("http"),
+                     dialect),
+            get_lint_callback(errors_array, entry.first, output_json), dialect);
+      } catch (const std::out_of_range &error) {
+        std::cerr << "error: Internal data structure access failed while "
+                     "processing file: "
+                  << entry.first.string() << "\n";
+        std::cerr << "Details: " << error.what() << "\n";
+        std::cerr << "Please report this issue at "
+                     "https://github.com/sourcemeta/jsonschema\n";
+        return EXIT_FAILURE;
+      }
       std::ofstream output{entry.first};
       if (options.contains("k") || options.contains("keep-ordering")) {
         sourcemeta::core::prettify(copy, output);
@@ -144,11 +155,22 @@ auto sourcemeta::jsonschema::cli::lint(
          for_each_json(options.at(""), parse_ignore(options),
                        parse_extensions(options))) {
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
-      const bool subresult = bundle.check(
-          entry.second, sourcemeta::core::schema_official_walker,
-          resolver(options, options.contains("h") || options.contains("http"),
-                   dialect),
-          get_lint_callback(errors_array, entry.first, output_json), dialect);
+      bool subresult;
+      try {
+        subresult = bundle.check(
+            entry.second, sourcemeta::core::schema_official_walker,
+            resolver(options, options.contains("h") || options.contains("http"),
+                     dialect),
+            get_lint_callback(errors_array, entry.first, output_json), dialect);
+      } catch (const std::out_of_range &error) {
+        std::cerr << "error: Internal data structure access failed while "
+                     "processing file: "
+                  << entry.first.string() << "\n";
+        std::cerr << "Details: " << error.what() << "\n";
+        std::cerr << "Please report this issue at "
+                     "https://github.com/sourcemeta/jsonschema\n";
+        return EXIT_FAILURE;
+      }
 
       if (!subresult) {
         result = false;
