@@ -5,6 +5,7 @@
 #include <filesystem>  // std::filesystem
 #include <iostream>    // std::cerr, std::cout
 #include <span>        // std::span
+#include <stdexcept>   // std::out_of_range
 #include <string>      // std::string
 #include <string_view> // std::string_view
 #include <vector>      // std::vector
@@ -187,6 +188,12 @@ auto main(int argc, char *argv[]) noexcept -> int {
   } catch (const sourcemeta::core::JSONParseError &error) {
     std::cerr << "error: " << error.what() << " at line " << error.line()
               << " and column " << error.column() << "\n";
+    return EXIT_FAILURE;
+  } catch (const std::out_of_range &error) {
+    std::cerr << "error: Schema processing failed - " << error.what() << "\n";
+    std::cerr
+        << "This may indicate an invalid schema or missing schema reference.\n";
+    std::cerr << "Please ensure all schemas are valid JSON Schema documents.\n";
     return EXIT_FAILURE;
   } catch (const std::filesystem::filesystem_error &error) {
     // See https://en.cppreference.com/w/cpp/error/errc
