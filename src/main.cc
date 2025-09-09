@@ -208,6 +208,12 @@ auto main(int argc, char *argv[]) noexcept -> int {
     }
 
     return EXIT_FAILURE;
+  } catch (const std::out_of_range &error) {
+    std::cerr << "unexpected error: " << error.what()
+              << "\nThis may indicate an internal bug in option parsing."
+              << "\nPlease report it at "
+              << "https://github.com/sourcemeta/jsonschema\n";
+    return EXIT_FAILURE;
   } catch (const std::runtime_error &error) {
     std::cerr << "error: " << error.what() << "\n";
     return EXIT_FAILURE;
