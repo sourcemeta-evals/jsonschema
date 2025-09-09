@@ -113,6 +113,15 @@ auto sourcemeta::jsonschema::cli::lint(
   auto errors_array = sourcemeta::core::JSON::make_array();
   const auto dialect{default_dialect(options)};
 
+  if (!options.contains("") || options.at("").empty()) {
+    std::cerr << "error: This command expects at least one schema file or "
+                 "directory\n";
+    std::cerr << "For example:\n\n";
+    std::cerr << "  jsonschema lint path/to/schema.json\n";
+    std::cerr << "  jsonschema lint path/to/schemas/\n";
+    return EXIT_FAILURE;
+  }
+
   if (options.contains("f") || options.contains("fix")) {
     for (const auto &entry :
          for_each_json(options.at(""), parse_ignore(options),
