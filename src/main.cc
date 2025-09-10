@@ -212,8 +212,13 @@ auto main(int argc, char *argv[]) noexcept -> int {
     std::cerr << "error: " << error.what() << "\n";
     return EXIT_FAILURE;
   } catch (const std::exception &error) {
-    std::cerr << "unexpected error: " << error.what()
-              << "\nPlease report it at "
+    std::cerr << "unexpected error: " << error.what();
+    if (std::string(error.what()).find("map::at") != std::string::npos) {
+      std::cerr << "\nThis may be caused by an invalid command line option or "
+                   "internal bug.";
+      std::cerr << "\nTry running with --verbose for more details.";
+    }
+    std::cerr << "\nPlease report it at "
               << "https://github.com/sourcemeta/jsonschema\n";
     return EXIT_FAILURE;
   }
