@@ -208,6 +208,16 @@ auto main(int argc, char *argv[]) noexcept -> int {
     }
 
     return EXIT_FAILURE;
+  } catch (const std::out_of_range &error) {
+    std::cerr << "error: Internal options parsing error: " << error.what()
+              << "\n";
+    std::cerr << "This may be caused by an invalid command line argument "
+                 "combination.\n";
+    std::cerr << "Try using --verbose/-v for more detailed output, or report "
+                 "this issue at\n";
+    std::cerr << "https://github.com/sourcemeta/jsonschema with the exact "
+                 "command you used.\n";
+    return EXIT_FAILURE;
   } catch (const std::runtime_error &error) {
     std::cerr << "error: " << error.what() << "\n";
     return EXIT_FAILURE;

@@ -117,7 +117,8 @@ auto sourcemeta::jsonschema::cli::lint(
     for (const auto &entry :
          for_each_json(options.at(""), parse_ignore(options),
                        parse_extensions(options))) {
-      log_verbose(options) << "Linting: " << entry.first.string() << "\n";
+      log_verbose(options) << "Processing file for linting (fix mode): "
+                           << entry.first.string() << "\n";
       if (entry.first.extension() == ".yaml" ||
           entry.first.extension() == ".yml") {
         std::cerr << "The --fix option is not supported for YAML input files\n";
@@ -143,7 +144,8 @@ auto sourcemeta::jsonschema::cli::lint(
     for (const auto &entry :
          for_each_json(options.at(""), parse_ignore(options),
                        parse_extensions(options))) {
-      log_verbose(options) << "Linting: " << entry.first.string() << "\n";
+      log_verbose(options) << "Processing file for linting (check mode): "
+                           << entry.first.string() << "\n";
       const bool subresult = bundle.check(
           entry.second, sourcemeta::core::schema_official_walker,
           resolver(options, options.contains("h") || options.contains("http"),

@@ -146,6 +146,7 @@ auto parse_options(const std::span<const std::string> &arguments,
   effective_flags.insert("verbose");
 
   options.insert({"", {}});
+  assert(options.contains(""));
   std::optional<std::string> current_option;
   for (const auto &argument : arguments) {
     // Long option
@@ -418,7 +419,7 @@ auto parse_ignore(
   }
 
   if (options.contains("i")) {
-    for (const auto &ignore : options.at("e")) {
+    for (const auto &ignore : options.at("i")) {
       const auto canonical{std::filesystem::weakly_canonical(ignore)};
       log_verbose(options) << "Ignoring path: " << canonical << "\n";
       result.insert(canonical);
@@ -440,11 +441,17 @@ auto default_dialect(
     -> std::optional<std::string> {
 
   if (options.contains("default-dialect")) {
-    return options.at("default-dialect").front();
+    const auto &values = options.at("default-dialect");
+    if (!values.empty()) {
+      return values.front();
+    }
   }
 
   if (options.contains("d")) {
-    return options.at("d").front();
+    const auto &values = options.at("d");
+    if (!values.empty()) {
+      return values.front();
+    }
   }
 
   return std::nullopt;
