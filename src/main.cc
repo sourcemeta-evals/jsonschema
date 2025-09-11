@@ -208,6 +208,14 @@ auto main(int argc, char *argv[]) noexcept -> int {
     }
 
     return EXIT_FAILURE;
+  } catch (const std::out_of_range &error) {
+    std::cerr << "error: Internal error accessing configuration options: "
+              << error.what() << "\n";
+    std::cerr
+        << "This might indicate a bug in the command-line argument parsing.\n";
+    std::cerr << "Please report this issue at "
+                 "https://github.com/sourcemeta/jsonschema\n";
+    return EXIT_FAILURE;
   } catch (const std::runtime_error &error) {
     std::cerr << "error: " << error.what() << "\n";
     return EXIT_FAILURE;
