@@ -113,47 +113,57 @@ auto sourcemeta::jsonschema::cli::lint(
   auto errors_array = sourcemeta::core::JSON::make_array();
   const auto dialect{default_dialect(options)};
 
-  if (options.contains("f") || options.contains("fix")) {
-    for (const auto &entry :
-         for_each_json(options.at(""), parse_ignore(options),
-                       parse_extensions(options))) {
-      log_verbose(options) << "Linting: " << entry.first.string() << "\n";
-      if (entry.first.extension() == ".yaml" ||
-          entry.first.extension() == ".yml") {
-        std::cerr << "The --fix option is not supported for YAML input files\n";
-        return EXIT_FAILURE;
-      }
+  try {
+    if (options.contains("f") || options.contains("fix")) {
+      for (const auto &entry :
+           for_each_json(options.at(""), parse_ignore(options),
+                         parse_extensions(options))) {
+        log_verbose(options) << "Linting: " << entry.first.string() << "\n";
+        if (entry.first.extension() == ".yaml" ||
+            entry.first.extension() == ".yml") {
+          std::cerr
+              << "The --fix option is not supported for YAML input files\n";
+          return EXIT_FAILURE;
+        }
 
-      auto copy = entry.second;
-      bundle.apply(
-          copy, sourcemeta::core::schema_official_walker,
-          resolver(options, options.contains("h") || options.contains("http"),
-                   dialect),
-          get_lint_callback(errors_array, entry.first, output_json), dialect);
-      std::ofstream output{entry.first};
-      if (options.contains("k") || options.contains("keep-ordering")) {
-        sourcemeta::core::prettify(copy, output);
-      } else {
-        sourcemeta::core::prettify(copy, output,
-                                   sourcemeta::core::schema_format_compare);
+        auto copy = entry.second;
+        bundle.apply(
+            copy, sourcemeta::core::schema_official_walker,
+            resolver(options, options.contains("h") || options.contains("http"),
+                     dialect),
+            get_lint_callback(errors_array, entry.first, output_json), dialect);
+        std::ofstream output{entry.first};
+        if (options.contains("k") || options.contains("keep-ordering")) {
+          sourcemeta::core::prettify(copy, output);
+        } else {
+          sourcemeta::core::prettify(copy, output,
+                                     sourcemeta::core::schema_format_compare);
+        }
+        output << "\n";
       }
-      output << "\n";
-    }
-  } else {
-    for (const auto &entry :
-         for_each_json(options.at(""), parse_ignore(options),
-                       parse_extensions(options))) {
-      log_verbose(options) << "Linting: " << entry.first.string() << "\n";
-      const bool subresult = bundle.check(
-          entry.second, sourcemeta::core::schema_official_walker,
-          resolver(options, options.contains("h") || options.contains("http"),
-                   dialect),
-          get_lint_callback(errors_array, entry.first, output_json), dialect);
+    } else {
+      for (const auto &entry :
+           for_each_json(options.at(""), parse_ignore(options),
+                         parse_extensions(options))) {
+        log_verbose(options) << "Linting: " << entry.first.string() << "\n";
+        const bool subresult = bundle.check(
+            entry.second, sourcemeta::core::schema_official_walker,
+            resolver(options, options.contains("h") || options.contains("http"),
+                     dialect),
+            get_lint_callback(errors_array, entry.first, output_json), dialect);
 
-      if (!subresult) {
-        result = false;
+        if (!subresult) {
+          result = false;
+        }
       }
     }
+  } catch (const std::out_of_range &error) {
+    std::cerr << "error: Internal configuration error during lint processing\n";
+    std::cerr << "This may be caused by invalid command line options or "
+                 "missing arguments\n";
+    log_verbose(options) << "Debug: std::out_of_range exception: "
+                         << error.what() << "\n";
+    return EXIT_FAILURE;
   }
 
   if (output_json) {
