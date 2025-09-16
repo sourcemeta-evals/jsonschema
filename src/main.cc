@@ -211,6 +211,14 @@ auto main(int argc, char *argv[]) noexcept -> int {
   } catch (const std::runtime_error &error) {
     std::cerr << "error: " << error.what() << "\n";
     return EXIT_FAILURE;
+  } catch (const std::out_of_range &error) {
+    std::cerr << "error: Internal processing error - " << error.what() << "\n";
+    std::cerr << "This may be caused by invalid JSON syntax (such as comments "
+                 "in JSON files)\n";
+    std::cerr << "Please verify that your input files contain valid JSON\n";
+    std::cerr << "Please report persistent issues at "
+              << "https://github.com/sourcemeta/jsonschema\n";
+    return EXIT_FAILURE;
   } catch (const std::exception &error) {
     std::cerr << "unexpected error: " << error.what()
               << "\nPlease report it at "
