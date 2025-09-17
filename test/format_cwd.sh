@@ -20,7 +20,7 @@ cat << 'EOF' > "$TMP/schema_2.json"
 EOF
 
 cd "$TMP"
-"$1" fmt
+"$1" fmt ./*.json
 
 cat << 'EOF' > "$TMP/expected_1.json"
 {

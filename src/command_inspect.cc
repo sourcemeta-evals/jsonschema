@@ -10,7 +10,7 @@
 auto sourcemeta::jsonschema::cli::inspect(
     const std::span<const std::string> &arguments) -> int {
   const auto options{parse_options(arguments, {})};
-  if (options.at("").size() < 1) {
+  if (!options.contains("") || options.at("").empty()) {
     std::cerr
         << "error: This command expects a path to a schema. For example:\n\n"
         << "  jsonschema inspect path/to/schema.json\n";
@@ -18,7 +18,7 @@ auto sourcemeta::jsonschema::cli::inspect(
   }
 
   const sourcemeta::core::JSON schema{
-      sourcemeta::jsonschema::cli::read_file(options.at("").front())};
+      sourcemeta::jsonschema::cli::read_file(options.at("")[0])};
 
   sourcemeta::core::SchemaFrame frame{
       sourcemeta::core::SchemaFrame::Mode::Instances};

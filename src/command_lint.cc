@@ -114,6 +114,11 @@ auto sourcemeta::jsonschema::cli::lint(
   const auto dialect{default_dialect(options)};
 
   if (options.contains("f") || options.contains("fix")) {
+    if (options.at("").empty()) {
+      std::cerr << "error: No input files specified for linting\n";
+      std::cerr << "Use '--help' for usage information\n";
+      return EXIT_FAILURE;
+    }
     for (const auto &entry :
          for_each_json(options.at(""), parse_ignore(options),
                        parse_extensions(options))) {
@@ -140,6 +145,11 @@ auto sourcemeta::jsonschema::cli::lint(
       output << "\n";
     }
   } else {
+    if (options.at("").empty()) {
+      std::cerr << "error: No input files specified for linting\n";
+      std::cerr << "Use '--help' for usage information\n";
+      return EXIT_FAILURE;
+    }
     for (const auto &entry :
          for_each_json(options.at(""), parse_ignore(options),
                        parse_extensions(options))) {

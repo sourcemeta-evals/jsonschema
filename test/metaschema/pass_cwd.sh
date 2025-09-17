@@ -22,7 +22,7 @@ cat << 'EOF' > "$TMP/schema_2.json"
 EOF
 
 cd "$TMP"
-"$1" metaschema --verbose > "$TMP/output.txt" 2>&1
+"$1" metaschema --verbose ./*.json > "$TMP/output.txt" 2>&1
 
 cat << EOF > "$TMP/expected.txt"
 ok: $(realpath "$TMP")/schema_1.json

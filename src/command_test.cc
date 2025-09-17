@@ -50,6 +50,11 @@ auto sourcemeta::jsonschema::cli::test(
   const auto verbose{options.contains("verbose") || options.contains("v")};
   sourcemeta::blaze::Evaluator evaluator;
 
+  if (options.at("").empty()) {
+    std::cerr << "error: No input files specified for testing\n";
+    std::cerr << "Use '--help' for usage information\n";
+    return EXIT_FAILURE;
+  }
   for (const auto &entry : for_each_json(options.at(""), parse_ignore(options),
                                          parse_extensions(options))) {
     const sourcemeta::core::JSON test{

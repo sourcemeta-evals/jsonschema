@@ -27,6 +27,12 @@ auto sourcemeta::jsonschema::cli::metaschema(
 
   std::map<std::string, sourcemeta::blaze::Template> cache;
 
+  if (options.at("").empty()) {
+    std::cerr << "error: No input files specified for metaschema validation\n";
+    std::cerr << "Use '--help' for usage information\n";
+    return EXIT_FAILURE;
+  }
+
   for (const auto &entry : for_each_json(options.at(""), parse_ignore(options),
                                          parse_extensions(options))) {
     if (!sourcemeta::core::is_schema(entry.second)) {

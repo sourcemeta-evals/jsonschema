@@ -22,7 +22,7 @@ auto sourcemeta::jsonschema::cli::validate(
   const auto options{parse_options(
       arguments, {"h", "http", "b", "benchmark", "t", "trace", "f", "fast"})};
 
-  if (options.at("").size() < 1) {
+  if (!options.contains("") || options.at("").size() < 2) {
     std::cerr
         << "error: This command expects a path to a schema and a path to an\n"
         << "instance to validate against the schema. For example:\n\n"
@@ -30,15 +30,7 @@ auto sourcemeta::jsonschema::cli::validate(
     return EXIT_FAILURE;
   }
 
-  if (options.at("").size() < 2) {
-    std::cerr
-        << "error: In addition to the schema, you must also pass an argument\n"
-        << "that represents the instance to validate against. For example:\n\n"
-        << "  jsonschema validate path/to/schema.json path/to/instance.json\n";
-    return EXIT_FAILURE;
-  }
-
-  const auto &schema_path{options.at("").at(0)};
+  const auto &schema_path{options.at("")[0]};
   const auto dialect{default_dialect(options)};
   const auto custom_resolver{resolver(
       options, options.contains("h") || options.contains("http"), dialect)};
