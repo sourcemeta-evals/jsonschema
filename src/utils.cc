@@ -40,7 +40,8 @@ auto handle_json_entry(
     const std::set<std::filesystem::path> &blacklist,
     const std::set<std::string> &extensions,
     std::vector<std::pair<std::filesystem::path, sourcemeta::core::JSON>>
-        &result) -> void {
+        &result,
+    const bool is_direct_file = false) -> void {
   if (std::filesystem::is_directory(entry_path)) {
     for (auto const &entry :
          std::filesystem::recursive_directory_iterator{entry_path}) {
@@ -74,22 +75,26 @@ auto handle_json_entry(
       throw std::runtime_error(error.str());
     }
 
-    if (std::any_of(extensions.cbegin(), extensions.cend(),
+    if (is_direct_file ||
+        (extensions.size() == 3 && extensions.count(".json") &&
+         extensions.count(".yaml") && extensions.count(".yml")) ||
+        std::any_of(extensions.cbegin(), extensions.cend(),
                     [&canonical](const auto &extension) {
                       return canonical.string().ends_with(extension);
-                    }) &&
-        std::none_of(blacklist.cbegin(), blacklist.cend(),
-                     [&canonical](const auto &prefix) {
-                       return prefix == canonical ||
-                              path_starts_with(canonical, prefix);
-                     })) {
-      if (std::filesystem::is_empty(canonical)) {
-        return;
-      }
+                    })) {
+      if (std::none_of(blacklist.cbegin(), blacklist.cend(),
+                       [&canonical](const auto &prefix) {
+                         return prefix == canonical ||
+                                path_starts_with(canonical, prefix);
+                       })) {
+        if (std::filesystem::is_empty(canonical)) {
+          return;
+        }
 
-      // TODO: Print a verbose message for what is getting parsed
-      result.emplace_back(canonical,
-                          sourcemeta::jsonschema::cli::read_file(canonical));
+        // TODO: Print a verbose message for what is getting parsed
+        result.emplace_back(canonical,
+                            sourcemeta::jsonschema::cli::read_file(canonical));
+      }
     }
   }
 }
@@ -127,7 +132,13 @@ auto for_each_json(const std::vector<std::string> &arguments,
                       result);
   } else {
     for (const auto &entry : arguments) {
-      handle_json_entry(entry, blacklist, extensions, result);
+      const std::filesystem::path entry_path{entry};
+      if (std::filesystem::is_directory(entry_path)) {
+        handle_json_entry(entry, blacklist, extensions, result);
+      } else {
+        // For direct files, bypass extension filtering
+        handle_json_entry(entry, blacklist, extensions, result, true);
+      }
     }
   }
 
