@@ -35,6 +35,14 @@ private:
   std::filesystem::path path_;
 };
 
+auto handle_json_entry(
+    const std::filesystem::path &entry_path,
+    const std::set<std::filesystem::path> &blacklist,
+    const std::set<std::string> &extensions,
+    std::vector<std::pair<std::filesystem::path, sourcemeta::core::JSON>>
+        &result,
+    const bool is_direct_file = false) -> void;
+
 auto read_file(const std::filesystem::path &path) -> sourcemeta::core::JSON;
 
 auto parse_options(const std::span<const std::string> &arguments,
