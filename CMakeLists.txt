@@ -15,7 +15,6 @@ if(NOT JSONSCHEMA_PORTABLE)
   set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native")
   set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -mtune=native")
 endif()
-# We can still enable SIMD for Apple targets, as Apple controls the hardware
 if(NOT JSONSCHEMA_PORTABLE OR APPLE)
   sourcemeta_enable_simd()
 endif()
