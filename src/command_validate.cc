@@ -22,7 +22,8 @@ auto sourcemeta::jsonschema::cli::validate(
   const auto options{parse_options(
       arguments, {"h", "http", "b", "benchmark", "t", "trace", "f", "fast"})};
 
-  if (options.at("").size() < 1) {
+  if ((options.contains("") ? options.at("") : std::vector<std::string>{})
+          .size() < 1) {
     std::cerr
         << "error: This command expects a path to a schema and a path to an\n"
         << "instance to validate against the schema. For example:\n\n"
@@ -30,7 +31,8 @@ auto sourcemeta::jsonschema::cli::validate(
     return EXIT_FAILURE;
   }
 
-  if (options.at("").size() < 2) {
+  if ((options.contains("") ? options.at("") : std::vector<std::string>{})
+          .size() < 2) {
     std::cerr
         << "error: In addition to the schema, you must also pass an argument\n"
         << "that represents the instance to validate against. For example:\n\n"
@@ -38,7 +40,9 @@ auto sourcemeta::jsonschema::cli::validate(
     return EXIT_FAILURE;
   }
 
-  const auto &schema_path{options.at("").at(0)};
+  const auto &schema_path{
+      (options.contains("") ? options.at("") : std::vector<std::string>{})
+          .at(0)};
   const auto dialect{default_dialect(options)};
   const auto custom_resolver{resolver(
       options, options.contains("h") || options.contains("http"), dialect)};
@@ -76,9 +80,11 @@ auto sourcemeta::jsonschema::cli::validate(
 
   bool result{true};
 
-  auto iterator{options.at("").cbegin()};
+  const auto &positional_args =
+      options.contains("") ? options.at("") : std::vector<std::string>{};
+  auto iterator{positional_args.cbegin()};
   std::advance(iterator, 1);
-  for (; iterator != options.at("").cend(); ++iterator) {
+  for (; iterator != positional_args.cend(); ++iterator) {
     const std::filesystem::path instance_path{*iterator};
     if (instance_path.extension() == ".jsonl") {
       log_verbose(options) << "Interpreting input as JSONL: "

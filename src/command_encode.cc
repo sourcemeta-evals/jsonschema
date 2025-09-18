@@ -16,7 +16,7 @@ auto sourcemeta::jsonschema::cli::encode(
     const std::span<const std::string> &arguments) -> int {
   const auto options{parse_options(arguments, {})};
 
-  if (options.at("").size() < 2) {
+  if (!options.contains("") || options.at("").size() < 2) {
     std::cerr
         << "error: This command expects a path to a JSON document and an "
            "output path. For example:\n\n"
@@ -36,7 +36,8 @@ auto sourcemeta::jsonschema::cli::encode(
                dialect));
   const auto encoding{sourcemeta::jsonbinpack::load(schema)};
 
-  const std::filesystem::path document{options.at("").front()};
+  const std::filesystem::path document{
+      options.contains("") ? options.at("").front() : ""};
   const auto original_size{std::filesystem::file_size(document)};
   std::cerr << "original file size: " << original_size << " bytes\n";
 
@@ -45,8 +46,9 @@ auto sourcemeta::jsonschema::cli::encode(
                          << safe_weakly_canonical(document).string() << "\n";
 
     auto stream{sourcemeta::core::read_file(document)};
-    std::ofstream output_stream(safe_weakly_canonical(options.at("").at(1)),
-                                std::ios::binary);
+    std::ofstream output_stream(
+        safe_weakly_canonical(options.contains("") ? options.at("").at(1) : ""),
+        std::ios::binary);
     output_stream.exceptions(std::ios_base::badbit);
     sourcemeta::jsonbinpack::Encoder encoder{output_stream};
     std::size_t count{0};
@@ -64,10 +66,11 @@ auto sourcemeta::jsonschema::cli::encode(
               << (static_cast<std::uint64_t>(total_size) * 100 / original_size)
               << "%\n";
   } else {
-    const auto entry{
-        sourcemeta::jsonschema::cli::read_file(options.at("").front())};
-    std::ofstream output_stream(safe_weakly_canonical(options.at("").at(1)),
-                                std::ios::binary);
+    const auto entry{sourcemeta::jsonschema::cli::read_file(
+        options.contains("") ? options.at("").front() : "")};
+    std::ofstream output_stream(
+        safe_weakly_canonical(options.contains("") ? options.at("").at(1) : ""),
+        std::ios::binary);
     output_stream.exceptions(std::ios_base::badbit);
     sourcemeta::jsonbinpack::Encoder encoder{output_stream};
     encoder.write(entry, encoding);

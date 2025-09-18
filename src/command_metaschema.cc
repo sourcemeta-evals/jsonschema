@@ -27,8 +27,9 @@ auto sourcemeta::jsonschema::cli::metaschema(
 
   std::map<std::string, sourcemeta::blaze::Template> cache;
 
-  for (const auto &entry : for_each_json(options.at(""), parse_ignore(options),
-                                         parse_extensions(options))) {
+  for (const auto &entry : for_each_json(
+           options.contains("") ? options.at("") : std::vector<std::string>{},
+           parse_ignore(options), parse_extensions(options))) {
     if (!sourcemeta::core::is_schema(entry.second)) {
       std::cerr << "error: The schema file you provided does not represent a "
                    "valid JSON Schema\n  "
@@ -74,13 +75,17 @@ auto sourcemeta::jsonschema::cli::metaschema(
       sourcemeta::blaze::TraceOutput output{
           sourcemeta::core::schema_official_walker, custom_resolver,
           sourcemeta::core::empty_weak_pointer, frame};
-      result = evaluator.validate(cache.at(dialect.value()), entry.second,
-                                  std::ref(output));
+      result = evaluator.validate(cache.contains(dialect.value())
+                                      ? cache.at(dialect.value())
+                                      : sourcemeta::blaze::Template{},
+                                  entry.second, std::ref(output));
       print(output, std::cout);
     } else {
       sourcemeta::blaze::SimpleOutput output{entry.second};
-      if (evaluator.validate(cache.at(dialect.value()), entry.second,
-                             std::ref(output))) {
+      if (evaluator.validate(cache.contains(dialect.value())
+                                 ? cache.at(dialect.value())
+                                 : sourcemeta::blaze::Template{},
+                             entry.second, std::ref(output))) {
         log_verbose(options)
             << "ok: " << safe_weakly_canonical(entry.first).string()
             << "\n  matches " << dialect.value() << "\n";

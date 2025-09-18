@@ -13,7 +13,8 @@ auto sourcemeta::jsonschema::cli::bundle(
       parse_options(arguments, {"h", "http", "w", "without-id"})};
   const auto dialect{default_dialect(options)};
 
-  if (options.at("").size() < 1) {
+  if ((options.contains("") ? options.at("") : std::vector<std::string>{})
+          .size() < 1) {
     std::cerr
         << "error: This command expects a path to a schema. For example:\n\n"
         << "  jsonschema bundle path/to/schema.json\n";
@@ -22,7 +23,9 @@ auto sourcemeta::jsonschema::cli::bundle(
 
   const auto custom_resolver{resolver(
       options, options.contains("h") || options.contains("http"), dialect)};
-  auto schema{sourcemeta::jsonschema::cli::read_file(options.at("").front())};
+  auto schema{sourcemeta::jsonschema::cli::read_file(
+      (options.contains("") ? options.at("") : std::vector<std::string>{})
+          .front())};
 
   sourcemeta::core::bundle(schema, sourcemeta::core::schema_official_walker,
                            custom_resolver, dialect);
