@@ -99,12 +99,12 @@ auto sourcemeta::jsonschema::cli::lint(
   bundle.add<sourcemeta::blaze::ValidDefault>(
       sourcemeta::blaze::default_schema_compiler);
 
-  if (options.contains("exclude")) {
+  if (options.contains("exclude") && !options.at("exclude").empty()) {
     disable_lint_rules(bundle, options, options.at("exclude").cbegin(),
                        options.at("exclude").cend());
   }
 
-  if (options.contains("x")) {
+  if (options.contains("x") && !options.at("x").empty()) {
     disable_lint_rules(bundle, options, options.at("x").cbegin(),
                        options.at("x").cend());
   }

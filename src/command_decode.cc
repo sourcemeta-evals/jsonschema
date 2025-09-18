@@ -29,7 +29,7 @@ auto sourcemeta::jsonschema::cli::decode(
     const std::span<const std::string> &arguments) -> int {
   const auto options{parse_options(arguments, {})};
 
-  if (options.at("").size() < 2) {
+  if (options.contains("") && options.at("").size() < 2) {
     std::cerr
         << "error: This command expects a path to a binary file and an "
            "output path. For example:\n\n"
