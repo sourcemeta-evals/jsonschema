@@ -211,6 +211,14 @@ auto main(int argc, char *argv[]) noexcept -> int {
   } catch (const std::runtime_error &error) {
     std::cerr << "error: " << error.what() << "\n";
     return EXIT_FAILURE;
+  } catch (const std::out_of_range &error) {
+    std::cerr << "error: Invalid access to JSON data structure\n";
+    std::cerr << "This typically occurs when trying to access a non-existent "
+                 "key or index\n";
+    std::cerr << "in a JSON object or array. Check your schema files for "
+                 "syntax errors.\n";
+    std::cerr << "Use --verbose/-v for more detailed processing information.\n";
+    return EXIT_FAILURE;
   } catch (const std::exception &error) {
     std::cerr << "unexpected error: " << error.what()
               << "\nPlease report it at "

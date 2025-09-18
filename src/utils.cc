@@ -59,8 +59,6 @@ auto handle_json_entry(
         if (std::filesystem::is_empty(canonical)) {
           continue;
         }
-
-        // TODO: Print a verbose message for what is getting parsed
         result.emplace_back(canonical,
                             sourcemeta::jsonschema::cli::read_file(canonical));
       }
