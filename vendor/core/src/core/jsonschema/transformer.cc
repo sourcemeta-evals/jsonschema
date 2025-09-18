@@ -149,12 +149,12 @@ auto SchemaTransformer::apply(
   assert(!this->rules.empty());
   std::set<std::pair<Pointer, JSON::String>> processed_rules;
 
-  bool result{true};
+  bool applied_at_least_once{false};
   while (true) {
     SchemaFrame frame{SchemaFrame::Mode::References};
     frame.analyse(schema, walker, resolver, default_dialect, default_id);
 
-    bool applied{false};
+    bool applied_in_iteration{false};
     for (const auto &entry : frame.locations()) {
       if (entry.second.type != SchemaFrame::LocationType::Resource &&
           entry.second.type != SchemaFrame::LocationType::Subschema) {
@@ -170,16 +170,18 @@ auto SchemaTransformer::apply(
                                          entry.second)};
         // This means the rule is fixable
         if (subresult.first) {
-          applied = is_true(subresult.second) || applied;
+          if (is_true(subresult.second)) {
+            applied_in_iteration = true;
+            applied_at_least_once = true;
+          }
         } else {
-          result = false;
           callback(entry.second.pointer, name, rule->message(),
                    subresult.second.index() == 0
                        ? ""
                        : *std::get_if<std::string>(&subresult.second));
         }
 
-        if (!applied) {
+        if (!applied_in_iteration) {
           continue;
         }
 
@@ -227,12 +229,12 @@ auto SchemaTransformer::apply(
     }
 
   core_transformer_start_again:
-    if (!applied) {
+    if (!applied_in_iteration) {
       break;
     }
   }
 
-  return result;
+  return applied_at_least_once;
 }
 
 auto SchemaTransformer::remove(const std::string &name) -> bool {

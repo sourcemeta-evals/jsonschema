@@ -100,6 +100,8 @@ add_jsonschema_test_unix(validate/pass_with_invalid_template_verbose)
 add_jsonschema_test_unix(validate/pass_no_identifier_ref)
 add_jsonschema_test_unix(validate/pass_no_identifier_half_ref)
 add_jsonschema_test_unix(validate/fail_json)
+add_jsonschema_test_unix(lint/pass_lint_no_fix_on_prettify)
+
 add_jsonschema_test_unix(validate/pass_json)
 add_jsonschema_test_unix(validate/pass_json_fast)
 add_jsonschema_test_unix(validate/pass_json_no_identifier)
