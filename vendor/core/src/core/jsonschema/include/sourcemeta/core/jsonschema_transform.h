@@ -233,7 +233,7 @@ public:
              const SchemaResolver &resolver, const Callback &callback,
              const std::optional<JSON::String> &default_dialect = std::nullopt,
              const std::optional<JSON::String> &default_id = std::nullopt) const
-      -> bool;
+      -> std::pair<bool, bool>;
 
   /// Report back the rules from the bundle that need to be applied to a schema
   auto check(const JSON &schema, const SchemaWalker &walker,
