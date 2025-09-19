@@ -321,9 +321,11 @@ auto repopulate_instance_locations(
         destination.push_back(result);
       }
 
-      repopulate_instance_locations(
-          frame, instances, cache, cache_entry.parent.value(),
-          cache.at(cache_entry.parent.value()), destination, new_accumulator);
+      if (cache.contains(cache_entry.parent.value())) {
+        repopulate_instance_locations(
+            frame, instances, cache, cache_entry.parent.value(),
+            cache.at(cache_entry.parent.value()), destination, new_accumulator);
+      }
     }
   }
 }

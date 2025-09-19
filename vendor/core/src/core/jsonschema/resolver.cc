@@ -58,7 +58,10 @@ auto SchemaMapResolver::operator()(std::string_view identifier) const
     -> std::optional<JSON> {
   const std::string string_identifier{identifier};
   if (this->schemas.contains(string_identifier)) {
-    return this->schemas.at(string_identifier);
+    const auto it = this->schemas.find(string_identifier);
+    if (it != this->schemas.end()) {
+      return it->second;
+    }
   }
 
   if (this->default_resolver) {
