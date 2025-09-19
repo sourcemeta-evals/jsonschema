@@ -150,15 +150,36 @@ auto sourcemeta::jsonschema::cli::lint(
         return EXIT_FAILURE;
       }
 
+      const auto default_id{
+          sourcemeta::core::URI::from_path(entry.first).recompose()};
+      const auto noop = [](const auto &, const auto &, const auto &,
+                           const auto &) {};
+      bool needs_fix{false};
+      try {
+        const auto check_result = bundle.check(
+            entry.second, sourcemeta::core::schema_official_walker,
+            resolver(options, options.contains("h") || options.contains("http"),
+                     dialect),
+            noop, dialect, default_id);
+        needs_fix = !check_result;
+      } catch (const sourcemeta::core::SchemaUnknownBaseDialectError &) {
+        throw FileError<sourcemeta::core::SchemaUnknownBaseDialectError>(
+            entry.first);
+      }
+
+      if (!needs_fix) {
+        continue;
+      }
+
       auto copy = entry.second;
 
       try {
-        bundle.apply(
-            copy, sourcemeta::core::schema_official_walker,
-            resolver(options, options.contains("h") || options.contains("http"),
-                     dialect),
-            get_lint_callback(errors_array, entry.first, output_json), dialect,
-            sourcemeta::core::URI::from_path(entry.first).recompose());
+        bundle.apply(copy, sourcemeta::core::schema_official_walker,
+                     resolver(options,
+                              options.contains("h") || options.contains("http"),
+                              dialect),
+                     get_lint_callback(errors_array, entry.first, output_json),
+                     dialect, default_id);
       } catch (const sourcemeta::core::SchemaUnknownBaseDialectError &) {
         throw FileError<sourcemeta::core::SchemaUnknownBaseDialectError>(
             entry.first);
