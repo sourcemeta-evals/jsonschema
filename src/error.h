@@ -137,6 +137,14 @@ inline auto try_catch(const std::function<int()> &callback) noexcept -> int {
   } catch (const std::runtime_error &error) {
     std::cerr << "error: " << error.what() << "\n";
     return EXIT_FAILURE;
+  } catch (const std::out_of_range &error) {
+    std::cerr << "error: Internal map access error - " << error.what() << "\n";
+    std::cerr << "This usually indicates an issue with command-line option "
+                 "processing.\n";
+    std::cerr << "Please check your command syntax and try again.\n";
+    std::cerr << "If the problem persists, please report it at "
+              << "https://github.com/sourcemeta/jsonschema\n";
+    return EXIT_FAILURE;
   } catch (const std::exception &error) {
     std::cerr << "unexpected error: " << error.what()
               << "\nPlease report it at "
