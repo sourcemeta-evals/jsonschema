@@ -47,7 +47,7 @@ auto sourcemeta::jsonschema::cli::encode(
 
     auto stream{sourcemeta::core::read_file(document)};
     std::ofstream output_stream(
-        sourcemeta::core::weakly_canonical(options.positional().at(1)),
+        sourcemeta::core::weakly_canonical(options.positional()[1]),
         std::ios::binary);
     output_stream.exceptions(std::ios_base::badbit);
     sourcemeta::jsonbinpack::Encoder encoder{output_stream};
@@ -69,7 +69,7 @@ auto sourcemeta::jsonschema::cli::encode(
     const auto entry{
         sourcemeta::core::read_yaml_or_json(options.positional().front())};
     std::ofstream output_stream(
-        sourcemeta::core::weakly_canonical(options.positional().at(1)),
+        sourcemeta::core::weakly_canonical(options.positional()[1]),
         std::ios::binary);
     output_stream.exceptions(std::ios_base::badbit);
     sourcemeta::jsonbinpack::Encoder encoder{output_stream};

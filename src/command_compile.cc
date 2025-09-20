@@ -20,7 +20,7 @@ auto sourcemeta::jsonschema::cli::compile(
     return EXIT_FAILURE;
   }
 
-  const auto &schema_path{options.positional().at(0)};
+  const auto &schema_path{options.positional()[0]};
   const auto dialect{default_dialect(options)};
   const auto custom_resolver{
       resolver(options, options.contains("http"), dialect)};

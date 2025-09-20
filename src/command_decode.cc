@@ -54,7 +54,7 @@ auto sourcemeta::jsonschema::cli::decode(
   assert(!input_stream.fail());
   assert(input_stream.is_open());
 
-  const std::filesystem::path output{options.positional().at(1)};
+  const std::filesystem::path output{options.positional()[1]};
   std::ofstream output_stream(sourcemeta::core::weakly_canonical(output),
                               std::ios::binary);
   output_stream.exceptions(std::ios_base::badbit);

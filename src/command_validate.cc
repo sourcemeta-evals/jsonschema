@@ -65,7 +65,12 @@ auto get_schema_template(const sourcemeta::core::JSON &bundled,
 
 auto parse_loop(const sourcemeta::core::Options &options) -> std::uint64_t {
   if (options.contains("loop")) {
-    return std::stoull(options.at("loop").front().data());
+    const auto &loop_values = options.at("loop");
+    if (loop_values.empty()) {
+      std::cerr << "error: --loop option requires a value\n";
+      return 1;
+    }
+    return std::stoull(loop_values.front().data());
   } else {
     return 1;
   }
@@ -144,7 +149,7 @@ auto sourcemeta::jsonschema::cli::validate(
     return EXIT_FAILURE;
   }
 
-  const auto &schema_path{options.positional().at(0)};
+  const auto &schema_path{options.positional()[0]};
   const auto dialect{default_dialect(options)};
   const auto custom_resolver{
       resolver(options, options.contains("http"), dialect)};

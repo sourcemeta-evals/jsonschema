@@ -64,11 +64,22 @@ auto sourcemeta::jsonschema::cli::metaschema(
         cache.insert({dialect.value(), metaschema_template});
       }
 
+      auto cache_it = cache.find(dialect.value());
+      if (cache_it == cache.end()) {
+        std::cerr << "error: Internal error - compiled metaschema template not "
+                     "found for dialect: "
+                  << dialect.value() << "\n";
+        std::cerr << "This may indicate a bug in the JSON Schema CLI.\n";
+        std::cerr
+            << "Please report it at https://github.com/sourcemeta/jsonschema\n";
+        return EXIT_FAILURE;
+      }
+
       if (trace) {
         sourcemeta::blaze::TraceOutput output{
             sourcemeta::core::schema_official_walker, custom_resolver,
             sourcemeta::core::empty_weak_pointer, frame};
-        result = evaluator.validate(cache.at(dialect.value()), entry.second,
+        result = evaluator.validate(cache_it->second, entry.second,
                                     std::ref(output));
         print(output, std::cout);
       } else if (json_output) {
@@ -76,7 +87,7 @@ auto sourcemeta::jsonschema::cli::metaschema(
         // when validating i.e. a directory of schemas
         std::cerr << entry.first.string() << "\n";
         const auto output{sourcemeta::blaze::standard(
-            evaluator, cache.at(dialect.value()), entry.second,
+            evaluator, cache_it->second, entry.second,
             sourcemeta::blaze::StandardOutput::Basic)};
         assert(output.is_object());
         assert(output.defines("valid"));
@@ -89,7 +100,7 @@ auto sourcemeta::jsonschema::cli::metaschema(
         std::cout << "\n";
       } else {
         sourcemeta::blaze::SimpleOutput output{entry.second};
-        if (evaluator.validate(cache.at(dialect.value()), entry.second,
+        if (evaluator.validate(cache_it->second, entry.second,
                                std::ref(output))) {
           log_verbose(options)
               << "ok: "
