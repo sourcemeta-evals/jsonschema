@@ -153,20 +153,27 @@ auto sourcemeta::jsonschema::cli::lint(
       auto copy = entry.second;
 
       try {
+        const auto before = errors_array.size();
+        const auto original_copy = copy;
         bundle.apply(
             copy, sourcemeta::core::schema_official_walker,
             resolver(options, options.contains("h") || options.contains("http"),
                      dialect),
             get_lint_callback(errors_array, entry.first, output_json), dialect,
             sourcemeta::core::URI::from_path(entry.first).recompose());
+        const auto after = errors_array.size();
+        const auto per_file_warnings = after - before;
+        const bool content_changed = (copy != original_copy);
+
+        if (per_file_warnings > 0 || content_changed) {
+          std::ofstream output{entry.first};
+          sourcemeta::core::prettify(copy, output);
+          output << "\n";
+        }
       } catch (const sourcemeta::core::SchemaUnknownBaseDialectError &) {
         throw FileError<sourcemeta::core::SchemaUnknownBaseDialectError>(
             entry.first);
       }
-
-      std::ofstream output{entry.first};
-      sourcemeta::core::prettify(copy, output);
-      output << "\n";
     }
   } else {
     for (const auto &entry :
