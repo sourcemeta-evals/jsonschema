@@ -27,8 +27,9 @@ auto sourcemeta::jsonschema::cli::metaschema(
 
   std::map<std::string, sourcemeta::blaze::Template> cache;
 
-  for (const auto &entry : for_each_json(options.at(""), parse_ignore(options),
-                                         parse_extensions(options))) {
+  for (const auto &entry : for_each_json(
+           options.contains("") ? options.at("") : std::vector<std::string>{},
+           parse_ignore(options), parse_extensions(options))) {
     if (!sourcemeta::core::is_schema(entry.second)) {
       std::cerr << "error: The schema file you provided does not represent a "
                    "valid JSON Schema\n  "

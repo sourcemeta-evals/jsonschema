@@ -211,6 +211,12 @@ auto main(int argc, char *argv[]) noexcept -> int {
   } catch (const std::runtime_error &error) {
     std::cerr << "error: " << error.what() << "\n";
     return EXIT_FAILURE;
+  } catch (const std::out_of_range &error) {
+    std::cerr << "error: Internal map access error: " << error.what()
+              << "\nThis may indicate a malformed command or missing arguments."
+              << "\nPlease report it at "
+              << "https://github.com/sourcemeta/jsonschema\n";
+    return EXIT_FAILURE;
   } catch (const std::exception &error) {
     std::cerr << "unexpected error: " << error.what()
               << "\nPlease report it at "
