@@ -202,6 +202,10 @@ add_jsonschema_test_unix(lint/fail_lint_default)
 add_jsonschema_test_unix(lint/pass_lint_default_fix)
 add_jsonschema_test_unix(lint/pass_lint_default_no_fix)
 
+add_jsonschema_test_unix(lint/pass_lint_ignore_only)
+add_jsonschema_test_unix(lint/fail_lint_malformed_json)
+add_jsonschema_test_unix(lint/pass_lint_ignore_glob)
+
 # Encode
 add_jsonschema_test_unix(encode/pass_schema_less)
 add_jsonschema_test_unix(encode/pass_schema_less_jsonl)
