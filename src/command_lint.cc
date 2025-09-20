@@ -195,6 +195,7 @@ auto sourcemeta::jsonschema::cli::lint(const sourcemeta::core::Options &options)
       }
 
       auto copy = entry.second;
+      auto original_copy = entry.second;
 
       const auto wrapper_result = sourcemeta::jsonschema::try_catch([&]() {
         try {
@@ -230,7 +231,7 @@ auto sourcemeta::jsonschema::cli::lint(const sourcemeta::core::Options &options)
       });
 
       if (wrapper_result == EXIT_SUCCESS) {
-        if (copy != entry.second) {
+        if (copy != original_copy) {
           std::ofstream output{entry.first};
           sourcemeta::core::prettify(copy, output);
           output << "\n";
