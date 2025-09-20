@@ -3,6 +3,7 @@ macro(add_jsonschema_test_unix name)
     add_test(NAME JSONSchema.${name} COMMAND
       "${CMAKE_CURRENT_SOURCE_DIR}/${name}.sh"
       "$<TARGET_FILE:jsonschema_cli>")
+
   endif()
 endmacro()
 
@@ -200,6 +201,8 @@ add_jsonschema_test_unix(lint/pass_lint_examples_fix)
 add_jsonschema_test_unix(lint/pass_lint_examples_no_fix)
 add_jsonschema_test_unix(lint/fail_lint_default)
 add_jsonschema_test_unix(lint/pass_lint_default_fix)
+add_jsonschema_test_unix(lint/pass_lint_ignore_flag)
+
 add_jsonschema_test_unix(lint/pass_lint_default_no_fix)
 
 # Encode
