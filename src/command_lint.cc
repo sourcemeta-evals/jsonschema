@@ -164,9 +164,17 @@ auto sourcemeta::jsonschema::cli::lint(
             entry.first);
       }
 
-      std::ofstream output{entry.first};
-      sourcemeta::core::prettify(copy, output);
-      output << "\n";
+      // Only write if the transformation actually changed the JSON content
+      std::ostringstream before_stream;
+      sourcemeta::core::stringify(entry.second, before_stream);
+      std::ostringstream after_stream;
+      sourcemeta::core::stringify(copy, after_stream);
+
+      if (before_stream.str() != after_stream.str()) {
+        std::ofstream output{entry.first};
+        sourcemeta::core::prettify(copy, output);
+        output << "\n";
+      }
     }
   } else {
     for (const auto &entry :
