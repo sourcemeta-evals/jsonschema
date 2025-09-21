@@ -211,6 +211,13 @@ auto main(int argc, char *argv[]) noexcept -> int {
   } catch (const std::runtime_error &error) {
     std::cerr << "error: " << error.what() << "\n";
     return EXIT_FAILURE;
+  } catch (const std::out_of_range &error) {
+    std::cerr << "error: Invalid command line argument or option\n";
+    std::cerr << "This might be caused by:\n";
+    std::cerr << "  - Using an unsupported option combination\n";
+    std::cerr << "  - Missing required arguments for a command\n";
+    std::cerr << "Use '--help' for usage information\n";
+    return EXIT_FAILURE;
   } catch (const std::exception &error) {
     std::cerr << "unexpected error: " << error.what()
               << "\nPlease report it at "
