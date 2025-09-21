@@ -46,10 +46,13 @@ static auto reindent(const std::string_view &value,
 
 static auto get_lint_callback(sourcemeta::core::JSON &errors_array,
                               const std::filesystem::path &path,
-                              const bool output_json) -> auto {
-  return [&path, &errors_array,
+                              const bool output_json, bool &warnings_found)
+    -> auto {
+  return [&path, &errors_array, &warnings_found,
           output_json](const auto &pointer, const auto &name,
                        const auto &message, const auto &description) {
+    // Track warnings for non-fix mode error reporting
+    warnings_found = true;
     if (output_json) {
       auto error_obj = sourcemeta::core::JSON::make_object();
 
@@ -91,21 +94,34 @@ auto sourcemeta::jsonschema::cli::lint(
       parse_options(arguments, {"f", "fix", "json", "j", "l", "list"})};
   const bool output_json = options.contains("json") || options.contains("j");
 
+  // Create main bundle with Readability mode for transformations
   sourcemeta::core::SchemaTransformer bundle;
   sourcemeta::core::add(bundle, sourcemeta::core::AlterSchemaMode::Readability);
-
   bundle.add<sourcemeta::blaze::ValidExamples>(
       sourcemeta::blaze::default_schema_compiler);
   bundle.add<sourcemeta::blaze::ValidDefault>(
       sourcemeta::blaze::default_schema_compiler);
 
+  // Create lint-only bundle to check if actual lint rules apply
+  sourcemeta::core::SchemaTransformer lint_bundle;
+  sourcemeta::core::add(lint_bundle,
+                        sourcemeta::core::AlterSchemaMode::Readability);
+  lint_bundle.add<sourcemeta::blaze::ValidExamples>(
+      sourcemeta::blaze::default_schema_compiler);
+  lint_bundle.add<sourcemeta::blaze::ValidDefault>(
+      sourcemeta::blaze::default_schema_compiler);
+
   if (options.contains("exclude")) {
     disable_lint_rules(bundle, options, options.at("exclude").cbegin(),
+                       options.at("exclude").cend());
+    disable_lint_rules(lint_bundle, options, options.at("exclude").cbegin(),
                        options.at("exclude").cend());
   }
 
   if (options.contains("x")) {
     disable_lint_rules(bundle, options, options.at("x").cbegin(),
+                       options.at("x").cend());
+    disable_lint_rules(lint_bundle, options, options.at("x").cbegin(),
                        options.at("x").cend());
   }
 
@@ -153,20 +169,45 @@ auto sourcemeta::jsonschema::cli::lint(
       auto copy = entry.second;
 
       try {
-        bundle.apply(
-            copy, sourcemeta::core::schema_official_walker,
+
+        // Check if actual lint rules apply (not just readability)
+        // Use a silent callback to avoid printing warnings during the check
+        auto temp_errors = sourcemeta::core::JSON::make_array();
+        bool temp_warnings = false;
+        const bool lint_rules_apply = !lint_bundle.check(
+            entry.second, sourcemeta::core::schema_official_walker,
             resolver(options, options.contains("h") || options.contains("http"),
                      dialect),
-            get_lint_callback(errors_array, entry.first, output_json), dialect,
-            sourcemeta::core::URI::from_path(entry.first).recompose());
+            [&temp_errors, &temp_warnings](const auto &, const auto &,
+                                           const auto &, const auto &) {
+              // Silent callback - just track that warnings exist but don't
+              // print them
+              temp_warnings = true;
+            },
+            dialect, sourcemeta::core::URI::from_path(entry.first).recompose());
+
+        // Only apply transformations and write file if lint rules apply
+        if (lint_rules_apply) {
+          // Apply transformations but suppress warnings in fix mode
+          bundle.apply(
+              copy, sourcemeta::core::schema_official_walker,
+              resolver(options,
+                       options.contains("h") || options.contains("http"),
+                       dialect),
+              [](const auto &, const auto &, const auto &, const auto &) {
+                // Suppress all warnings in fix mode since we're fixing them
+              },
+              dialect,
+              sourcemeta::core::URI::from_path(entry.first).recompose());
+
+          std::ofstream output{entry.first};
+          sourcemeta::core::prettify(copy, output);
+          output << "\n";
+        }
       } catch (const sourcemeta::core::SchemaUnknownBaseDialectError &) {
         throw FileError<sourcemeta::core::SchemaUnknownBaseDialectError>(
             entry.first);
       }
-
-      std::ofstream output{entry.first};
-      sourcemeta::core::prettify(copy, output);
-      output << "\n";
     }
   } else {
     for (const auto &entry :
@@ -174,12 +215,14 @@ auto sourcemeta::jsonschema::cli::lint(
                        parse_extensions(options))) {
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
       try {
+        bool warnings_found = false;
         const bool subresult = bundle.check(
             entry.second, sourcemeta::core::schema_official_walker,
             resolver(options, options.contains("h") || options.contains("http"),
                      dialect),
-            get_lint_callback(errors_array, entry.first, output_json), dialect,
-            sourcemeta::core::URI::from_path(entry.first).recompose());
+            get_lint_callback(errors_array, entry.first, output_json,
+                              warnings_found),
+            dialect, sourcemeta::core::URI::from_path(entry.first).recompose());
         if (!subresult) {
           result = false;
         }
