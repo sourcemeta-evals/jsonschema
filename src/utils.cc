@@ -38,7 +38,7 @@ bool path_starts_with(const std::filesystem::path &path,
 auto handle_json_entry(
     const std::filesystem::path &entry_path,
     const std::set<std::filesystem::path> &blacklist,
-    const std::set<std::string> &extensions,
+    const std::set<std::string> &extensions, const bool explicit_extensions,
     std::vector<std::pair<std::filesystem::path, sourcemeta::core::JSON>>
         &result) -> void {
   if (std::filesystem::is_directory(entry_path)) {
@@ -74,15 +74,23 @@ auto handle_json_entry(
       throw std::runtime_error(error.str());
     }
 
-    if (std::any_of(extensions.cbegin(), extensions.cend(),
-                    [&canonical](const auto &extension) {
-                      return canonical.string().ends_with(extension);
-                    }) &&
-        std::none_of(blacklist.cbegin(), blacklist.cend(),
-                     [&canonical](const auto &prefix) {
-                       return prefix == canonical ||
-                              path_starts_with(canonical, prefix);
-                     })) {
+    // For direct files, skip extension checking if extensions weren't
+    // explicitly provided
+    bool should_process = true;
+    if (explicit_extensions) {
+      should_process =
+          std::any_of(extensions.cbegin(), extensions.cend(),
+                      [&canonical](const auto &extension) {
+                        return canonical.string().ends_with(extension);
+                      });
+    }
+
+    if (should_process && std::none_of(blacklist.cbegin(), blacklist.cend(),
+                                       [&canonical](const auto &prefix) {
+                                         return prefix == canonical ||
+                                                path_starts_with(canonical,
+                                                                 prefix);
+                                       })) {
       if (std::filesystem::is_empty(canonical)) {
         return;
       }
@@ -118,16 +126,18 @@ auto read_file(const std::filesystem::path &path) -> sourcemeta::core::JSON {
 
 auto for_each_json(const std::vector<std::string> &arguments,
                    const std::set<std::filesystem::path> &blacklist,
-                   const std::set<std::string> &extensions)
+                   const std::set<std::string> &extensions,
+                   const bool explicit_extensions)
     -> std::vector<std::pair<std::filesystem::path, sourcemeta::core::JSON>> {
   std::vector<std::pair<std::filesystem::path, sourcemeta::core::JSON>> result;
 
   if (arguments.empty()) {
     handle_json_entry(std::filesystem::current_path(), blacklist, extensions,
-                      result);
+                      explicit_extensions, result);
   } else {
     for (const auto &entry : arguments) {
-      handle_json_entry(entry, blacklist, extensions, result);
+      handle_json_entry(entry, blacklist, extensions, explicit_extensions,
+                        result);
     }
   }
 
@@ -320,9 +330,10 @@ auto resolver(const std::map<std::string, std::vector<std::string>> &options,
       }};
 
   if (options.contains("resolve")) {
+    const auto [extensions, explicit_extensions] = parse_extensions(options);
     for (const auto &entry :
-         for_each_json(options.at("resolve"), parse_ignore(options),
-                       parse_extensions(options))) {
+         for_each_json(options.at("resolve"), parse_ignore(options), extensions,
+                       explicit_extensions)) {
       log_verbose(options) << "Detecting schema resources from file: "
                            << entry.first.string() << "\n";
       const auto result = dynamic_resolver.add(
@@ -343,9 +354,10 @@ auto resolver(const std::map<std::string, std::vector<std::string>> &options,
   }
 
   if (options.contains("r")) {
+    const auto [extensions, explicit_extensions] = parse_extensions(options);
     for (const auto &entry :
-         for_each_json(options.at("r"), parse_ignore(options),
-                       parse_extensions(options))) {
+         for_each_json(options.at("r"), parse_ignore(options), extensions,
+                       explicit_extensions)) {
       log_verbose(options) << "Detecting schema resources from file: "
                            << entry.first.string() << "\n";
       const auto result = dynamic_resolver.add(
@@ -379,10 +391,12 @@ auto log_verbose(const std::map<std::string, std::vector<std::string>> &options)
 
 auto parse_extensions(
     const std::map<std::string, std::vector<std::string>> &options)
-    -> std::set<std::string> {
+    -> std::pair<std::set<std::string>, bool> {
   std::set<std::string> result;
+  bool explicit_extensions = false;
 
   if (options.contains("extension")) {
+    explicit_extensions = true;
     for (const auto &extension : options.at("extension")) {
       log_verbose(options) << "Using extension: " << extension << "\n";
       result.insert(normalize_extension(extension));
@@ -390,6 +404,7 @@ auto parse_extensions(
   }
 
   if (options.contains("e")) {
+    explicit_extensions = true;
     for (const auto &extension : options.at("e")) {
       log_verbose(options) << "Using extension: " << extension << "\n";
       result.insert(normalize_extension(extension));
@@ -402,7 +417,7 @@ auto parse_extensions(
     result.insert({".yml"});
   }
 
-  return result;
+  return {result, explicit_extensions};
 }
 
 auto parse_ignore(

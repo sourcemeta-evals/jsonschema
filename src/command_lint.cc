@@ -142,9 +142,10 @@ auto sourcemeta::jsonschema::cli::lint(
       options, options.contains("h") || options.contains("http"), dialect)};
 
   if (options.contains("f") || options.contains("fix")) {
+    const auto [extensions, explicit_extensions] = parse_extensions(options);
     for (const auto &entry :
-         for_each_json(options.at(""), parse_ignore(options),
-                       parse_extensions(options))) {
+         for_each_json(options.at(""), parse_ignore(options), extensions,
+                       explicit_extensions)) {
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
       if (entry.first.extension() == ".yaml" ||
           entry.first.extension() == ".yml") {
@@ -171,9 +172,10 @@ auto sourcemeta::jsonschema::cli::lint(
       }
     }
   } else {
+    const auto [extensions, explicit_extensions] = parse_extensions(options);
     for (const auto &entry :
-         for_each_json(options.at(""), parse_ignore(options),
-                       parse_extensions(options))) {
+         for_each_json(options.at(""), parse_ignore(options), extensions,
+                       explicit_extensions)) {
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
       try {
         const auto subresult = bundle.check(

@@ -43,7 +43,8 @@ auto parse_options(const std::span<const std::string> &arguments,
 
 auto for_each_json(const std::vector<std::string> &arguments,
                    const std::set<std::filesystem::path> &blacklist,
-                   const std::set<std::string> &extensions)
+                   const std::set<std::string> &extensions,
+                   const bool explicit_extensions)
     -> std::vector<std::pair<std::filesystem::path, sourcemeta::core::JSON>>;
 
 auto print(const sourcemeta::blaze::SimpleOutput &output, std::ostream &stream)
@@ -67,7 +68,7 @@ auto log_verbose(const std::map<std::string, std::vector<std::string>> &options)
 
 auto parse_extensions(
     const std::map<std::string, std::vector<std::string>> &options)
-    -> std::set<std::string>;
+    -> std::pair<std::set<std::string>, bool>;
 
 auto parse_ignore(
     const std::map<std::string, std::vector<std::string>> &options)
