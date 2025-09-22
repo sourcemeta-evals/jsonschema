@@ -20,32 +20,39 @@ auto sourcemeta::jsonschema::cli::bundle(
     return EXIT_FAILURE;
   }
 
-  const auto custom_resolver{resolver(
-      options, options.contains("h") || options.contains("http"), dialect)};
-  auto schema{sourcemeta::jsonschema::cli::read_file(options.at("").front())};
+  try {
+    const auto custom_resolver{resolver(
+        options, options.contains("h") || options.contains("http"), dialect)};
+    auto schema{sourcemeta::jsonschema::cli::read_file(options.at("").front())};
 
-  sourcemeta::core::bundle(schema, sourcemeta::core::schema_official_walker,
-                           custom_resolver, dialect);
+    sourcemeta::core::bundle(schema, sourcemeta::core::schema_official_walker,
+                             custom_resolver, dialect);
 
-  if (options.contains("w") || options.contains("without-id")) {
-    std::cerr << "warning: You are opting in to remove schema identifiers in "
-                 "the bundled schema.\n";
-    std::cerr << "The only legit use case of this advanced feature we know of "
-                 "it to workaround\n";
-    std::cerr << "non-compliant JSON Schema implementations such as Visual "
-                 "Studio Code.\n";
-    std::cerr << "In other case, this is not needed and may harm other use "
-                 "cases. For example,\n";
-    std::cerr << "you will be unable to reference the resulting schema from "
-                 "other schemas\n";
-    std::cerr << "using the --resolve/-r option.\n";
-    sourcemeta::core::unidentify(schema,
-                                 sourcemeta::core::schema_official_walker,
-                                 custom_resolver, dialect);
+    if (options.contains("w") || options.contains("without-id")) {
+      std::cerr << "warning: You are opting in to remove schema identifiers in "
+                   "the bundled schema.\n";
+      std::cerr
+          << "The only legit use case of this advanced feature we know of "
+             "it to workaround\n";
+      std::cerr << "non-compliant JSON Schema implementations such as Visual "
+                   "Studio Code.\n";
+      std::cerr << "In other case, this is not needed and may harm other use "
+                   "cases. For example,\n";
+      std::cerr << "you will be unable to reference the resulting schema from "
+                   "other schemas\n";
+      std::cerr << "using the --resolve/-r option.\n";
+      sourcemeta::core::unidentify(schema,
+                                   sourcemeta::core::schema_official_walker,
+                                   custom_resolver, dialect);
+    }
+
+    sourcemeta::core::prettify(schema, std::cout,
+                               sourcemeta::core::schema_format_compare);
+    std::cout << "\n";
+  } catch (const std::out_of_range &error) {
+    std::cerr << "error: Map access error while processing schema\n";
+    std::cerr << "Details: " << error.what() << "\n";
+    return EXIT_FAILURE;
   }
-
-  sourcemeta::core::prettify(schema, std::cout,
-                             sourcemeta::core::schema_format_compare);
-  std::cout << "\n";
   return EXIT_SUCCESS;
 }

@@ -17,24 +17,30 @@ auto sourcemeta::jsonschema::cli::inspect(
     return EXIT_FAILURE;
   }
 
-  const sourcemeta::core::JSON schema{
-      sourcemeta::jsonschema::cli::read_file(options.at("").front())};
+  try {
+    const sourcemeta::core::JSON schema{
+        sourcemeta::jsonschema::cli::read_file(options.at("").front())};
 
-  sourcemeta::core::SchemaFrame frame{
-      sourcemeta::core::SchemaFrame::Mode::Instances};
+    sourcemeta::core::SchemaFrame frame{
+        sourcemeta::core::SchemaFrame::Mode::Instances};
 
-  const auto dialect{default_dialect(options)};
-  frame.analyse(schema, sourcemeta::core::schema_official_walker,
-                resolver(options,
-                         options.contains("h") || options.contains("http"),
-                         dialect),
-                dialect);
+    const auto dialect{default_dialect(options)};
+    frame.analyse(schema, sourcemeta::core::schema_official_walker,
+                  resolver(options,
+                           options.contains("h") || options.contains("http"),
+                           dialect),
+                  dialect);
 
-  if (options.contains("json") || options.contains("j")) {
-    sourcemeta::core::prettify(frame.to_json(), std::cout);
-    std::cout << "\n";
-  } else {
-    std::cout << frame;
+    if (options.contains("json") || options.contains("j")) {
+      sourcemeta::core::prettify(frame.to_json(), std::cout);
+      std::cout << "\n";
+    } else {
+      std::cout << frame;
+    }
+  } catch (const std::out_of_range &error) {
+    std::cerr << "error: Map access error while processing schema\n";
+    std::cerr << "Details: " << error.what() << "\n";
+    return EXIT_FAILURE;
   }
 
   return EXIT_SUCCESS;

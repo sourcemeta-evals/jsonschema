@@ -79,123 +79,131 @@ auto sourcemeta::jsonschema::cli::validate(
   auto iterator{options.at("").cbegin()};
   std::advance(iterator, 1);
   for (; iterator != options.at("").cend(); ++iterator) {
-    const std::filesystem::path instance_path{*iterator};
-    if (instance_path.extension() == ".jsonl") {
-      log_verbose(options) << "Interpreting input as JSONL: "
-                           << safe_weakly_canonical(instance_path).string()
-                           << "\n";
-      std::size_t index{0};
-      auto stream{sourcemeta::core::read_file(instance_path)};
-      try {
-        for (const auto &instance : sourcemeta::core::JSONL{stream}) {
-          index += 1;
-          std::ostringstream error;
-          sourcemeta::blaze::SimpleOutput output{instance};
-          sourcemeta::blaze::TraceOutput trace_output{
-              sourcemeta::core::schema_official_walker, custom_resolver,
-              sourcemeta::core::empty_weak_pointer, frame};
-          bool subresult = true;
-          if (benchmark) {
-            const auto timestamp_start{
-                std::chrono::high_resolution_clock::now()};
-            subresult = evaluator.validate(schema_template, instance);
-            const auto timestamp_end{std::chrono::high_resolution_clock::now()};
-            const auto duration_us{
-                std::chrono::duration_cast<std::chrono::microseconds>(
-                    timestamp_end - timestamp_start)};
-            if (subresult) {
-              std::cout << "took: " << duration_us.count() << "us\n";
+    try {
+      const std::filesystem::path instance_path{*iterator};
+      if (instance_path.extension() == ".jsonl") {
+        log_verbose(options)
+            << "Interpreting input as JSONL: "
+            << safe_weakly_canonical(instance_path).string() << "\n";
+        std::size_t index{0};
+        auto stream{sourcemeta::core::read_file(instance_path)};
+        try {
+          for (const auto &instance : sourcemeta::core::JSONL{stream}) {
+            index += 1;
+            std::ostringstream error;
+            sourcemeta::blaze::SimpleOutput output{instance};
+            sourcemeta::blaze::TraceOutput trace_output{
+                sourcemeta::core::schema_official_walker, custom_resolver,
+                sourcemeta::core::empty_weak_pointer, frame};
+            bool subresult = true;
+            if (benchmark) {
+              const auto timestamp_start{
+                  std::chrono::high_resolution_clock::now()};
+              subresult = evaluator.validate(schema_template, instance);
+              const auto timestamp_end{
+                  std::chrono::high_resolution_clock::now()};
+              const auto duration_us{
+                  std::chrono::duration_cast<std::chrono::microseconds>(
+                      timestamp_end - timestamp_start)};
+              if (subresult) {
+                std::cout << "took: " << duration_us.count() << "us\n";
+              } else {
+                error << "error: Schema validation failure\n";
+              }
+            } else if (trace) {
+              subresult = evaluator.validate(schema_template, instance,
+                                             std::ref(trace_output));
+            } else if (fast_mode) {
+              subresult = evaluator.validate(schema_template, instance);
             } else {
-              error << "error: Schema validation failure\n";
+              subresult = evaluator.validate(schema_template, instance,
+                                             std::ref(output));
             }
-          } else if (trace) {
-            subresult = evaluator.validate(schema_template, instance,
-                                           std::ref(trace_output));
-          } else if (fast_mode) {
-            subresult = evaluator.validate(schema_template, instance);
-          } else {
-            subresult =
-                evaluator.validate(schema_template, instance, std::ref(output));
-          }
 
-          if (trace) {
-            print(trace_output, std::cout);
-            result = subresult;
-          } else if (subresult) {
-            log_verbose(options)
-                << "ok: " << safe_weakly_canonical(instance_path).string()
-                << " (entry #" << index << ")"
-                << "\n  matches " << safe_weakly_canonical(schema_path).string()
-                << "\n";
-            print_annotations(output, options, std::cerr);
-          } else {
-            std::cerr << "fail: "
-                      << safe_weakly_canonical(instance_path).string()
-                      << " (entry #" << index << ")\n\n";
-            sourcemeta::core::prettify(instance, std::cerr);
-            std::cerr << "\n\n";
-            std::cerr << error.str();
-            print(output, std::cerr);
-            result = false;
-            break;
+            if (trace) {
+              print(trace_output, std::cout);
+              result = subresult;
+            } else if (subresult) {
+              log_verbose(options)
+                  << "ok: " << safe_weakly_canonical(instance_path).string()
+                  << " (entry #" << index << ")"
+                  << "\n  matches "
+                  << safe_weakly_canonical(schema_path).string() << "\n";
+              print_annotations(output, options, std::cerr);
+            } else {
+              std::cerr << "fail: "
+                        << safe_weakly_canonical(instance_path).string()
+                        << " (entry #" << index << ")\n\n";
+              sourcemeta::core::prettify(instance, std::cerr);
+              std::cerr << "\n\n";
+              std::cerr << error.str();
+              print(output, std::cerr);
+              result = false;
+              break;
+            }
           }
+        } catch (const sourcemeta::core::JSONParseError &error) {
+          // For producing better error messages
+          throw sourcemeta::core::JSONFileParseError(instance_path, error);
         }
-      } catch (const sourcemeta::core::JSONParseError &error) {
-        // For producing better error messages
-        throw sourcemeta::core::JSONFileParseError(instance_path, error);
-      }
 
-      if (index == 0) {
-        log_verbose(options) << "warning: The JSONL file is empty\n";
-      }
-    } else {
-      const auto instance{
-          sourcemeta::jsonschema::cli::read_file(instance_path)};
-      std::ostringstream error;
-      sourcemeta::blaze::SimpleOutput output{instance};
-      sourcemeta::blaze::TraceOutput trace_output{
-          sourcemeta::core::schema_official_walker, custom_resolver,
-          sourcemeta::core::empty_weak_pointer, frame};
-      bool subresult{true};
-      if (benchmark) {
-        const auto timestamp_start{std::chrono::high_resolution_clock::now()};
-        subresult = evaluator.validate(schema_template, instance);
-        const auto timestamp_end{std::chrono::high_resolution_clock::now()};
-        const auto duration_us{
-            std::chrono::duration_cast<std::chrono::microseconds>(
-                timestamp_end - timestamp_start)};
-        if (subresult) {
-          std::cout << "took: " << duration_us.count() << "us\n";
+        if (index == 0) {
+          log_verbose(options) << "warning: The JSONL file is empty\n";
+        }
+      } else {
+        const auto instance{
+            sourcemeta::jsonschema::cli::read_file(instance_path)};
+        std::ostringstream error;
+        sourcemeta::blaze::SimpleOutput output{instance};
+        sourcemeta::blaze::TraceOutput trace_output{
+            sourcemeta::core::schema_official_walker, custom_resolver,
+            sourcemeta::core::empty_weak_pointer, frame};
+        bool subresult{true};
+        if (benchmark) {
+          const auto timestamp_start{std::chrono::high_resolution_clock::now()};
+          subresult = evaluator.validate(schema_template, instance);
+          const auto timestamp_end{std::chrono::high_resolution_clock::now()};
+          const auto duration_us{
+              std::chrono::duration_cast<std::chrono::microseconds>(
+                  timestamp_end - timestamp_start)};
+          if (subresult) {
+            std::cout << "took: " << duration_us.count() << "us\n";
+          } else {
+            error << "error: Schema validation failure\n";
+            result = false;
+          }
+        } else if (trace) {
+          subresult = evaluator.validate(schema_template, instance,
+                                         std::ref(trace_output));
+        } else if (fast_mode) {
+          subresult = evaluator.validate(schema_template, instance);
         } else {
-          error << "error: Schema validation failure\n";
+          subresult =
+              evaluator.validate(schema_template, instance, std::ref(output));
+        }
+
+        if (trace) {
+          print(trace_output, std::cout);
+          result = subresult;
+        } else if (subresult) {
+          log_verbose(options)
+              << "ok: " << safe_weakly_canonical(instance_path).string()
+              << "\n  matches " << safe_weakly_canonical(schema_path).string()
+              << "\n";
+          print_annotations(output, options, std::cerr);
+        } else {
+          std::cerr << "fail: " << safe_weakly_canonical(instance_path).string()
+                    << "\n";
+          std::cerr << error.str();
+          print(output, std::cerr);
           result = false;
         }
-      } else if (trace) {
-        subresult = evaluator.validate(schema_template, instance,
-                                       std::ref(trace_output));
-      } else if (fast_mode) {
-        subresult = evaluator.validate(schema_template, instance);
-      } else {
-        subresult =
-            evaluator.validate(schema_template, instance, std::ref(output));
       }
-
-      if (trace) {
-        print(trace_output, std::cout);
-        result = subresult;
-      } else if (subresult) {
-        log_verbose(options)
-            << "ok: " << safe_weakly_canonical(instance_path).string()
-            << "\n  matches " << safe_weakly_canonical(schema_path).string()
-            << "\n";
-        print_annotations(output, options, std::cerr);
-      } else {
-        std::cerr << "fail: " << safe_weakly_canonical(instance_path).string()
-                  << "\n";
-        std::cerr << error.str();
-        print(output, std::cerr);
-        result = false;
-      }
+    } catch (const std::out_of_range &error) {
+      std::cerr << "error: Map access error while processing instance\n";
+      std::cerr << "  " << *iterator << "\n";
+      std::cerr << "Details: " << error.what() << "\n";
+      return EXIT_FAILURE;
     }
   }
 

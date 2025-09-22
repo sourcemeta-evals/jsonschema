@@ -52,222 +52,231 @@ auto sourcemeta::jsonschema::cli::test(
 
   for (const auto &entry : for_each_json(options.at(""), parse_ignore(options),
                                          parse_extensions(options))) {
-    const sourcemeta::core::JSON test{
-        sourcemeta::jsonschema::cli::read_file(entry.first)};
-    std::cout << entry.first.string() << ":";
-
-    if (!test.is_object()) {
-      std::cout << "\nerror: The test document must be an object\n\n";
-      std::cout << "Learn more here: "
-                   "https://github.com/sourcemeta/jsonschema/blob/main/"
-                   "docs/test.markdown\n";
-      return EXIT_FAILURE;
-    }
-
-    if (!test.defines("target")) {
-      std::cout
-          << "\nerror: The test document must contain a `target` property\n\n";
-      std::cout << "Learn more here: "
-                   "https://github.com/sourcemeta/jsonschema/blob/main/"
-                   "docs/test.markdown\n";
-      return EXIT_FAILURE;
-    }
-
-    if (!test.at("target").is_string()) {
-      std::cout
-          << "\nerror: The test document `target` property must be a URI\n\n";
-      std::cout << "Learn more here: "
-                   "https://github.com/sourcemeta/jsonschema/blob/main/"
-                   "docs/test.markdown\n";
-      return EXIT_FAILURE;
-    }
-
-    if (!test.defines("tests")) {
-      std::cout
-          << "\nerror: The test document must contain a `tests` property\n\n";
-      std::cout << "Learn more here: "
-                   "https://github.com/sourcemeta/jsonschema/blob/main/"
-                   "docs/test.markdown\n";
-      return EXIT_FAILURE;
-    }
-
-    if (!test.at("tests").is_array()) {
-      std::cout
-          << "\nerror: The test document `tests` property must be an array\n\n";
-      std::cout << "Learn more here: "
-                   "https://github.com/sourcemeta/jsonschema/blob/main/"
-                   "docs/test.markdown\n";
-      return EXIT_FAILURE;
-    }
-
-    sourcemeta::core::URI schema_uri{test.at("target").to_string()};
-    schema_uri.canonicalize();
-    const auto schema{sourcemeta::core::wrap(schema_uri.recompose())};
-
-    unsigned int pass_count{0};
-    unsigned int index{0};
-    const auto total{test.at("tests").size()};
-
-    if (test.at("tests").empty()) {
-      std::cout << " NO TESTS\n";
-      continue;
-    }
-
-    sourcemeta::blaze::Template schema_template;
-
     try {
-      schema_template = sourcemeta::blaze::compile(
-          schema, sourcemeta::core::schema_official_walker, test_resolver,
-          sourcemeta::blaze::default_schema_compiler,
-          sourcemeta::blaze::Mode::FastValidation, dialect);
-    } catch (const sourcemeta::core::SchemaReferenceError &error) {
-      if (error.location() == sourcemeta::core::Pointer{"$ref"} &&
-          error.id() == schema_uri.recompose()) {
+      const sourcemeta::core::JSON test{
+          sourcemeta::jsonschema::cli::read_file(entry.first)};
+      std::cout << entry.first.string() << ":";
+
+      if (!test.is_object()) {
+        std::cout << "\nerror: The test document must be an object\n\n";
+        std::cout << "Learn more here: "
+                     "https://github.com/sourcemeta/jsonschema/blob/main/"
+                     "docs/test.markdown\n";
+        return EXIT_FAILURE;
+      }
+
+      if (!test.defines("target")) {
+        std::cout << "\nerror: The test document must contain a `target` "
+                     "property\n\n";
+        std::cout << "Learn more here: "
+                     "https://github.com/sourcemeta/jsonschema/blob/main/"
+                     "docs/test.markdown\n";
+        return EXIT_FAILURE;
+      }
+
+      if (!test.at("target").is_string()) {
+        std::cout
+            << "\nerror: The test document `target` property must be a URI\n\n";
+        std::cout << "Learn more here: "
+                     "https://github.com/sourcemeta/jsonschema/blob/main/"
+                     "docs/test.markdown\n";
+        return EXIT_FAILURE;
+      }
+
+      if (!test.defines("tests")) {
+        std::cout
+            << "\nerror: The test document must contain a `tests` property\n\n";
+        std::cout << "Learn more here: "
+                     "https://github.com/sourcemeta/jsonschema/blob/main/"
+                     "docs/test.markdown\n";
+        return EXIT_FAILURE;
+      }
+
+      if (!test.at("tests").is_array()) {
+        std::cout << "\nerror: The test document `tests` property must be an "
+                     "array\n\n";
+        std::cout << "Learn more here: "
+                     "https://github.com/sourcemeta/jsonschema/blob/main/"
+                     "docs/test.markdown\n";
+        return EXIT_FAILURE;
+      }
+
+      sourcemeta::core::URI schema_uri{test.at("target").to_string()};
+      schema_uri.canonicalize();
+      const auto schema{sourcemeta::core::wrap(schema_uri.recompose())};
+
+      unsigned int pass_count{0};
+      unsigned int index{0};
+      const auto total{test.at("tests").size()};
+
+      if (test.at("tests").empty()) {
+        std::cout << " NO TESTS\n";
+        continue;
+      }
+
+      sourcemeta::blaze::Template schema_template;
+
+      try {
+        schema_template = sourcemeta::blaze::compile(
+            schema, sourcemeta::core::schema_official_walker, test_resolver,
+            sourcemeta::blaze::default_schema_compiler,
+            sourcemeta::blaze::Mode::FastValidation, dialect);
+      } catch (const sourcemeta::core::SchemaReferenceError &error) {
+        if (error.location() == sourcemeta::core::Pointer{"$ref"} &&
+            error.id() == schema_uri.recompose()) {
+          std::cout << "\n";
+          throw sourcemeta::core::SchemaResolutionError(
+              test.at("target").to_string(),
+              "Could not resolve schema under test");
+        }
+
+        throw;
+      } catch (...) {
         std::cout << "\n";
-        throw sourcemeta::core::SchemaResolutionError(
-            test.at("target").to_string(),
-            "Could not resolve schema under test");
+        throw;
       }
 
-      throw;
-    } catch (...) {
-      std::cout << "\n";
-      throw;
-    }
-
-    if (verbose) {
-      std::cout << "\n";
-    }
-
-    for (const auto &test_case : test.at("tests").as_array()) {
-      index += 1;
-
-      if (!test_case.is_object()) {
-        std::cout
-            << "\nerror: Test case documents must be objects\n  at test case #"
-            << index << "\n\n";
-        std::cout << "Learn more here: "
-                     "https://github.com/sourcemeta/jsonschema/blob/main/"
-                     "docs/test.markdown\n";
-        return EXIT_FAILURE;
+      if (verbose) {
+        std::cout << "\n";
       }
 
-      if (!test_case.defines("data") && !test_case.defines("dataPath")) {
-        std::cout << "\nerror: Test case documents must contain a `data` or "
-                     "`dataPath` property\n  at test case #"
-                  << index << "\n\n";
-        std::cout << "Learn more here: "
-                     "https://github.com/sourcemeta/jsonschema/blob/main/"
-                     "docs/test.markdown\n";
-        return EXIT_FAILURE;
-      }
+      for (const auto &test_case : test.at("tests").as_array()) {
+        index += 1;
 
-      if (test_case.defines("data") && test_case.defines("dataPath")) {
-        std::cout
-            << "\nerror: Test case documents must contain either a `data` or "
-               "`dataPath` property, but not both\n  at test case #"
-            << index << "\n\n";
-        std::cout << "Learn more here: "
-                     "https://github.com/sourcemeta/jsonschema/blob/main/"
-                     "docs/test.markdown\n";
-        return EXIT_FAILURE;
-      }
-
-      if (test_case.defines("dataPath") &&
-          !test_case.at("dataPath").is_string()) {
-        std::cout << "\nerror: Test case documents must set the `dataPath` "
-                     "property to a string\n  at test case #"
-                  << index << "\n\n";
-        std::cout << "Learn more here: "
-                     "https://github.com/sourcemeta/jsonschema/blob/main/"
-                     "docs/test.markdown\n";
-        return EXIT_FAILURE;
-      }
-
-      if (test_case.defines("description") &&
-          !test_case.at("description").is_string()) {
-        std::cout << "\nerror: If you set a test case description, it must be "
-                     "a string\n  at test case #"
-                  << index << "\n\n";
-        std::cout << "Learn more here: "
-                     "https://github.com/sourcemeta/jsonschema/blob/main/"
-                     "docs/test.markdown\n";
-        return EXIT_FAILURE;
-      }
-
-      if (!test_case.defines("valid")) {
-        std::cout << "\nerror: Test case documents must contain a `valid` "
-                     "property\n  at test case #"
-                  << index << "\n\n";
-        std::cout << "Learn more here: "
-                     "https://github.com/sourcemeta/jsonschema/blob/main/"
-                     "docs/test.markdown\n";
-        return EXIT_FAILURE;
-      }
-
-      if (!test_case.at("valid").is_boolean()) {
-        std::cout << "\nerror: The test case document `valid` property must be "
-                     "a boolean\n  at test case #"
-                  << index << "\n\n";
-        std::cout << "Learn more here: "
-                     "https://github.com/sourcemeta/jsonschema/blob/main/"
-                     "docs/test.markdown\n";
-        return EXIT_FAILURE;
-      }
-
-      const auto instance{
-          get_data(test_case, entry.first.parent_path(), verbose)};
-      const std::string ref{"$ref"};
-      sourcemeta::blaze::SimpleOutput output{instance, {std::cref(ref)}};
-      const auto case_result{
-          evaluator.validate(schema_template, instance, std::ref(output))};
-
-      std::ostringstream test_case_description;
-      if (test_case.defines("description")) {
-        test_case_description << test_case.at("description").to_string();
-      } else {
-        test_case_description << "<no description>";
-      }
-
-      if (test_case.at("valid").to_boolean() == case_result) {
-        pass_count += 1;
-        if (verbose) {
-          std::cout << "  " << index << "/" << total << " PASS "
-                    << test_case_description.str() << "\n";
-        }
-      } else if (!test_case.at("valid").to_boolean() && case_result) {
-        if (!verbose) {
-          std::cout << "\n";
+        if (!test_case.is_object()) {
+          std::cout << "\nerror: Test case documents must be objects\n  at "
+                       "test case #"
+                    << index << "\n\n";
+          std::cout << "Learn more here: "
+                       "https://github.com/sourcemeta/jsonschema/blob/main/"
+                       "docs/test.markdown\n";
+          return EXIT_FAILURE;
         }
 
-        std::cout << "  " << index << "/" << total << " FAIL "
-                  << test_case_description.str() << "\n\n"
-                  << "error: Passed but was expected to fail\n";
-
-        if (index != total && verbose) {
-          std::cout << "\n";
+        if (!test_case.defines("data") && !test_case.defines("dataPath")) {
+          std::cout << "\nerror: Test case documents must contain a `data` or "
+                       "`dataPath` property\n  at test case #"
+                    << index << "\n\n";
+          std::cout << "Learn more here: "
+                       "https://github.com/sourcemeta/jsonschema/blob/main/"
+                       "docs/test.markdown\n";
+          return EXIT_FAILURE;
         }
 
-        result = false;
-      } else {
-        if (!verbose) {
-          std::cout << "\n";
+        if (test_case.defines("data") && test_case.defines("dataPath")) {
+          std::cout
+              << "\nerror: Test case documents must contain either a `data` or "
+                 "`dataPath` property, but not both\n  at test case #"
+              << index << "\n\n";
+          std::cout << "Learn more here: "
+                       "https://github.com/sourcemeta/jsonschema/blob/main/"
+                       "docs/test.markdown\n";
+          return EXIT_FAILURE;
         }
 
-        std::cout << "  " << index << "/" << total << " FAIL "
-                  << test_case_description.str() << "\n\n";
-        print(output, std::cout);
-
-        if (index != total && verbose) {
-          std::cout << "\n";
+        if (test_case.defines("dataPath") &&
+            !test_case.at("dataPath").is_string()) {
+          std::cout << "\nerror: Test case documents must set the `dataPath` "
+                       "property to a string\n  at test case #"
+                    << index << "\n\n";
+          std::cout << "Learn more here: "
+                       "https://github.com/sourcemeta/jsonschema/blob/main/"
+                       "docs/test.markdown\n";
+          return EXIT_FAILURE;
         }
 
-        result = false;
+        if (test_case.defines("description") &&
+            !test_case.at("description").is_string()) {
+          std::cout
+              << "\nerror: If you set a test case description, it must be "
+                 "a string\n  at test case #"
+              << index << "\n\n";
+          std::cout << "Learn more here: "
+                       "https://github.com/sourcemeta/jsonschema/blob/main/"
+                       "docs/test.markdown\n";
+          return EXIT_FAILURE;
+        }
+
+        if (!test_case.defines("valid")) {
+          std::cout << "\nerror: Test case documents must contain a `valid` "
+                       "property\n  at test case #"
+                    << index << "\n\n";
+          std::cout << "Learn more here: "
+                       "https://github.com/sourcemeta/jsonschema/blob/main/"
+                       "docs/test.markdown\n";
+          return EXIT_FAILURE;
+        }
+
+        if (!test_case.at("valid").is_boolean()) {
+          std::cout
+              << "\nerror: The test case document `valid` property must be "
+                 "a boolean\n  at test case #"
+              << index << "\n\n";
+          std::cout << "Learn more here: "
+                       "https://github.com/sourcemeta/jsonschema/blob/main/"
+                       "docs/test.markdown\n";
+          return EXIT_FAILURE;
+        }
+
+        const auto instance{
+            get_data(test_case, entry.first.parent_path(), verbose)};
+        const std::string ref{"$ref"};
+        sourcemeta::blaze::SimpleOutput output{instance, {std::cref(ref)}};
+        const auto case_result{
+            evaluator.validate(schema_template, instance, std::ref(output))};
+
+        std::ostringstream test_case_description;
+        if (test_case.defines("description")) {
+          test_case_description << test_case.at("description").to_string();
+        } else {
+          test_case_description << "<no description>";
+        }
+
+        if (test_case.at("valid").to_boolean() == case_result) {
+          pass_count += 1;
+          if (verbose) {
+            std::cout << "  " << index << "/" << total << " PASS "
+                      << test_case_description.str() << "\n";
+          }
+        } else if (!test_case.at("valid").to_boolean() && case_result) {
+          if (!verbose) {
+            std::cout << "\n";
+          }
+
+          std::cout << "  " << index << "/" << total << " FAIL "
+                    << test_case_description.str() << "\n\n"
+                    << "error: Passed but was expected to fail\n";
+
+          if (index != total && verbose) {
+            std::cout << "\n";
+          }
+
+          result = false;
+        } else {
+          if (!verbose) {
+            std::cout << "\n";
+          }
+
+          std::cout << "  " << index << "/" << total << " FAIL "
+                    << test_case_description.str() << "\n\n";
+          print(output, std::cout);
+
+          if (index != total && verbose) {
+            std::cout << "\n";
+          }
+
+          result = false;
+        }
       }
-    }
 
-    if (!verbose && pass_count == total) {
-      std::cout << " PASS " << pass_count << "/" << total << "\n";
+      if (!verbose && pass_count == total) {
+        std::cout << " PASS " << pass_count << "/" << total << "\n";
+      }
+    } catch (const std::out_of_range &error) {
+      std::cerr << "error: Map access error while processing file\n";
+      std::cerr << "  " << entry.first.string() << "\n";
+      std::cerr << "Details: " << error.what() << "\n";
+      return EXIT_FAILURE;
     }
   }
 

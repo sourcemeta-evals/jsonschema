@@ -49,43 +49,51 @@ auto sourcemeta::jsonschema::cli::decode(
                dialect));
   const auto encoding{sourcemeta::jsonbinpack::load(schema)};
 
-  std::ifstream input_stream{sourcemeta::jsonschema::cli::safe_weakly_canonical(
-                                 options.at("").front()),
-                             std::ios::binary};
-  assert(!input_stream.fail());
-  assert(input_stream.is_open());
+  try {
+    std::ifstream input_stream{
+        sourcemeta::jsonschema::cli::safe_weakly_canonical(
+            options.at("").front()),
+        std::ios::binary};
+    assert(!input_stream.fail());
+    assert(input_stream.is_open());
 
-  const std::filesystem::path output{options.at("").at(1)};
-  std::ofstream output_stream(safe_weakly_canonical(output), std::ios::binary);
-  output_stream.exceptions(std::ios_base::badbit);
-  sourcemeta::jsonbinpack::Decoder decoder{input_stream};
+    const std::filesystem::path output{options.at("").at(1)};
+    std::ofstream output_stream(safe_weakly_canonical(output),
+                                std::ios::binary);
+    output_stream.exceptions(std::ios_base::badbit);
+    sourcemeta::jsonbinpack::Decoder decoder{input_stream};
 
-  if (output.extension() == ".jsonl") {
-    log_verbose(options)
-        << "Interpreting input as JSONL: "
-        << safe_weakly_canonical(options.at("").front()).string() << "\n";
+    if (output.extension() == ".jsonl") {
+      log_verbose(options)
+          << "Interpreting input as JSONL: "
+          << safe_weakly_canonical(options.at("").front()).string() << "\n";
 
-    std::size_t count{0};
-    while (has_data(input_stream)) {
-      log_verbose(options) << "Decoding entry #" << count << "\n";
-      const auto document{decoder.read(encoding)};
-      if (count > 0) {
-        output_stream << "\n";
+      std::size_t count{0};
+      while (has_data(input_stream)) {
+        log_verbose(options) << "Decoding entry #" << count << "\n";
+        const auto document{decoder.read(encoding)};
+        if (count > 0) {
+          output_stream << "\n";
+        }
+
+        sourcemeta::core::prettify(document, output_stream,
+                                   sourcemeta::core::schema_format_compare);
+        count += 1;
       }
-
+    } else {
+      const auto document{decoder.read(encoding)};
       sourcemeta::core::prettify(document, output_stream,
                                  sourcemeta::core::schema_format_compare);
-      count += 1;
     }
-  } else {
-    const auto document{decoder.read(encoding)};
-    sourcemeta::core::prettify(document, output_stream,
-                               sourcemeta::core::schema_format_compare);
-  }
 
-  output_stream << "\n";
-  output_stream.flush();
-  output_stream.close();
+    output_stream << "\n";
+    output_stream.flush();
+    output_stream.close();
+  } catch (const std::out_of_range &error) {
+    std::cerr << "error: Map access error while processing files\n";
+    std::cerr << "Details: " << error.what() << "\n";
+    return EXIT_FAILURE;
+  }
 
   return EXIT_SUCCESS;
 }
