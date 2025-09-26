@@ -245,6 +245,7 @@ add_jsonschema_test_unix(lint/pass_lint_default_nested_with_id)
 add_jsonschema_test_unix(lint/pass_lint_examples_nested_with_id)
 add_jsonschema_test_unix(lint/pass_lint_list_exclude)
 add_jsonschema_test_unix(lint/pass_lint_list_long)
+add_jsonschema_test_unix(lint/pass_lint_fix_no_changes)
 add_jsonschema_test_unix(lint/pass_lint_list_short)
 
 # Encode
