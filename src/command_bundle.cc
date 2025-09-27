@@ -11,14 +11,15 @@ auto sourcemeta::jsonschema::cli::bundle(
     const std::span<const std::string> &arguments) -> int {
   const auto options{
       parse_options(arguments, {"h", "http", "w", "without-id"})};
-  const auto dialect{default_dialect(options)};
 
-  if (options.at("").size() < 1) {
+  if (options.at("").empty()) {
     std::cerr
         << "error: This command expects a path to a schema. For example:\n\n"
         << "  jsonschema bundle path/to/schema.json\n";
     return EXIT_FAILURE;
   }
+
+  const auto dialect{default_dialect(options)};
 
   const auto custom_resolver{resolver(
       options, options.contains("h") || options.contains("http"), dialect)};

@@ -47,6 +47,14 @@ auto sourcemeta::jsonschema::cli::test(
   const auto dialect{default_dialect(options)};
   const auto test_resolver{resolver(
       options, options.contains("h") || options.contains("http"), dialect)};
+  if (options.at("").empty()) {
+    std::cerr << "error: This command expects at least one schema file or "
+                 "directory. For example:\n\n"
+              << "  jsonschema test path/to/schema.json\n"
+              << "  jsonschema test path/to/schemas/\n";
+    return EXIT_FAILURE;
+  }
+
   const auto verbose{options.contains("verbose") || options.contains("v")};
   sourcemeta::blaze::Evaluator evaluator;
 

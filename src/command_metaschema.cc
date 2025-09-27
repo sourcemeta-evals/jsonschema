@@ -74,21 +74,34 @@ auto sourcemeta::jsonschema::cli::metaschema(
       sourcemeta::blaze::TraceOutput output{
           sourcemeta::core::schema_official_walker, custom_resolver,
           sourcemeta::core::empty_weak_pointer, frame};
-      result = evaluator.validate(cache.at(dialect.value()), entry.second,
-                                  std::ref(output));
-      print(output, std::cout);
+      if (cache.contains(dialect.value())) {
+        result = evaluator.validate(cache.at(dialect.value()), entry.second,
+                                    std::ref(output));
+        print(output, std::cout);
+      } else {
+        std::cerr << "error: Template not found for dialect: "
+                  << dialect.value() << "\n";
+        return EXIT_FAILURE;
+      }
     } else {
       sourcemeta::blaze::SimpleOutput output{entry.second};
-      if (evaluator.validate(cache.at(dialect.value()), entry.second,
+      if (cache.contains(dialect.value()) &&
+          evaluator.validate(cache.at(dialect.value()), entry.second,
                              std::ref(output))) {
         log_verbose(options)
             << "ok: " << safe_weakly_canonical(entry.first).string()
             << "\n  matches " << dialect.value() << "\n";
       } else {
-        std::cerr << "fail: " << safe_weakly_canonical(entry.first).string()
-                  << "\n";
-        print(output, std::cerr);
-        result = false;
+        if (cache.contains(dialect.value())) {
+          std::cerr << "fail: " << safe_weakly_canonical(entry.first).string()
+                    << "\n";
+          print(output, std::cerr);
+          result = false;
+        } else {
+          std::cerr << "error: Template not found for dialect: "
+                    << dialect.value() << "\n";
+          return EXIT_FAILURE;
+        }
       }
     }
   }
