@@ -22,7 +22,7 @@ auto sourcemeta::jsonschema::cli::validate(
   const auto options{parse_options(
       arguments, {"h", "http", "b", "benchmark", "t", "trace", "f", "fast"})};
 
-  if (options.at("").size() < 1) {
+  if (!options.contains("") || options.at("").size() < 1) {
     std::cerr
         << "error: This command expects a path to a schema and a path to an\n"
         << "instance to validate against the schema. For example:\n\n"

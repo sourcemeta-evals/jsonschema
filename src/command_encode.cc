@@ -16,7 +16,7 @@ auto sourcemeta::jsonschema::cli::encode(
     const std::span<const std::string> &arguments) -> int {
   const auto options{parse_options(arguments, {})};
 
-  if (options.at("").size() < 2) {
+  if (!options.contains("") || options.at("").size() < 2) {
     std::cerr
         << "error: This command expects a path to a JSON document and an "
            "output path. For example:\n\n"

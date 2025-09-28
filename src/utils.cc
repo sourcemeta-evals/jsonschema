@@ -319,7 +319,7 @@ auto resolver(const std::map<std::string, std::vector<std::string>> &options,
         }
       }};
 
-  if (options.contains("resolve")) {
+  if (options.contains("resolve") && !options.at("resolve").empty()) {
     for (const auto &entry :
          for_each_json(options.at("resolve"), parse_ignore(options),
                        parse_extensions(options))) {
@@ -341,7 +341,7 @@ auto resolver(const std::map<std::string, std::vector<std::string>> &options,
     }
   }
 
-  if (options.contains("r")) {
+  if (options.contains("r") && !options.at("r").empty()) {
     for (const auto &entry :
          for_each_json(options.at("r"), parse_ignore(options),
                        parse_extensions(options))) {
@@ -381,14 +381,14 @@ auto parse_extensions(
     -> std::set<std::string> {
   std::set<std::string> result;
 
-  if (options.contains("extension")) {
+  if (options.contains("extension") && !options.at("extension").empty()) {
     for (const auto &extension : options.at("extension")) {
       log_verbose(options) << "Using extension: " << extension << "\n";
       result.insert(normalize_extension(extension));
     }
   }
 
-  if (options.contains("e")) {
+  if (options.contains("e") && !options.at("e").empty()) {
     for (const auto &extension : options.at("e")) {
       log_verbose(options) << "Using extension: " << extension << "\n";
       result.insert(normalize_extension(extension));
@@ -409,7 +409,7 @@ auto parse_ignore(
     -> std::set<std::filesystem::path> {
   std::set<std::filesystem::path> result;
 
-  if (options.contains("ignore")) {
+  if (options.contains("ignore") && !options.at("ignore").empty()) {
     for (const auto &ignore : options.at("ignore")) {
       const auto canonical{std::filesystem::weakly_canonical(ignore)};
       log_verbose(options) << "Ignoring path: " << canonical << "\n";
@@ -417,8 +417,8 @@ auto parse_ignore(
     }
   }
 
-  if (options.contains("i")) {
-    for (const auto &ignore : options.at("e")) {
+  if (options.contains("i") && !options.at("i").empty()) {
+    for (const auto &ignore : options.at("i")) {
       const auto canonical{std::filesystem::weakly_canonical(ignore)};
       log_verbose(options) << "Ignoring path: " << canonical << "\n";
       result.insert(canonical);
@@ -439,11 +439,12 @@ auto default_dialect(
     const std::map<std::string, std::vector<std::string>> &options)
     -> std::optional<std::string> {
 
-  if (options.contains("default-dialect")) {
+  if (options.contains("default-dialect") &&
+      !options.at("default-dialect").empty()) {
     return options.at("default-dialect").front();
   }
 
-  if (options.contains("d")) {
+  if (options.contains("d") && !options.at("d").empty()) {
     return options.at("d").front();
   }
 

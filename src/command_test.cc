@@ -50,6 +50,13 @@ auto sourcemeta::jsonschema::cli::test(
   const auto verbose{options.contains("verbose") || options.contains("v")};
   sourcemeta::blaze::Evaluator evaluator;
 
+  if (!options.contains("") || options.at("").empty()) {
+    std::cerr
+        << "error: This command expects a path to a schema. For example:\n\n"
+        << "  jsonschema test path/to/schema.json\n";
+    return EXIT_FAILURE;
+  }
+
   for (const auto &entry : for_each_json(options.at(""), parse_ignore(options),
                                          parse_extensions(options))) {
     const sourcemeta::core::JSON test{

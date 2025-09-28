@@ -74,11 +74,21 @@ auto sourcemeta::jsonschema::cli::metaschema(
       sourcemeta::blaze::TraceOutput output{
           sourcemeta::core::schema_official_walker, custom_resolver,
           sourcemeta::core::empty_weak_pointer, frame};
+      if (cache.find(dialect.value()) == cache.end()) {
+        std::cerr << "error: Dialect template not found in cache: "
+                  << dialect.value() << "\n";
+        return EXIT_FAILURE;
+      }
       result = evaluator.validate(cache.at(dialect.value()), entry.second,
                                   std::ref(output));
       print(output, std::cout);
     } else {
       sourcemeta::blaze::SimpleOutput output{entry.second};
+      if (cache.find(dialect.value()) == cache.end()) {
+        std::cerr << "error: Dialect template not found in cache: "
+                  << dialect.value() << "\n";
+        return EXIT_FAILURE;
+      }
       if (evaluator.validate(cache.at(dialect.value()), entry.second,
                              std::ref(output))) {
         log_verbose(options)
