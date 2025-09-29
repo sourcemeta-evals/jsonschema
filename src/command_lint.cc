@@ -114,6 +114,10 @@ auto sourcemeta::jsonschema::cli::lint(
   const auto dialect{default_dialect(options)};
 
   if (options.contains("f") || options.contains("fix")) {
+    if (!options.contains("") || options.at("").empty()) {
+      std::cerr << "error: No input files specified\n";
+      return EXIT_FAILURE;
+    }
     for (const auto &entry :
          for_each_json(options.at(""), parse_ignore(options),
                        parse_extensions(options))) {
@@ -140,6 +144,10 @@ auto sourcemeta::jsonschema::cli::lint(
       output << "\n";
     }
   } else {
+    if (!options.contains("") || options.at("").empty()) {
+      std::cerr << "error: No input files specified\n";
+      return EXIT_FAILURE;
+    }
     for (const auto &entry :
          for_each_json(options.at(""), parse_ignore(options),
                        parse_extensions(options))) {

@@ -10,7 +10,7 @@
 auto sourcemeta::jsonschema::cli::inspect(
     const std::span<const std::string> &arguments) -> int {
   const auto options{parse_options(arguments, {})};
-  if (options.at("").size() < 1) {
+  if (!options.contains("") || options.at("").size() < 1) {
     std::cerr
         << "error: This command expects a path to a schema. For example:\n\n"
         << "  jsonschema inspect path/to/schema.json\n";

@@ -14,6 +14,10 @@ auto sourcemeta::jsonschema::cli::fmt(
   const auto options{
       parse_options(arguments, {"c", "check", "k", "keep-ordering"})};
 
+  if (!options.contains("") || options.at("").empty()) {
+    std::cerr << "error: No input files specified\n";
+    return EXIT_FAILURE;
+  }
   for (const auto &entry : for_each_json(options.at(""), parse_ignore(options),
                                          parse_extensions(options))) {
     if (entry.first.extension() == ".yaml" ||
