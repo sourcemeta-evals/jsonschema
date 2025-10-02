@@ -4,6 +4,7 @@
 #include <cstdlib>     // EXIT_FAILURE, EXIT_SUCCESS
 #include <filesystem>  // std::filesystem
 #include <iostream>    // std::cerr, std::cout
+#include <mutex>       // std::mutex
 #include <string>      // std::string
 #include <string_view> // std::string_view
 
@@ -162,6 +163,7 @@ auto jsonschema_main(const std::string &program, const std::string &command,
     return sourcemeta::jsonschema::cli::metaschema(app);
   } else if (command == "compile") {
     app.flag("fast", {"f"});
+    app.flag("minify", {"m"});
     app.parse(argc, argv, {.skip = 1});
     return sourcemeta::jsonschema::cli::compile(app);
   } else if (command == "test") {
