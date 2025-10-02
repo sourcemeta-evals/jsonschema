@@ -163,6 +163,7 @@ auto jsonschema_main(const std::string &program, const std::string &command,
   } else if (command == "compile") {
     app.flag("fast", {"f"});
     app.parse(argc, argv, {.skip = 1});
+    app.flag("minify", {"m"});
     return sourcemeta::jsonschema::cli::compile(app);
   } else if (command == "test") {
     app.option("extension", {"e"});
