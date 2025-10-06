@@ -58,7 +58,7 @@ Commands:
        to their metaschemas.
 
    compile <schema.json|.yaml> [--http/-h] [--extension/-e <extension>]
-           [--ignore/-i <schemas-or-directories>] [--fast/-f]
+           [--ignore/-i <schemas-or-directories>] [--fast/-f] [--minify/-m]
 
        Compile the given schema into an internal optimised representation.
 
