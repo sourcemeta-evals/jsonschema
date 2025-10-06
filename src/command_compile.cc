@@ -53,6 +53,7 @@ auto sourcemeta::jsonschema::cli::compile(
   } else {
     sourcemeta::core::prettify(template_json, std::cout);
   }
+
   std::cout << "\n";
 
   return EXIT_SUCCESS;
