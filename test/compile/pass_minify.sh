@@ -17,7 +17,7 @@ cat << 'EOF' > "$TMP/schema.json"
 }
 EOF
 
-"$1" compile "$TMP/schema.json" --minify > "$TMP/template.json"
+"$1" compile --minify "$TMP/schema.json" > "$TMP/template.json"
 
 lines=$(wc -l < "$TMP/template.json")
 if [ "$lines" -ne 1 ]; then
