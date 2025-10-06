@@ -17,14 +17,10 @@ cat << 'EOF' > "$TMP/schema.json"
 }
 EOF
 
-"$1" compile "$TMP/schema.json" --minify > "$TMP/output.txt"
+"$1" compile --minify "$TMP/schema.json" > "$TMP/template.json"
 
-lines=$(wc -l < "$TMP/output.txt")
-if [ "$lines" -ne 1 ]; then
-  echo "Expected 1 line, got $lines"
-  exit 1
-fi
+cat << 'EOF' > "$TMP/expected.json"
+{"dynamic":false,"track":true,"instructions":[{"t":61,"s":"/additionalProperties","i":"","k":"https://example.com#/additionalProperties","r":2,"v":{"t":0,"v":null},"c":[{"t":11,"s":"/type","i":"","k":"https://example.com#/additionalProperties/type","r":2,"v":{"t":8,"v":4},"c":[]},{"t":46,"s":"","i":"","k":"https://example.com#/additionalProperties","r":2,"v":{"t":0,"v":null},"c":[]}]}]}
+EOF
 
-grep -q '"dynamic":false' "$TMP/output.txt" || exit 1
-grep -q '"track":true' "$TMP/output.txt" || exit 1
-grep -q '"instructions":\[' "$TMP/output.txt" || exit 1
+diff "$TMP/template.json" "$TMP/expected.json"
