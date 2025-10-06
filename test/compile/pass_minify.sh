@@ -17,7 +17,7 @@ cat << 'EOF' > "$TMP/schema.json"
 }
 EOF
 
-"$1" compile "$TMP/schema.json" --minify > "$TMP/template.json"
+"$1" compile --minify "$TMP/schema.json" > "$TMP/template.json"
 
 cat << 'EOF' > "$TMP/expected.json"
 {"dynamic":false,"track":true,"instructions":[{"t":61,"s":"/additionalProperties","i":"","k":"https://example.com#/additionalProperties","r":2,"v":{"t":0,"v":null},"c":[{"t":11,"s":"/type","i":"","k":"https://example.com#/additionalProperties/type","r":2,"v":{"t":8,"v":4},"c":[]},{"t":46,"s":"","i":"","k":"https://example.com#/additionalProperties","r":2,"v":{"t":0,"v":null},"c":[]}]}]}
