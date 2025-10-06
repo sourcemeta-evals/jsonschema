@@ -48,3 +48,9 @@ jsonschema compile path/to/my/schema.json --fast > template.json
 ```sh
 jsonschema compile path/to/my/schema.json --resolve other.json > template.json
 ```
+
+### Compile a JSON Schema in minified form
+
+```sh
+jsonschema compile path/to/my/schema.json --minify > template.json
+```
