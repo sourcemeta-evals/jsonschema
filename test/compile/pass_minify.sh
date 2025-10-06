@@ -11,21 +11,16 @@ cat << 'EOF' > "$TMP/schema.json"
 {
   "$id": "https://example.com",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object"
+  "additionalProperties": {
+    "type": "string"
+  }
 }
 EOF
 
-"$1" compile "$TMP/schema.json" --minify > "$TMP/output.json"
+"$1" compile --minify "$TMP/schema.json" > "$TMP/template.json"
 
-LINES=$(wc -l < "$TMP/output.json")
-if [ "$LINES" -ne 1 ]; then
-  echo "Expected minified output to be on a single line, got $LINES lines"
-  exit 1
-fi
+cat << 'EOF' > "$TMP/expected.json"
+{"dynamic":false,"track":true,"instructions":[{"t":61,"s":"/additionalProperties","i":"","k":"https://example.com#/additionalProperties","r":2,"v":{"t":0,"v":null},"c":[{"t":11,"s":"/type","i":"","k":"https://example.com#/additionalProperties/type","r":2,"v":{"t":8,"v":4},"c":[]},{"t":46,"s":"","i":"","k":"https://example.com#/additionalProperties","r":2,"v":{"t":0,"v":null},"c":[]}]}]}
+EOF
 
-"$1" compile "$TMP/schema.json" > "$TMP/pretty.json"
-
-if ! grep -q '"dynamic"' "$TMP/output.json"; then
-  echo "Output doesn't appear to be valid template JSON"
-  exit 1
-fi
+diff "$TMP/template.json" "$TMP/expected.json"
