@@ -31,11 +31,6 @@ multiple times with the same schema.
 > option makes the schema compiler optimise for speed, at the expense of error
 > messages.
 
-The `--minify`/`-m` option outputs the compiled template in compact stringified
-form (single line) instead of the default prettified multi-line format. This is
-useful when you want to save space or when the template will be processed by
-another tool that doesn't require human-readable formatting.
-
 ### Compile a standalone JSON Schema in exhaustive mode
 
 ```sh
