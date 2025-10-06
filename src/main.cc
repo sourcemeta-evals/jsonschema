@@ -57,8 +57,8 @@ Commands:
        Validate that a schema or a set of schemas are valid with respect
        to their metaschemas.
 
-    compile <schema.json|.yaml> [--http/-h] [--extension/-e <extension>]
-            [--ignore/-i <schemas-or-directories>] [--fast/-f] [--minify/-m]
+   compile <schema.json|.yaml> [--http/-h] [--extension/-e <extension>]
+           [--ignore/-i <schemas-or-directories>] [--fast/-f] [--minify/-m]
 
         Compile the given schema into an internal optimised representation.
 
