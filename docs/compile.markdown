@@ -54,3 +54,4 @@ jsonschema compile path/to/my/schema.json --resolve other.json > template.json
 ```sh
 jsonschema compile path/to/my/schema.json --minify > template.json
 ```
+
