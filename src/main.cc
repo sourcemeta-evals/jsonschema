@@ -60,7 +60,7 @@ Commands:
    compile <schema.json|.yaml> [--http/-h] [--extension/-e <extension>]
            [--ignore/-i <schemas-or-directories>] [--fast/-f] [--minify/-m]
 
-        Compile the given schema into an internal optimised representation.
+       Compile the given schema into an internal optimised representation.
 
    test [schemas-or-directories...] [--http/-h] [--extension/-e <extension>]
         [--ignore/-i <schemas-or-directories>]
