@@ -8,9 +8,11 @@
 #include <cstdlib>  // EXIT_SUCCESS, EXIT_FAILURE
 #include <fstream>  // std::ofstream
 #include <iostream> // std::cerr, std::cout
+#include <numeric>  // std::accumulate
 #include <sstream>  // std::ostringstream
 
 #include "command.h"
+#include "error.h"
 #include "utils.h"
 
 template <typename Options, typename Iterator>
@@ -18,7 +20,7 @@ static auto disable_lint_rules(sourcemeta::core::SchemaTransformer &bundle,
                                const Options &options, Iterator first,
                                Iterator last) -> void {
   for (auto iterator = first; iterator != last; ++iterator) {
-    if (bundle.remove(*iterator)) {
+    if (bundle.remove(std::string{*iterator})) {
       sourcemeta::jsonschema::cli::log_verbose(options)
           << "Disabling rule: " << *iterator << "\n";
     } else {
@@ -44,40 +46,56 @@ static auto reindent(const std::string_view &value,
   }
 }
 
-static auto get_lint_callback(sourcemeta::core::JSON &errors_array,
-                              const std::filesystem::path &path,
-                              const bool output_json) -> auto {
-  return [&path, &errors_array,
+static auto
+get_lint_callback(sourcemeta::core::JSON &errors_array,
+                  const sourcemeta::jsonschema::cli::InputJSON &entry,
+                  const bool output_json) -> auto {
+  return [&entry, &errors_array,
           output_json](const auto &pointer, const auto &name,
-                       const auto &message, const auto &description) {
+                       const auto &message, const auto &result) {
+    const auto schema_location{result.locations.empty()
+                                   ? pointer
+                                   : pointer.concat(result.locations.front())};
+    const auto position{entry.positions.get(schema_location)};
+
     if (output_json) {
       auto error_obj = sourcemeta::core::JSON::make_object();
 
-      error_obj.assign("path", sourcemeta::core::JSON{path.string()});
+      error_obj.assign("path", sourcemeta::core::JSON{entry.first.string()});
       error_obj.assign("id", sourcemeta::core::JSON{name});
       error_obj.assign("message", sourcemeta::core::JSON{message});
-
-      if (description.empty()) {
-        error_obj.assign("description", sourcemeta::core::JSON{nullptr});
-      } else {
-        error_obj.assign("description", sourcemeta::core::JSON{message});
-      }
-
-      std::ostringstream pointer_stream;
-      sourcemeta::core::stringify(pointer, pointer_stream);
+      error_obj.assign("description",
+                       sourcemeta::core::to_json(result.description));
       error_obj.assign("schemaLocation",
-                       sourcemeta::core::JSON{pointer_stream.str()});
+                       sourcemeta::core::to_json(schema_location));
+      if (position.has_value()) {
+        error_obj.assign("position",
+                         sourcemeta::core::to_json(position.value()));
+      } else {
+        error_obj.assign("position", sourcemeta::core::to_json(nullptr));
+      }
 
       errors_array.push_back(error_obj);
     } else {
-      std::cout << path.string() << ":\n";
+      std::cout << std::filesystem::relative(entry.first).string();
+      if (position.has_value()) {
+        std::cout << ":";
+        std::cout << std::get<0>(position.value());
+        std::cout << ":";
+        std::cout << std::get<1>(position.value());
+      } else {
+        std::cout << ":<unknown>:<unknown>";
+      }
+
+      std::cout << ":\n";
       std::cout << "  " << message << " (" << name << ")\n";
       std::cout << "    at schema location \"";
-      sourcemeta::core::stringify(pointer, std::cout);
+      sourcemeta::core::stringify(schema_location, std::cout);
       std::cout << "\"\n";
-      if (!description.empty()) {
-        reindent(description, "    ", std::cout);
-        if (description.back() != '\n') {
+
+      if (result.description.has_value()) {
+        reindent(result.description.value(), "    ", std::cout);
+        if (result.description.value().back() != '\n') {
           std::cout << "\n";
         }
       }
@@ -85,31 +103,54 @@ static auto get_lint_callback(sourcemeta::core::JSON &errors_array,
   };
 }
 
-auto sourcemeta::jsonschema::cli::lint(
-    const std::span<const std::string> &arguments) -> int {
-  const auto options{
-      parse_options(arguments, {"f", "fix", "json", "j", "l", "list"})};
-  const bool output_json = options.contains("json") || options.contains("j");
+auto sourcemeta::jsonschema::cli::lint(const sourcemeta::core::Options &options)
+    -> int {
+  const bool output_json = options.contains("json");
 
   sourcemeta::core::SchemaTransformer bundle;
-  sourcemeta::core::add(bundle, sourcemeta::core::AlterSchemaMode::Readability);
+
+  if (options.contains("strict")) {
+    sourcemeta::core::add(bundle,
+                          sourcemeta::core::AlterSchemaMode::ReadabilityStrict);
+  } else {
+    sourcemeta::core::add(bundle,
+                          sourcemeta::core::AlterSchemaMode::Readability);
+  }
 
   bundle.add<sourcemeta::blaze::ValidExamples>(
       sourcemeta::blaze::default_schema_compiler);
   bundle.add<sourcemeta::blaze::ValidDefault>(
       sourcemeta::blaze::default_schema_compiler);
 
-  if (options.contains("exclude")) {
+  if (options.contains("only")) {
+    if (options.contains("exclude")) {
+      std::cerr << "error: Cannot use --only and --exclude at the same time\n";
+      return EXIT_FAILURE;
+    }
+
+    std::unordered_set<std::string_view> blacklist;
+    for (const auto &entry : bundle) {
+      blacklist.emplace(entry.first);
+    }
+
+    for (const auto &only : options.at("only")) {
+      log_verbose(options) << "Only enabling rule: " << only << "\n";
+      if (blacklist.erase(only) == 0) {
+        std::cerr << "error: The following linting rule does not exist\n";
+        std::cerr << "  " << only << "\n";
+        return EXIT_FAILURE;
+      }
+    }
+
+    for (const auto &name : blacklist) {
+      bundle.remove(std::string{name});
+    }
+  } else if (options.contains("exclude")) {
     disable_lint_rules(bundle, options, options.at("exclude").cbegin(),
                        options.at("exclude").cend());
   }
 
-  if (options.contains("x")) {
-    disable_lint_rules(bundle, options, options.at("x").cbegin(),
-                       options.at("x").cend());
-  }
-
-  if (options.contains("list") || options.contains("l")) {
+  if (options.contains("list")) {
     std::vector<std::pair<std::reference_wrapper<const std::string>,
                           std::reference_wrapper<const std::string>>>
         rules;
@@ -137,11 +178,14 @@ auto sourcemeta::jsonschema::cli::lint(
 
   bool result{true};
   auto errors_array = sourcemeta::core::JSON::make_array();
+  std::vector<std::uint8_t> scores;
   const auto dialect{default_dialect(options)};
+  const auto custom_resolver{
+      resolver(options, options.contains("http"), dialect)};
 
-  if (options.contains("f") || options.contains("fix")) {
+  if (options.contains("fix")) {
     for (const auto &entry :
-         for_each_json(options.at(""), parse_ignore(options),
+         for_each_json(options.positional(), parse_ignore(options),
                        parse_extensions(options))) {
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
       if (entry.first.extension() == ".yaml" ||
@@ -152,42 +196,79 @@ auto sourcemeta::jsonschema::cli::lint(
 
       auto copy = entry.second;
 
-      try {
-        bundle.apply(
-            copy, sourcemeta::core::schema_official_walker,
-            resolver(options, options.contains("h") || options.contains("http"),
-                     dialect),
-            get_lint_callback(errors_array, entry.first, output_json), dialect,
-            sourcemeta::core::URI::from_path(entry.first).recompose());
-      } catch (const sourcemeta::core::SchemaUnknownBaseDialectError &) {
-        throw FileError<sourcemeta::core::SchemaUnknownBaseDialectError>(
-            entry.first);
-      }
+      const auto wrapper_result = sourcemeta::jsonschema::try_catch([&]() {
+        try {
+          bundle.apply(
+              copy, sourcemeta::core::schema_official_walker, custom_resolver,
+              get_lint_callback(errors_array, entry, output_json), dialect,
+              sourcemeta::core::URI::from_path(entry.first).recompose());
+          return EXIT_SUCCESS;
+        } catch (const sourcemeta::core::SchemaBrokenReferenceError &error) {
+          std::cerr << "error: Could not autofix the schema without breaking "
+                       "its internal references\n";
+          std::cerr << "  at " << entry.first.string() << "\n";
+          std::cerr << "  at schema location \""
+                    << sourcemeta::core::to_string(error.location())
+                    << "\"\n\n";
 
-      if (copy != entry.second) {
-        std::ofstream output{entry.first};
-        sourcemeta::core::prettify(copy, output);
-        output << "\n";
+          std::cerr << "We are working hard to improve the autofixing "
+                       "functionality to re-phrase\n";
+          std::cerr << "references in all possible edge cases\n\n";
+          std::cerr << "For now, try again without `--fix/-f` and applying "
+                       "the suggestions by hand\n\n";
+          std::cerr << "Also consider consider reporting this problematic case "
+                       "to the issue tracker:\n";
+          std::cerr << "https://github.com/sourcemeta/jsonschema/issues\n";
+          return EXIT_FAILURE;
+        } catch (const sourcemeta::core::SchemaUnknownBaseDialectError &) {
+          throw FileError<sourcemeta::core::SchemaUnknownBaseDialectError>(
+              entry.first);
+        } catch (const sourcemeta::core::SchemaResolutionError &error) {
+          throw FileError<sourcemeta::core::SchemaResolutionError>(entry.first,
+                                                                   error);
+        }
+      });
+
+      if (wrapper_result == EXIT_SUCCESS) {
+        if (copy != entry.second) {
+          std::ofstream output{entry.first};
+          sourcemeta::core::prettify(copy, output);
+          output << "\n";
+        }
+      } else {
+        result = false;
       }
     }
   } else {
     for (const auto &entry :
-         for_each_json(options.at(""), parse_ignore(options),
+         for_each_json(options.positional(), parse_ignore(options),
                        parse_extensions(options))) {
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
-      try {
-        const bool subresult = bundle.check(
-            entry.second, sourcemeta::core::schema_official_walker,
-            resolver(options, options.contains("h") || options.contains("http"),
-                     dialect),
-            get_lint_callback(errors_array, entry.first, output_json), dialect,
-            sourcemeta::core::URI::from_path(entry.first).recompose());
-        if (!subresult) {
-          result = false;
+
+      const auto wrapper_result = sourcemeta::jsonschema::try_catch([&]() {
+        try {
+          const auto subresult = bundle.check(
+              entry.second, sourcemeta::core::schema_official_walker,
+              custom_resolver,
+              get_lint_callback(errors_array, entry, output_json), dialect,
+              sourcemeta::core::URI::from_path(entry.first).recompose());
+          scores.emplace_back(subresult.second);
+          if (subresult.first) {
+            return EXIT_SUCCESS;
+          } else {
+            return EXIT_FAILURE;
+          }
+        } catch (const sourcemeta::core::SchemaUnknownBaseDialectError &) {
+          throw FileError<sourcemeta::core::SchemaUnknownBaseDialectError>(
+              entry.first);
+        } catch (const sourcemeta::core::SchemaResolutionError &error) {
+          throw FileError<sourcemeta::core::SchemaResolutionError>(entry.first,
+                                                                   error);
         }
-      } catch (const sourcemeta::core::SchemaUnknownBaseDialectError &) {
-        throw FileError<sourcemeta::core::SchemaUnknownBaseDialectError>(
-            entry.first);
+      });
+
+      if (wrapper_result != EXIT_SUCCESS) {
+        result = false;
       }
     }
   }
@@ -195,6 +276,16 @@ auto sourcemeta::jsonschema::cli::lint(
   if (output_json) {
     auto output_json_object = sourcemeta::core::JSON::make_object();
     output_json_object.assign("valid", sourcemeta::core::JSON{result});
+
+    if (scores.empty()) {
+      output_json_object.assign("health", sourcemeta::core::JSON{nullptr});
+    } else {
+      const auto health{std::accumulate(scores.cbegin(), scores.cend(), 0ull) /
+                        scores.size()};
+      output_json_object.assign(
+          "health", sourcemeta::core::JSON{static_cast<std::size_t>(health)});
+    }
+
     output_json_object.assign("errors", sourcemeta::core::JSON{errors_array});
     sourcemeta::core::prettify(output_json_object, std::cout);
     std::cout << "\n";
