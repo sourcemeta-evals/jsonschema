@@ -138,8 +138,10 @@ inline auto try_catch(const std::function<int()> &callback) noexcept -> int {
     std::cerr << "error: " << error.what() << "\n";
     return EXIT_FAILURE;
   } catch (const std::exception &error) {
-    std::cerr << "unexpected error: " << error.what()
-              << "\nPlease report it at "
+    std::cerr << "unexpected error: " << error.what() << "\n"
+              << "\nTo help identify which file is causing this error, "
+              << "re-run with --verbose/-v\n"
+              << "Please report this issue at "
               << "https://github.com/sourcemeta/jsonschema\n";
     return EXIT_FAILURE;
   }
