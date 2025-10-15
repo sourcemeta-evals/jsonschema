@@ -5,6 +5,7 @@
 #include <sourcemeta/core/options.h>
 
 #include <functional> // std::function
+#include <stdexcept>  // std::out_of_range
 
 #include "utils.h"
 
@@ -136,6 +137,14 @@ inline auto try_catch(const std::function<int()> &callback) noexcept -> int {
     return EXIT_FAILURE;
   } catch (const std::runtime_error &error) {
     std::cerr << "error: " << error.what() << "\n";
+    return EXIT_FAILURE;
+  } catch (const std::out_of_range &error) {
+    std::cerr << "error: Internal error accessing command-line options\n";
+    std::cerr << "This may be caused by an unexpected combination of flags or "
+                 "missing required arguments.\n";
+    std::cerr << "Please check your command-line arguments and try again.\n";
+    std::cerr << "\nIf the problem persists, please report it at "
+                 "https://github.com/sourcemeta/jsonschema\n";
     return EXIT_FAILURE;
   } catch (const std::exception &error) {
     std::cerr << "unexpected error: " << error.what()
