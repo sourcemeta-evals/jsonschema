@@ -5,8 +5,8 @@ Linting
 jsonschema lint [schemas-or-directories...] [--http/-h] [--fix/-f]
   [--json/-j] [--verbose/-v] [--resolve/-r <schemas-or-directories> ...]
   [--extension/-e <extension>] [--ignore/-i <schemas-or-directories>]
-  [--exclude/-x <rule-name>] [--keep-ordering/-k]
-  [--default-dialect/-d <uri>]
+  [--exclude/-x <rule-name>] [--only/-o <rule-name>] [--list/-l]
+  [--default-dialect/-d <uri>] [--strict/-s]
 ```
 
 JSON Schema is a surprisingly expressive schema language. Like with traditional
@@ -37,6 +37,12 @@ automatically fix many of them.
 > external references, you will have to import them using the `--resolve`/`-r`
 > options as you would normally do when making use of other commands like
 > `validate` and `test`.
+
+Use `--list/-l` to print all the available rules and brief descriptions about
+them.
+
+The `--strict/-s` enables additional opinionated strict rules with a focus on
+preventing mistakes and promoting correctness.
 
 Examples
 --------
@@ -79,10 +85,22 @@ jsonschema lint path/to/my/schema_1.json path/to/my/schema_2.json
 jsonschema lint path/to/my/schema.json --exclude enum_with_type --exclude const_with_type
 ```
 
+### Lint with only a set of preselected rules
+
+```sh
+jsonschema lint path/to/my/schema.json --only enum_with_type --only const_with_type
+```
+
 ### Lint with JSON output
 
 ```sh
 jsonschema lint path/to/my/schema.json --json
+```
+
+### Lint with strict mode
+
+```sh
+jsonschema lint path/to/my/schema.json --strict
 ```
 
 ### Lint every `.json` file in a given directory (recursively)
@@ -119,4 +137,10 @@ jsonschema lint path/to/my/schema.json --fix
 
 ```sh
 jsonschema lint path/to/my/schema.json --fix --keep-ordering
+```
+
+### Print a summary of all enabled rules
+
+```sh
+jsonschema lint --list
 ```

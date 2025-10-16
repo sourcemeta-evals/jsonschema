@@ -3,9 +3,12 @@
 [![GitHub Release](https://img.shields.io/github/v/release/sourcemeta/jsonschema)](https://github.com/sourcemeta/jsonschema/releases)
 [![NPM Version](https://img.shields.io/npm/v/@sourcemeta/jsonschema)](https://www.npmjs.com/package/@sourcemeta/jsonschema)
 [![NPM Downloads](https://img.shields.io/npm/dm/%40sourcemeta%2Fjsonschema)](https://www.npmjs.com/package/@sourcemeta/jsonschema)
+[![PyPI Version](https://img.shields.io/pypi/v/sourcemeta-jsonschema.svg)](https://pypi.org/project/sourcemeta-jsonschema)
 [![GitHub Actions](https://github.com/sourcemeta/jsonschema/actions/workflows/test.yml/badge.svg)](https://github.com/sourcemeta/jsonschema/actions)
 [![GitHub contributors](https://img.shields.io/github/contributors/sourcemeta/jsonschema.svg)](https://github.com/sourcemeta/jsonschema/graphs/contributors/)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/sourcemeta/jsonschema/blob/main/.pre-commit-hooks.yaml)
+
+[![Get it from the Snap Store](https://snapcraft.io/en/light/install.svg)](https://snapcraft.io/jsonschema)
 
 The command-line tool for working with [JSON Schema](https://json-schema.org),
 the world most popular schema language. It is a comprehensive solution for
@@ -71,6 +74,7 @@ documentation:
 - [`jsonschema version`](./docs/version.markdown)
 - [`jsonschema validate`](./docs/validate.markdown)
 - [`jsonschema metaschema`](./docs/metaschema.markdown) (ensure a schema is valid)
+- [`jsonschema compile`](./docs/compile.markdown) (for pre-compiling schemas)
 - [`jsonschema test`](./docs/test.markdown) (write unit tests for your schemas)
 - [`jsonschema fmt`](./docs/format.markdown)
 - [`jsonschema lint`](./docs/lint.markdown)
@@ -122,16 +126,28 @@ Where `X.Y.Z` is replaced with the desired version. For example:
   uses: actions/checkout@v4
 
 - name: Install the JSON Schema CLI
-  uses: sourcemeta/jsonschema@v9.3.5
+  uses: sourcemeta/jsonschema@v11.6.0
 
 # Then use as usual
 - run: jsonschema fmt path/to/schemas --check
 ```
 
-### From NPM
+### From npm
 
 ```sh
 npm install --global @sourcemeta/jsonschema
+```
+
+### From PyPI
+
+```sh
+pip install sourcemeta-jsonschema
+```
+
+### From mise
+
+```sh
+mise use jsonschema
 ```
 
 ### From GitHub Releases
@@ -145,7 +161,7 @@ For convenience, we also provide a POSIX shell script capable of installing the
 latest pre-built binaries, which you can run as follows:
 
 ```sh
-/bin/sh -c "$(curl -fsSL https://raw.githubusercontent.com/sourcemeta/jsonschema/main/install -H "Cache-Control: no-cache, no-store, must-revalidate")"
+curl -fsSL https://raw.githubusercontent.com/sourcemeta/jsonschema/main/install -H 'Cache-Control: no-cache, no-store, must-revalidate' | /bin/sh
 ```
 
 Keep in mind that it is hard to provide binaries that work across GNU/Linux
@@ -179,6 +195,28 @@ Replace `vX.Y.Z` with your desired version. You can mount any directory as `/wor
 > incompatibilities between the container and host, which will affect
 > formatting. Plus a TTY is not required for running a tool like the JSON
 > Schema CLI.
+
+### From Snap
+
+Starting from v10.0.0, we publish to the Snap store:
+
+```sh
+sudo snap install jsonschema
+```
+
+Keep in mind that due to [Snap
+confinement](https://snapcraft.io/docs/snap-confinement) requirements, the Snap
+is only able to access files under your `$HOME` directory.
+
+### With gah
+
+If you are using [gah](https://github.com/marverix/gah):
+
+```sh
+gah install jsonschema
+```
+
+gah does not require sudo, but you need to have `$HOME/.local/bin/` in your `PATH`.
 
 ### Building from source
 
