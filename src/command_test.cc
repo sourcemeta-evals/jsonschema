@@ -1,9 +1,12 @@
+#include <sourcemeta/core/io.h>
 #include <sourcemeta/core/json.h>
 #include <sourcemeta/core/jsonschema.h>
 #include <sourcemeta/core/uri.h>
+#include <sourcemeta/core/yaml.h>
 
 #include <sourcemeta/blaze/compiler.h>
 #include <sourcemeta/blaze/evaluator.h>
+#include <sourcemeta/blaze/output.h>
 
 #include <cstdlib>    // EXIT_SUCCESS, EXIT_FAILURE
 #include <filesystem> // std::filesystem
@@ -25,38 +28,37 @@ static auto get_data(const sourcemeta::core::JSON &test_case,
   assert(test_case.defines("dataPath"));
   assert(test_case.at("dataPath").is_string());
 
-  const std::filesystem::path data_path{
-      sourcemeta::jsonschema::cli::safe_weakly_canonical(
-          base / test_case.at("dataPath").to_string())};
+  const std::filesystem::path data_path{sourcemeta::core::weakly_canonical(
+      base / test_case.at("dataPath").to_string())};
   if (verbose) {
     std::cerr << "Reading test instance file: " << data_path.string() << "\n";
   }
 
   try {
-    return sourcemeta::jsonschema::cli::read_file(data_path);
+    return sourcemeta::core::read_yaml_or_json(data_path);
   } catch (...) {
     std::cout << "\n";
     throw;
   }
 }
 
-auto sourcemeta::jsonschema::cli::test(
-    const std::span<const std::string> &arguments) -> int {
-  const auto options{parse_options(arguments, {"h", "http"})};
+auto sourcemeta::jsonschema::cli::test(const sourcemeta::core::Options &options)
+    -> int {
   bool result{true};
   const auto dialect{default_dialect(options)};
-  const auto test_resolver{resolver(
-      options, options.contains("h") || options.contains("http"), dialect)};
-  const auto verbose{options.contains("verbose") || options.contains("v")};
+  const auto test_resolver{
+      resolver(options, options.contains("http"), dialect)};
+  const auto verbose{options.contains("verbose")};
   sourcemeta::blaze::Evaluator evaluator;
 
-  for (const auto &entry : for_each_json(options.at(""), parse_ignore(options),
-                                         parse_extensions(options))) {
+  for (const auto &entry :
+       for_each_json(options.positional(), parse_ignore(options),
+                     parse_extensions(options))) {
     const sourcemeta::core::JSON test{
-        sourcemeta::jsonschema::cli::read_file(entry.first)};
-    std::cout << entry.first.string() << ":";
+        sourcemeta::core::read_yaml_or_json(entry.first)};
 
     if (!test.is_object()) {
+      std::cout << entry.first.string() << ":";
       std::cout << "\nerror: The test document must be an object\n\n";
       std::cout << "Learn more here: "
                    "https://github.com/sourcemeta/jsonschema/blob/main/"
@@ -65,6 +67,7 @@ auto sourcemeta::jsonschema::cli::test(
     }
 
     if (!test.defines("target")) {
+      std::cout << entry.first.string() << ":";
       std::cout
           << "\nerror: The test document must contain a `target` property\n\n";
       std::cout << "Learn more here: "
@@ -74,6 +77,7 @@ auto sourcemeta::jsonschema::cli::test(
     }
 
     if (!test.at("target").is_string()) {
+      std::cout << entry.first.string() << ":";
       std::cout
           << "\nerror: The test document `target` property must be a URI\n\n";
       std::cout << "Learn more here: "
@@ -83,6 +87,7 @@ auto sourcemeta::jsonschema::cli::test(
     }
 
     if (!test.defines("tests")) {
+      std::cout << entry.first.string() << ":";
       std::cout
           << "\nerror: The test document must contain a `tests` property\n\n";
       std::cout << "Learn more here: "
@@ -92,6 +97,7 @@ auto sourcemeta::jsonschema::cli::test(
     }
 
     if (!test.at("tests").is_array()) {
+      std::cout << entry.first.string() << ":";
       std::cout
           << "\nerror: The test document `tests` property must be an array\n\n";
       std::cout << "Learn more here: "
@@ -100,8 +106,15 @@ auto sourcemeta::jsonschema::cli::test(
       return EXIT_FAILURE;
     }
 
+    const auto test_path_uri{sourcemeta::core::URI::from_path(entry.first)};
     sourcemeta::core::URI schema_uri{test.at("target").to_string()};
+    schema_uri.resolve_from(test_path_uri);
     schema_uri.canonicalize();
+
+    if (verbose) {
+      std::cerr << "Looking for target: " << schema_uri.recompose() << "\n";
+    }
+
     const auto schema{sourcemeta::core::wrap(schema_uri.recompose())};
 
     unsigned int pass_count{0};
@@ -109,6 +122,7 @@ auto sourcemeta::jsonschema::cli::test(
     const auto total{test.at("tests").size()};
 
     if (test.at("tests").empty()) {
+      std::cout << entry.first.string() << ":";
       std::cout << " NO TESTS\n";
       continue;
     }
@@ -123,6 +137,7 @@ auto sourcemeta::jsonschema::cli::test(
     } catch (const sourcemeta::core::SchemaReferenceError &error) {
       if (error.location() == sourcemeta::core::Pointer{"$ref"} &&
           error.id() == schema_uri.recompose()) {
+        std::cout << entry.first.string() << ":";
         std::cout << "\n";
         throw sourcemeta::core::SchemaResolutionError(
             test.at("target").to_string(),
@@ -131,10 +146,12 @@ auto sourcemeta::jsonschema::cli::test(
 
       throw;
     } catch (...) {
+      std::cout << entry.first.string() << ":";
       std::cout << "\n";
       throw;
     }
 
+    std::cout << entry.first.string() << ":";
     if (verbose) {
       std::cout << "\n";
     }
