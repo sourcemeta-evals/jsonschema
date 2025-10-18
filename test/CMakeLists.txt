@@ -232,6 +232,8 @@ add_jsonschema_test_unix(compile/fail_unknown_metaschema)
 # Lint
 add_jsonschema_test_unix(lint/pass_lint_fix)
 add_jsonschema_test_unix(lint/pass_lint_no_fix)
+add_jsonschema_test_unix(lint/pass_lint_with_ignore)
+add_jsonschema_test_unix(lint/pass_lint_ignore_no_positional)
 add_jsonschema_test_unix(lint/fail_lint)
 add_jsonschema_test_unix(lint/fail_lint_fix_broken_reference)
 add_jsonschema_test_unix(lint/fail_lint_default_dialect)
