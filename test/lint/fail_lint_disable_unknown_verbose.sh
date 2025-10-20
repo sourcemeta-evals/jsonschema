@@ -21,6 +21,7 @@ test "$CODE" = "1" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
 warning: Cannot exclude unknown rule: foo_bar
+Found 1 file(s) to lint
 Linting: $(realpath "$TMP")/schema.json
 $(realpath "$TMP")/schema.json:
   The \`contentMediaType\` keyword is meaningless without the presence of the \`contentEncoding\` keyword (content_media_type_without_encoding)

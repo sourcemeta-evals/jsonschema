@@ -208,6 +208,14 @@ auto main(int argc, char *argv[]) noexcept -> int {
     }
 
     return EXIT_FAILURE;
+  } catch (const std::out_of_range &error) {
+    std::cerr << "error: Internal error accessing a map or vector ("
+              << error.what()
+              << ").\nThis likely indicates a bug in file selection, ignore "
+                 "handling, or option parsing.\n";
+    std::cerr << "Please report it at "
+              << "https://github.com/sourcemeta/jsonschema\n";
+    return EXIT_FAILURE;
   } catch (const std::runtime_error &error) {
     std::cerr << "error: " << error.what() << "\n";
     return EXIT_FAILURE;

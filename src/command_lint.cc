@@ -113,10 +113,30 @@ auto sourcemeta::jsonschema::cli::lint(
   auto errors_array = sourcemeta::core::JSON::make_array();
   const auto dialect{default_dialect(options)};
 
+  // Get the list of files to process
+  const auto positional_args =
+      options.contains("") ? options.at("") : std::vector<std::string>{};
+  const auto files_to_process = for_each_json(
+      positional_args, parse_ignore(options), parse_extensions(options));
+
+  // Early exit if no files to lint
+  if (files_to_process.empty()) {
+    log_verbose(options) << "No files to lint after applying filters\n";
+    if (output_json) {
+      auto output_json_object = sourcemeta::core::JSON::make_object();
+      output_json_object.assign("valid", sourcemeta::core::JSON{true});
+      output_json_object.assign("errors", sourcemeta::core::JSON{errors_array});
+      sourcemeta::core::prettify(output_json_object, std::cout);
+      std::cout << "\n";
+    }
+    return EXIT_SUCCESS;
+  }
+
+  log_verbose(options) << "Found " << files_to_process.size()
+                       << " file(s) to lint\n";
+
   if (options.contains("f") || options.contains("fix")) {
-    for (const auto &entry :
-         for_each_json(options.at(""), parse_ignore(options),
-                       parse_extensions(options))) {
+    for (const auto &entry : files_to_process) {
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
       if (entry.first.extension() == ".yaml" ||
           entry.first.extension() == ".yml") {
@@ -140,9 +160,7 @@ auto sourcemeta::jsonschema::cli::lint(
       output << "\n";
     }
   } else {
-    for (const auto &entry :
-         for_each_json(options.at(""), parse_ignore(options),
-                       parse_extensions(options))) {
+    for (const auto &entry : files_to_process) {
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
       const bool subresult = bundle.check(
           entry.second, sourcemeta::core::schema_official_walker,
