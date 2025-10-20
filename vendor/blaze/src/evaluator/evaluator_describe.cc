@@ -1,4 +1,4 @@
-#include <sourcemeta/blaze/compiler.h>
+#include <sourcemeta/blaze/evaluator.h>
 
 #include <algorithm> // std::ranges::any_of
 #include <cassert>   // assert
@@ -190,29 +190,6 @@ auto describe(const bool valid, const Instruction &step,
         message << step.children.size() << " given subschemas";
       } else {
         message << "given subschema";
-      }
-
-      return message.str();
-    }
-
-    if (keyword == "properties") {
-      assert(!step.children.empty());
-      if (!target.is_object()) {
-        std::ostringstream message;
-        describe_type_check(valid, target.type(),
-                            sourcemeta::core::JSON::Type::Object, message);
-        return message.str();
-      }
-
-      std::ostringstream message;
-      message << "The object value was expected to validate against the ";
-      if (step.children.size() == 1) {
-        message << "single defined property subschema";
-      } else {
-        // We cannot provide the specific number of properties,
-        // as the number of children might be flatten out
-        // for performance reasons
-        message << "defined properties subschemas";
       }
 
       return message.str();
@@ -1912,6 +1889,29 @@ auto describe(const bool valid, const Instruction &step,
       std::ostringstream message;
       describe_type_check(valid, target.type(),
                           instruction_value<ValueType>(step), message);
+      return message.str();
+    }
+
+    if (keyword == "properties") {
+      assert(!step.children.empty());
+      if (!target.is_object()) {
+        std::ostringstream message;
+        describe_type_check(valid, target.type(),
+                            sourcemeta::core::JSON::Type::Object, message);
+        return message.str();
+      }
+
+      std::ostringstream message;
+      message << "The object value was expected to validate against the ";
+      if (step.children.size() == 1) {
+        message << "single defined property subschema";
+      } else {
+        // We cannot provide the specific number of properties,
+        // as the number of children might be flatten out
+        // for performance reasons
+        message << "defined properties subschemas";
+      }
+
       return message.str();
     }
 

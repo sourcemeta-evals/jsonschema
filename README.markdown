@@ -126,7 +126,7 @@ Where `X.Y.Z` is replaced with the desired version. For example:
   uses: actions/checkout@v4
 
 - name: Install the JSON Schema CLI
-  uses: sourcemeta/jsonschema@v11.0.1
+  uses: sourcemeta/jsonschema@v11.6.0
 
 # Then use as usual
 - run: jsonschema fmt path/to/schemas --check
@@ -207,6 +207,16 @@ sudo snap install jsonschema
 Keep in mind that due to [Snap
 confinement](https://snapcraft.io/docs/snap-confinement) requirements, the Snap
 is only able to access files under your `$HOME` directory.
+
+### With gah
+
+If you are using [gah](https://github.com/marverix/gah):
+
+```sh
+gah install jsonschema
+```
+
+gah does not require sudo, but you need to have `$HOME/.local/bin/` in your `PATH`.
 
 ### Building from source
 
