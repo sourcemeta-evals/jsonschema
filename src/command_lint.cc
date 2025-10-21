@@ -46,10 +46,14 @@ static auto reindent(const std::string_view &value,
 
 static auto get_lint_callback(sourcemeta::core::JSON &errors_array,
                               const std::filesystem::path &path,
-                              const bool output_json) -> auto {
-  return [&path, &errors_array,
-          output_json](const auto &pointer, const auto &name,
-                       const auto &message, const auto &description) {
+                              const bool output_json, bool *had_issue = nullptr)
+    -> auto {
+  return [&path, &errors_array, output_json,
+          had_issue](const auto &pointer, const auto &name, const auto &message,
+                     const auto &description) {
+    if (had_issue) {
+      *had_issue = true;
+    }
     if (output_json) {
       auto error_obj = sourcemeta::core::JSON::make_object();
 
@@ -151,7 +155,30 @@ auto sourcemeta::jsonschema::cli::lint(
       }
 
       auto copy = entry.second;
+      bool had_issue{false};
 
+      // First check if there are any lint issues (fixable or non-fixable)
+      try {
+        const bool check_result = bundle.check(
+            entry.second, sourcemeta::core::schema_official_walker,
+            resolver(options, options.contains("h") || options.contains("http"),
+                     dialect),
+            // Use a callback that only sets had_issue, without populating
+            // errors_array
+            [&had_issue](const auto &, const auto &, const auto &,
+                         const auto &) { had_issue = true; },
+            dialect, sourcemeta::core::URI::from_path(entry.first).recompose());
+        // check_result is false if there were any issues
+        if (check_result) {
+          // No lint issues, skip this file
+          continue;
+        }
+      } catch (const sourcemeta::core::SchemaUnknownBaseDialectError &) {
+        throw FileError<sourcemeta::core::SchemaUnknownBaseDialectError>(
+            entry.first);
+      }
+
+      // There are lint issues, so apply fixes and report non-fixable ones
       try {
         bundle.apply(
             copy, sourcemeta::core::schema_official_walker,
