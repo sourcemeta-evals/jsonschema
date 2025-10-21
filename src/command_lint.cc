@@ -196,9 +196,10 @@ auto sourcemeta::jsonschema::cli::lint(const sourcemeta::core::Options &options)
 
       // First check if there are any lint issues (fixable or non-fixable)
       bool has_lint_issues{false};
-      const auto check_wrapper_result = sourcemeta::jsonschema::try_catch([&]() {
+      bool check_failed{false};
+      sourcemeta::jsonschema::try_catch([&]() {
         try {
-          const auto check_result = bundle.check(
+          bundle.check(
               entry.second, sourcemeta::core::schema_official_walker,
               custom_resolver,
               // Use a callback that only sets has_lint_issues flag
@@ -206,18 +207,26 @@ auto sourcemeta::jsonschema::cli::lint(const sourcemeta::core::Options &options)
                                  const auto &) { has_lint_issues = true; },
               dialect,
               sourcemeta::core::URI::from_path(entry.first).recompose());
-          return check_result.first ? EXIT_SUCCESS : EXIT_FAILURE;
+          return EXIT_SUCCESS;
         } catch (const sourcemeta::core::SchemaUnknownBaseDialectError &) {
+          check_failed = true;
           throw FileError<sourcemeta::core::SchemaUnknownBaseDialectError>(
               entry.first);
         } catch (const sourcemeta::core::SchemaResolutionError &error) {
+          check_failed = true;
           throw FileError<sourcemeta::core::SchemaResolutionError>(entry.first,
                                                                    error);
         }
       });
 
+      // If check phase failed (e.g., due to error), skip apply phase
+      if (check_failed) {
+        result = false;
+        continue;
+      }
+
       // Skip files with no lint issues
-      if (check_wrapper_result == EXIT_SUCCESS && !has_lint_issues) {
+      if (!has_lint_issues) {
         continue;
       }
 
