@@ -153,7 +153,7 @@ auto sourcemeta::jsonschema::cli::lint(
       auto copy = entry.second;
 
       try {
-        bundle.apply(
+        (void)bundle.apply(
             copy, sourcemeta::core::schema_official_walker,
             resolver(options, options.contains("h") || options.contains("http"),
                      dialect),
@@ -164,9 +164,12 @@ auto sourcemeta::jsonschema::cli::lint(
             entry.first);
       }
 
-      std::ofstream output{entry.first};
-      sourcemeta::core::prettify(copy, output);
-      output << "\n";
+      // Only write the file if lint rules were actually applied
+      if (copy != entry.second) {
+        std::ofstream output{entry.first};
+        sourcemeta::core::prettify(copy, output);
+        output << "\n";
+      }
     }
   } else {
     for (const auto &entry :
