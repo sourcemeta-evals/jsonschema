@@ -4,16 +4,18 @@ on:
   pull_request:
 
 jobs:
+  codespell:
+    runs-on: ubuntu-latest
+    steps:
+      - run: sudo apt-get update && sudo apt-get install --yes codespell
+      - uses: actions/checkout@v4
+      - run: codespell docs *.markdown
+
   test:
     strategy:
       fail-fast: false
       matrix:
         platform:
-          - os: ubuntu-22.04
-            type: native
-            cc: clang
-            cxx: clang++
-            shell: sh
           - os: ubuntu-22.04
             type: native
             cc: gcc
@@ -123,5 +125,6 @@ jobs:
         id: snapcraft
       - run: sudo snap install --dangerous --classic ${{ steps.snapcraft.outputs.snap }}
       - run: jsonschema version
-      - run: ./test/bundle/pass_resolve_single.sh jsonschema
-      - run: ./test/ci/pass_validate_http_verbose.sh jsonschema
+      - run: mkdir "$PWD/build"
+      - run: TMPDIR="$PWD/build" ./test/bundle/pass_resolve_single.sh jsonschema
+      - run: TMPDIR="$PWD/build" ./test/ci/pass_validate_http_verbose.sh jsonschema
