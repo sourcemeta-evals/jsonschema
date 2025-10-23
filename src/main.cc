@@ -23,7 +23,7 @@ Global Options:
 
 Commands:
 
-   version / --version
+   version / --version / -v
 
        Print the current version of the JSON Schema CLI.
 
