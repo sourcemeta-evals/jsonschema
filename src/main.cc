@@ -211,6 +211,13 @@ auto main(int argc, char *argv[]) noexcept -> int {
   } catch (const std::runtime_error &error) {
     std::cerr << "error: " << error.what() << "\n";
     return EXIT_FAILURE;
+  } catch (const std::out_of_range &error) {
+    std::cerr << "error: Internal option handling error\n";
+    std::cerr << "This is likely a bug in the CLI option parsing.\n";
+    std::cerr << "Please report it at "
+              << "https://github.com/sourcemeta/jsonschema\n";
+    std::cerr << "Include the exact command you ran and any relevant flags.\n";
+    return EXIT_FAILURE;
   } catch (const std::exception &error) {
     std::cerr << "unexpected error: " << error.what()
               << "\nPlease report it at "
