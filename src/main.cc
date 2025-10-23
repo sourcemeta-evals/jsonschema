@@ -23,7 +23,7 @@ Global Options:
 
 Commands:
 
-   version / --version
+   version / --version / -v
 
        Print the current version of the JSON Schema CLI.
 
@@ -116,6 +116,11 @@ auto jsonschema_main(const std::string &program, const std::string &command,
   app.flag("verbose", {"v"});
   app.option("resolve", {"r"});
   app.option("default-dialect", {"d"});
+
+  if (command.size() == 2) {
+    std::cout << sourcemeta::jsonschema::cli::PROJECT_VERSION << "\n";
+    return EXIT_SUCCESS;
+  }
 
   if (command == "fmt") {
     app.flag("check", {"c"});
