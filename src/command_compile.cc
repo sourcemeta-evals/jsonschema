@@ -47,7 +47,12 @@ auto sourcemeta::jsonschema::cli::compile(
           .recompose())};
 
   const auto template_json{sourcemeta::blaze::to_json(schema_template)};
-  sourcemeta::core::prettify(template_json, std::cout);
+  const auto minify_mode{options.contains("minify")};
+  if (minify_mode) {
+    sourcemeta::core::stringify(template_json, std::cout);
+  } else {
+    sourcemeta::core::prettify(template_json, std::cout);
+  }
   std::cout << "\n";
 
   return EXIT_SUCCESS;
