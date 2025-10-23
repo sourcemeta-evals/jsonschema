@@ -3,6 +3,7 @@ Version
 
 ```sh
 jsonschema version
+jsonschema --version
 ```
 
 Print the current version of the JSON Schema CLI to standard output, without
