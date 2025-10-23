@@ -19,13 +19,14 @@ cat << 'EOF' > "$TMP/schema.json"
 }
 EOF
 
+cd "$TMP"
 "$1" lint "$TMP/schema.json" >"$TMP/stderr.txt" 2>&1 && CODE="$?" || CODE="$?"
 test "$CODE" = "1" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
-$(realpath "$TMP")/schema.json:
+schema.json:6:18:
   Only set a \`default\` value that validates against the schema (blaze/valid_default)
-    at schema location "/properties/foo"
+    at schema location "/properties/foo/default"
     The value was expected to be of type string but it was of type integer
       at instance location ""
       at evaluate path "/type"
