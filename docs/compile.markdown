@@ -7,7 +7,7 @@ Compiling
 ```sh
 jsonschema compile <schema.json|.yaml> [--http/-h] [--verbose/-v]
   [--resolve/-r <schemas-or-directories> ...] [--extension/-e <extension>]
-  [--ignore/-i <schemas-or-directories>] [--fast/-f] [--default-dialect/-d <uri>]
+  [--ignore/-i <schemas-or-directories>] [--fast/-f] [--minify/-m] [--default-dialect/-d <uri>]
 ```
 
 The `validate` command will first compile the schema into an optimised
@@ -30,6 +30,11 @@ multiple times with the same schema.
 > option makes the schema compiler optimise for speed, at the expense of error
 > messages.
 
+> [!NOTE]
+> By default, the compiled template is output in pretty-printed format for
+> readability. The `--minify`/`-m` option outputs the template in compact
+> stringified form without whitespace.
+
 ### Compile a standalone JSON Schema in exhaustive mode
 
 ```sh
@@ -46,4 +51,10 @@ jsonschema compile path/to/my/schema.json --fast > template.json
 
 ```sh
 jsonschema compile path/to/my/schema.json --resolve other.json > template.json
+```
+
+### Compile a JSON Schema in minified form
+
+```sh
+jsonschema compile path/to/my/schema.json --minify > template.json
 ```
