@@ -7,6 +7,7 @@ TMP="$(mktemp -d)"
 clean() { rm -rf "$TMP"; }
 trap clean EXIT
 
+# Also test the new -v short option works
 "$1" --version 1> "$TMP/stdout" 2> "$TMP/stderr"
 
 if ! [ -s "$TMP/stdout" ]

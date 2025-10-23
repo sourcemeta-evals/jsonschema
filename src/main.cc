@@ -23,7 +23,7 @@ Global Options:
 
 Commands:
 
-   version / --version
+   version / --version / -v
 
        Print the current version of the JSON Schema CLI.
 
@@ -189,6 +189,9 @@ auto jsonschema_main(const std::string &program, const std::string &command,
     return EXIT_SUCCESS;
   } else if (command == "version" || command == "--version") {
     std::cout << sourcemeta::jsonschema::cli::PROJECT_VERSION << "\n";
+    return EXIT_SUCCESS;
+  } else if (command == "v") {
+    std::cout << "v" << sourcemeta::jsonschema::cli::PROJECT_VERSION << "\n";
     return EXIT_SUCCESS;
   } else {
     std::cerr << "error: Unknown command '" << command << "'\n";
