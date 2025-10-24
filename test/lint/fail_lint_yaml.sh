@@ -13,13 +13,14 @@ type: string
 enum: [ foo ]
 EOF
 
+cd "$TMP"
 "$1" lint "$TMP/schema.yaml" >"$TMP/stderr.txt" 2>&1 && CODE="$?" || CODE="$?"
 test "$CODE" = "1" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
-$(realpath "$TMP")/schema.yaml:
+schema.yaml:<unknown>:<unknown>:
   Setting \`type\` alongside \`enum\` is considered an anti-pattern, as the enumeration choices already imply their respective types (enum_with_type)
-    at schema location ""
+    at schema location "/enum"
 EOF
 
 diff "$TMP/stderr.txt" "$TMP/expected.txt"

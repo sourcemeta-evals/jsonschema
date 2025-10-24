@@ -1,45 +1,47 @@
+#include <sourcemeta/core/io.h>
 #include <sourcemeta/core/json.h>
+#include <sourcemeta/core/jsonpointer.h>
 #include <sourcemeta/core/jsonschema.h>
 
 #include <sourcemeta/blaze/compiler.h>
 #include <sourcemeta/blaze/evaluator.h>
+#include <sourcemeta/blaze/output.h>
 
 #include <cassert>  // assert
 #include <cstdlib>  // EXIT_SUCCESS, EXIT_FAILURE
 #include <iostream> // std::cerr
 #include <map>      // std::map
-#include <set>      // std::set
 #include <string>   // std::string
 
 #include "command.h"
 #include "utils.h"
 
 auto sourcemeta::jsonschema::cli::metaschema(
-    const std::span<const std::string> &arguments) -> int {
-  const auto options{
-      parse_options(arguments, {"h", "http", "t", "trace", "j", "json"})};
-  const auto trace{options.contains("t") || options.contains("trace")};
-  const auto json_output{options.contains("j") || options.contains("json")};
-  const auto default_dialect_option{default_dialect(options)};
-  const auto custom_resolver{
-      resolver(options, options.contains("h") || options.contains("http"),
-               default_dialect_option)};
+    const sourcemeta::core::Options &options) -> int {
+  const auto trace{options.contains("trace")};
+  const auto json_output{options.contains("json")};
+
   bool result{true};
   sourcemeta::blaze::Evaluator evaluator;
 
   std::map<std::string, sourcemeta::blaze::Template> cache;
 
-  for (const auto &entry : for_each_json(options.at(""), parse_ignore(options),
-                                         parse_extensions(options))) {
+  for (const auto &entry : for_each_json(options)) {
     if (!sourcemeta::core::is_schema(entry.second)) {
       std::cerr << "error: The schema file you provided does not represent a "
                    "valid JSON Schema\n  "
-                << sourcemeta::jsonschema::cli::safe_weakly_canonical(
-                       entry.first)
-                       .string()
+                << sourcemeta::core::weakly_canonical(entry.first).string()
                 << "\n";
       return EXIT_FAILURE;
     }
+
+    const auto configuration_path{find_configuration(entry.first)};
+    const auto &configuration{read_configuration(options, configuration_path)};
+    const auto default_dialect_option{default_dialect(options, configuration)};
+
+    const auto &custom_resolver{resolver(options, options.contains("http"),
+                                         default_dialect_option,
+                                         configuration)};
 
     try {
       const auto dialect{
@@ -73,14 +75,14 @@ auto sourcemeta::jsonschema::cli::metaschema(
             sourcemeta::core::empty_weak_pointer, frame};
         result = evaluator.validate(cache.at(dialect.value()), entry.second,
                                     std::ref(output));
-        print(output, std::cout);
+        print(output, entry.positions, std::cout);
       } else if (json_output) {
         // Otherwise its impossible to correlate the output
         // when validating i.e. a directory of schemas
         std::cerr << entry.first.string() << "\n";
         const auto output{sourcemeta::blaze::standard(
             evaluator, cache.at(dialect.value()), entry.second,
-            sourcemeta::blaze::StandardOutput::Basic)};
+            sourcemeta::blaze::StandardOutput::Basic, entry.positions)};
         assert(output.is_object());
         assert(output.defines("valid"));
         assert(output.at("valid").is_boolean());
@@ -95,15 +97,22 @@ auto sourcemeta::jsonschema::cli::metaschema(
         if (evaluator.validate(cache.at(dialect.value()), entry.second,
                                std::ref(output))) {
           log_verbose(options)
-              << "ok: " << safe_weakly_canonical(entry.first).string()
+              << "ok: "
+              << sourcemeta::core::weakly_canonical(entry.first).string()
               << "\n  matches " << dialect.value() << "\n";
         } else {
-          std::cerr << "fail: " << safe_weakly_canonical(entry.first).string()
+          std::cerr << "fail: "
+                    << sourcemeta::core::weakly_canonical(entry.first).string()
                     << "\n";
-          print(output, std::cerr);
+          print(output, entry.positions, std::cerr);
           result = false;
         }
       }
+    } catch (const sourcemeta::core::SchemaRelativeMetaschemaResolutionError
+                 &error) {
+      throw FileError<
+          sourcemeta::core::SchemaRelativeMetaschemaResolutionError>(
+          entry.first, error);
     } catch (const sourcemeta::core::SchemaResolutionError &error) {
       throw FileError<sourcemeta::core::SchemaResolutionError>(entry.first,
                                                                error);

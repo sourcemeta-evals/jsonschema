@@ -1,5 +1,7 @@
+#include <sourcemeta/core/io.h>
 #include <sourcemeta/core/json.h>
 #include <sourcemeta/core/jsonschema.h>
+#include <sourcemeta/core/yaml.h>
 
 #include <cstdlib>  // EXIT_SUCCESS, EXIT_FAILURE
 #include <iostream> // std::cout
@@ -8,10 +10,12 @@
 #include "command.h"
 #include "utils.h"
 
-auto operator<<(std::ostream &stream,
-                const sourcemeta::core::SchemaFrame &frame) -> std::ostream & {
+auto print_frame(std::ostream &stream,
+                 const sourcemeta::core::SchemaFrame &frame,
+                 const sourcemeta::core::PointerPositionTracker &positions)
+    -> void {
   if (frame.locations().empty()) {
-    return stream;
+    return;
   }
 
   for (auto iterator = frame.locations().cbegin();
@@ -52,6 +56,14 @@ auto operator<<(std::ostream &stream,
       stream << "    Pointer           : ";
       sourcemeta::core::stringify(location.second.pointer, stream);
       stream << "\n";
+    }
+
+    const auto position{positions.get(location.second.pointer)};
+    if (position.has_value()) {
+      stream << "    File Position     : " << std::get<0>(position.value())
+             << ":" << std::get<1>(position.value()) << "\n";
+    } else {
+      stream << "    File Position     : <unknown>:<unknown>\n";
     }
 
     stream << "    Base              : " << location.second.base << "\n";
@@ -113,6 +125,14 @@ auto operator<<(std::ostream &stream,
       stream << "    Type              : Dynamic\n";
     }
 
+    const auto position{positions.get(reference.first.second)};
+    if (position.has_value()) {
+      stream << "    File Position     : " << std::get<0>(position.value())
+             << ":" << std::get<1>(position.value()) << "\n";
+    } else {
+      stream << "    File Position     : <unknown>:<unknown>\n";
+    }
+
     stream << "    Destination       : " << reference.second.destination
            << "\n";
     stream << "    - (w/o fragment)  : "
@@ -120,27 +140,28 @@ auto operator<<(std::ostream &stream,
     stream << "    - (fragment)      : "
            << reference.second.fragment.value_or("<NONE>") << "\n";
   }
-
-  return stream;
 }
 
 auto sourcemeta::jsonschema::cli::inspect(
-    const std::span<const std::string> &arguments) -> int {
-  const auto options{parse_options(arguments, {})};
-  if (options.at("").size() < 1) {
+    const sourcemeta::core::Options &options) -> int {
+  if (options.positional().size() < 1) {
     std::cerr
         << "error: This command expects a path to a schema. For example:\n\n"
         << "  jsonschema inspect path/to/schema.json\n";
     return EXIT_FAILURE;
   }
 
-  const std::filesystem::path schema_path{options.at("").front()};
+  const std::filesystem::path schema_path{options.positional().front()};
+  sourcemeta::core::PointerPositionTracker positions;
   const sourcemeta::core::JSON schema{
-      sourcemeta::jsonschema::cli::read_file(schema_path)};
+      sourcemeta::core::read_yaml_or_json(schema_path, std::ref(positions))};
 
-  const auto dialect{default_dialect(options)};
-  const auto custom_resolver{resolver(
-      options, options.contains("h") || options.contains("http"), dialect)};
+  const auto configuration_path{find_configuration(schema_path)};
+  const auto &configuration{read_configuration(options, configuration_path)};
+  const auto dialect{default_dialect(options, configuration)};
+  const auto &custom_resolver{
+      resolver(options, options.contains("http"), dialect, configuration)};
+
   const auto identifier{sourcemeta::core::identify(
       schema, custom_resolver,
       sourcemeta::core::SchemaIdentificationStrategy::Strict, dialect)};
@@ -158,14 +179,14 @@ auto sourcemeta::jsonschema::cli::inspect(
       identifier.has_value()
           ? std::optional<sourcemeta::core::JSON::String>(std::nullopt)
           : sourcemeta::core::URI::from_path(
-                sourcemeta::jsonschema::cli::safe_weakly_canonical(schema_path))
+                sourcemeta::core::weakly_canonical(schema_path))
                 .recompose());
 
-  if (options.contains("json") || options.contains("j")) {
-    sourcemeta::core::prettify(frame.to_json(), std::cout);
+  if (options.contains("json")) {
+    sourcemeta::core::prettify(frame.to_json(positions), std::cout);
     std::cout << "\n";
   } else {
-    std::cout << frame;
+    print_frame(std::cout, frame, positions);
   }
 
   return EXIT_SUCCESS;
