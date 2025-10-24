@@ -88,7 +88,7 @@ static auto get_lint_callback(sourcemeta::core::JSON &errors_array,
 auto sourcemeta::jsonschema::cli::lint(
     const std::span<const std::string> &arguments) -> int {
   const auto options{parse_options(
-      arguments, {"f", "fix", "json", "j", "k", "keep-ordering"})};
+      arguments, {"f", "fix", "json", "j", "k", "keep-ordering", "h", "http"})};
   const bool output_json = options.contains("json") || options.contains("j");
 
   sourcemeta::core::SchemaTransformer bundle;
