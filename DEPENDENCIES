@@ -1,5 +1,5 @@
-vendorpull https://github.com/sourcemeta/vendorpull dea311b5bfb53b6926a4140267959ae334d3ecf4
-core https://github.com/sourcemeta/core 7a18592f4b77e9932571436fbee69b34551a566a
-jsonbinpack https://github.com/sourcemeta/jsonbinpack 61a04d9d304343d8c206972225393f7ae0d5b603
-blaze https://github.com/sourcemeta/blaze c0beb606def90d0cfadff1187bfa50443493eb9d
-curl https://github.com/curl/curl curl-8_14_0
+vendorpull https://github.com/sourcemeta/vendorpull 1dcbac42809cf87cb5b045106b863e17ad84ba02
+core https://github.com/sourcemeta/core d894234fa272759a998fc6ac108583af86532bf8
+jsonbinpack https://github.com/sourcemeta/jsonbinpack 56dd83ba8483391a694c017ceceafa46cf743259
+blaze https://github.com/sourcemeta/blaze dcf0f909833bc48e42da82bd83fb3870778b8e5f
+hydra https://github.com/sourcemeta/hydra 0cbdacff9432c85f33f9a689b087bb3a37d2a788
