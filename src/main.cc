@@ -211,6 +211,12 @@ auto main(int argc, char *argv[]) noexcept -> int {
   } catch (const std::runtime_error &error) {
     std::cerr << "error: " << error.what() << "\n";
     return EXIT_FAILURE;
+  } catch (const std::out_of_range &error) {
+    std::cerr << "unexpected error: " << error.what() << "\n";
+    std::cerr << "This is likely an internal error. Please report it at\n";
+    std::cerr << "https://github.com/sourcemeta/jsonschema\n";
+    std::cerr << "\nTry running with --verbose/-v for more details\n";
+    return EXIT_FAILURE;
   } catch (const std::exception &error) {
     std::cerr << "unexpected error: " << error.what()
               << "\nPlease report it at "

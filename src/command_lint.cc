@@ -113,10 +113,19 @@ auto sourcemeta::jsonschema::cli::lint(
   auto errors_array = sourcemeta::core::JSON::make_array();
   const auto dialect{default_dialect(options)};
 
+  // Check if we have any positional arguments
+  if (options.at("").empty()) {
+    log_verbose(options) << "No input files or directories specified\n";
+    return EXIT_SUCCESS;
+  }
+
   if (options.contains("f") || options.contains("fix")) {
+    log_verbose(options) << "Discovering input files...\n";
+    std::size_t file_count = 0;
     for (const auto &entry :
          for_each_json(options.at(""), parse_ignore(options),
                        parse_extensions(options))) {
+      file_count++;
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
       if (entry.first.extension() == ".yaml" ||
           entry.first.extension() == ".yml") {
@@ -139,10 +148,14 @@ auto sourcemeta::jsonschema::cli::lint(
       }
       output << "\n";
     }
+    log_verbose(options) << "Processed " << file_count << " file(s)\n";
   } else {
+    log_verbose(options) << "Discovering input files...\n";
+    std::size_t file_count = 0;
     for (const auto &entry :
          for_each_json(options.at(""), parse_ignore(options),
                        parse_extensions(options))) {
+      file_count++;
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
       const bool subresult = bundle.check(
           entry.second, sourcemeta::core::schema_official_walker,
@@ -154,6 +167,7 @@ auto sourcemeta::jsonschema::cli::lint(
         result = false;
       }
     }
+    log_verbose(options) << "Processed " << file_count << " file(s)\n";
   }
 
   if (output_json) {
