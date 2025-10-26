@@ -36,6 +36,7 @@ auto sourcemeta::jsonschema::cli::compile(
   }
 
   const auto fast_mode{options.contains("fast")};
+  const auto minify_mode{options.contains("minify")};
   const auto schema_template{sourcemeta::blaze::compile(
       schema, sourcemeta::core::schema_official_walker, custom_resolver,
       sourcemeta::blaze::default_schema_compiler,
@@ -47,7 +48,11 @@ auto sourcemeta::jsonschema::cli::compile(
           .recompose())};
 
   const auto template_json{sourcemeta::blaze::to_json(schema_template)};
-  sourcemeta::core::prettify(template_json, std::cout);
+  if (minify_mode) {
+    sourcemeta::core::stringify(template_json, std::cout);
+  } else {
+    sourcemeta::core::prettify(template_json, std::cout);
+  }
   std::cout << "\n";
 
   return EXIT_SUCCESS;
