@@ -151,6 +151,14 @@ inline auto parse_ignore(const sourcemeta::core::Options &options)
     }
   }
 
+  if (options.contains("i")) {
+    for (const auto &ignore : options.at("i")) {
+      const auto canonical{std::filesystem::weakly_canonical(ignore)};
+      log_verbose(options) << "Ignoring path: " << canonical << "\n";
+      result.insert(canonical);
+    }
+  }
+
   return result;
 }
 
