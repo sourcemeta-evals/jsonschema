@@ -150,6 +150,23 @@ auto sourcemeta::jsonschema::cli::lint(
         return EXIT_FAILURE;
       }
 
+      bool has_fixable_issues{false};
+      try {
+        has_fixable_issues = !bundle.check(
+            entry.second, sourcemeta::core::schema_official_walker,
+            resolver(options, options.contains("h") || options.contains("http"),
+                     dialect),
+            [](const auto &, const auto &, const auto &, const auto &) {},
+            dialect, sourcemeta::core::URI::from_path(entry.first).recompose());
+      } catch (const sourcemeta::core::SchemaUnknownBaseDialectError &) {
+        throw FileError<sourcemeta::core::SchemaUnknownBaseDialectError>(
+            entry.first);
+      }
+
+      if (!has_fixable_issues) {
+        continue;
+      }
+
       auto copy = entry.second;
 
       try {
