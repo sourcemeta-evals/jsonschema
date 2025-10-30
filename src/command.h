@@ -1,6 +1,8 @@
 #ifndef SOURCEMETA_JSONSCHEMA_CLI_COMMAND_H_
 #define SOURCEMETA_JSONSCHEMA_CLI_COMMAND_H_
 
+// Updated to support PositionalArgumentError
+
 #include <sourcemeta/core/options.h>
 
 namespace sourcemeta::jsonschema::cli {

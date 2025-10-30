@@ -14,9 +14,7 @@
 auto sourcemeta::jsonschema::cli::compile(
     const sourcemeta::core::Options &options) -> int {
   if (options.positional().size() < 1) {
-    std::cerr
-        << "error: This command expects a path to a schema. For example:\n\n"
-        << "  jsonschema compile path/to/schema.json\n";
+    std::cerr << "error: This command expects a path to a schema\n";
     return EXIT_FAILURE;
   }
 

@@ -129,18 +129,12 @@ auto run_loop(sourcemeta::blaze::Evaluator &evaluator,
 auto sourcemeta::jsonschema::cli::validate(
     const sourcemeta::core::Options &options) -> int {
   if (options.positional().size() < 1) {
-    std::cerr
-        << "error: This command expects a path to a schema and a path to an\n"
-        << "instance to validate against the schema. For example:\n\n"
-        << "  jsonschema validate path/to/schema.json path/to/instance.json\n";
+    std::cerr << "error: validate needs schema path\n";
     return EXIT_FAILURE;
   }
 
   if (options.positional().size() < 2) {
-    std::cerr
-        << "error: In addition to the schema, you must also pass an argument\n"
-        << "that represents the instance to validate against. For example:\n\n"
-        << "  jsonschema validate path/to/schema.json path/to/instance.json\n";
+    std::cerr << "error: validate needs instance path\n";
     return EXIT_FAILURE;
   }
 

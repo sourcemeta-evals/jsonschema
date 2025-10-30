@@ -3,6 +3,7 @@
 #include <sourcemeta/core/jsonschema.h>
 #include <sourcemeta/core/yaml.h>
 
+#include "error.h"
 #include <cstdlib>  // EXIT_SUCCESS, EXIT_FAILURE
 #include <iostream> // std::cout
 #include <ostream>  // std::ostream
@@ -145,10 +146,7 @@ auto print_frame(std::ostream &stream,
 auto sourcemeta::jsonschema::cli::inspect(
     const sourcemeta::core::Options &options) -> int {
   if (options.positional().size() < 1) {
-    std::cerr
-        << "error: This command expects a path to a schema. For example:\n\n"
-        << "  jsonschema inspect path/to/schema.json\n";
-    return EXIT_FAILURE;
+    throw PositionalArgumentError{"inspect error"};
   }
 
   const std::filesystem::path schema_path{options.positional().front()};

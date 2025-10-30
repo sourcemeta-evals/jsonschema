@@ -8,8 +8,18 @@
 #include <cassert>    // assert
 #include <filesystem> // std::filesystem
 #include <functional> // std::function
+#include <iostream>
+#include <stdexcept>
+#include <string>
 
 namespace sourcemeta::jsonschema {
+
+// Exception for positional arguments
+struct PositionalArgumentError {
+  std::string error_msg;
+
+  PositionalArgumentError(std::string msg) : error_msg(msg) {}
+};
 
 template <typename T> class FileError : public T {
 public:
@@ -30,6 +40,9 @@ private:
 inline auto try_catch(const std::function<int()> &callback) noexcept -> int {
   try {
     return callback();
+  } catch (const PositionalArgumentError &error) {
+    std::cerr << "error: " << error.error_msg << "\n";
+    return EXIT_FAILURE;
   } catch (const sourcemeta::core::SchemaReferenceError &error) {
     std::cerr << "error: " << error.what() << "\n  " << error.id()
               << "\n    at schema location \"";
