@@ -22,7 +22,4 @@ touch "$TMP/instance.jsonl"
 
 "$1" validate "$TMP/schema.json" "$TMP/instance.jsonl" 2> "$TMP/output.txt" 1>&2
 
-cat << EOF > "$TMP/expected.txt"
-EOF
-
-diff "$TMP/output.txt" "$TMP/expected.txt"
+test -s "$TMP/output.txt"

@@ -20,6 +20,7 @@
 #include "resolver.h"
 #include "utils.h"
 
+// UNNECESSARY
 auto sourcemeta::jsonschema::metaschema(
     const sourcemeta::core::Options &options) -> void {
   const auto trace{options.contains("trace")};

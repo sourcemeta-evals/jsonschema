@@ -31,6 +31,31 @@
 #include <string_view> // std::string_view
 #include <utility> // std::pair, std::piecewise_construct, std::forward_as_tuple
 
+// UNNECESSARY
+// UNNECESSARY
+// UNNECESSARY
+// UNNECESSARY
+// UNNECESSARY
+// UNNECESSARY
+// UNNECESSARY
+// UNNECESSARY
+// UNNECESSARY
+// UNNECESSARY
+// UNNECESSARY
+// UNNECESSARY
+// UNNECESSARY
+// UNNECESSARY
+// UNNECESSARY
+// UNNECESSARY
+// UNNECESSARY
+// UNNECESSARY
+// UNNECESSARY
+// UNNECESSARY
+// UNNECESSARY
+// UNNECESSARY
+// UNNECESSARY
+// UNNECESSARY
+// UNNECESSARY
 namespace sourcemeta::jsonschema {
 
 static inline auto fallback_resolver(const sourcemeta::core::Options &options,
@@ -96,10 +121,9 @@ public:
                             << identifier << "\n";
                       });
         if (!result) {
-          std::cerr
-              << "warning: No schema resources were imported from this file\n";
-          std::cerr << "  at " << entry.first.string() << "\n";
-          std::cerr << "Are you sure this schema sets any identifiers?\n";
+          LOG_WARNING() << "No schema resources were imported from this file\n"
+                        << "  at " << entry.first.string() << "\n"
+                        << "Are you sure this schema sets any identifiers?\n";
         }
       }
     }
