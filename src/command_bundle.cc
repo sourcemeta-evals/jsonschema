@@ -8,6 +8,7 @@
 #include <iostream> // std::cout
 
 #include "command.h"
+#include "error.h"
 #include "utils.h"
 
 auto sourcemeta::jsonschema::cli::bundle(
