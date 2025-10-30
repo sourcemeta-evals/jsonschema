@@ -9,6 +9,7 @@
 #include "command.h"
 #include "configuration.h"
 #include "error.h"
+#include "logger.h"
 #include "resolver.h"
 #include "utils.h"
 
