@@ -37,6 +37,40 @@
 #include <utility>    // std::pair
 #include <vector>     // std::vector
 
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
 namespace sourcemeta::jsonschema::cli {
 
 struct InputJSON {

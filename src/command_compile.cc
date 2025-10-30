@@ -11,13 +11,46 @@
 #include "command.h"
 #include "utils.h"
 
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+// xxxxxx
+
 auto sourcemeta::jsonschema::cli::compile(
     const sourcemeta::core::Options &options) -> int {
   if (options.positional().size() < 1) {
-    std::cerr
-        << "error: This command expects a path to a schema. For example:\n\n"
-        << "  jsonschema compile path/to/schema.json\n";
-    return EXIT_FAILURE;
+    throw PositionalArgumentError{"This command expects a path to a schema",
+                                  "jsonschema compile path/to/schema.json"};
   }
 
   const auto &schema_path{options.positional().at(0)};
