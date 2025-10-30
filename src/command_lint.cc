@@ -28,8 +28,7 @@ static auto disable_lint_rules(sourcemeta::core::SchemaTransformer &bundle,
       sourcemeta::jsonschema::LOG_VERBOSE(options)
           << "Disabling rule: " << *iterator << "\n";
     } else {
-      sourcemeta::jsonschema::LOG_VERBOSE(options)
-          << "warning: Cannot exclude unknown rule: " << *iterator << "\n";
+      std::cerr << "Cannot exclude unknown rule: " << *iterator << "\n";
     }
   }
 }

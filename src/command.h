@@ -1,6 +1,8 @@
 #ifndef SOURCEMETA_JSONSCHEMA_CLI_COMMAND_H_
 #define SOURCEMETA_JSONSCHEMA_CLI_COMMAND_H_
 
+// Added LOG_WARNING support
+
 #include <sourcemeta/core/options.h>
 
 namespace sourcemeta::jsonschema {
