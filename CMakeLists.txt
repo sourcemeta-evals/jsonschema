@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(jsonschema VERSION 11.0.1 LANGUAGES C CXX)
+project(jsonschema VERSION 12.1.0 LANGUAGES C CXX)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 # Options
@@ -22,7 +22,7 @@ endif()
 
 find_package(Blaze REQUIRED)
 find_package(JSONBinPack REQUIRED)
-find_package(CURL REQUIRED)
+find_package(Hydra REQUIRED)
 add_subdirectory(src)
 
 if(JSONSCHEMA_DEVELOPMENT)
