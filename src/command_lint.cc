@@ -5,13 +5,43 @@
 
 #include <sourcemeta/blaze/linter.h>
 
-#include <cstdlib>  // EXIT_SUCCESS, EXIT_FAILURE
-#include <fstream>  // std::ofstream
-#include <iostream> // std::cerr, std::cout
-#include <sstream>  // std::ostringstream
+#include <cstdlib>   // EXIT_SUCCESS, EXIT_FAILURE
+#include <fstream>   // std::ofstream
+#include <iostream>  // std::cerr, std::cout
+#include <sstream>   // std::ostringstream
+#include <stdexcept> // std::out_of_range
 
 #include "command.h"
 #include "utils.h"
+
+static auto looks_like_json_schema(const sourcemeta::core::JSON &document)
+    -> bool {
+  if (!document.is_object()) {
+    return false;
+  }
+
+  if (document.defines("$schema") || document.defines("$id") ||
+      document.defines("id")) {
+    return true;
+  }
+
+  const std::vector<std::string> schema_keywords{
+      "$ref",          "$defs",     "definitions", "properties",
+      "type",          "allOf",     "anyOf",       "oneOf",
+      "not",           "items",     "prefixItems", "additionalProperties",
+      "required",      "enum",      "const",       "minimum",
+      "maximum",       "minLength", "maxLength",   "pattern",
+      "minItems",      "maxItems",  "uniqueItems", "minProperties",
+      "maxProperties", "$anchor",   "$dynamicRef", "$dynamicAnchor"};
+
+  for (const auto &keyword : schema_keywords) {
+    if (document.defines(keyword)) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 template <typename Options, typename Iterator>
 static auto disable_lint_rules(sourcemeta::core::SchemaTransformer &bundle,
@@ -113,10 +143,19 @@ auto sourcemeta::jsonschema::cli::lint(
   auto errors_array = sourcemeta::core::JSON::make_array();
   const auto dialect{default_dialect(options)};
 
+  const auto entries{for_each_json(options.at(""), parse_ignore(options),
+                                   parse_extensions(options))};
+
+  if (entries.empty()) {
+    if (options.contains("verbose") || options.contains("v")) {
+      std::cerr << "warning: No input files matched after applying ignore "
+                   "filters\n";
+    }
+    return EXIT_SUCCESS;
+  }
+
   if (options.contains("f") || options.contains("fix")) {
-    for (const auto &entry :
-         for_each_json(options.at(""), parse_ignore(options),
-                       parse_extensions(options))) {
+    for (const auto &entry : entries) {
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
       if (entry.first.extension() == ".yaml" ||
           entry.first.extension() == ".yml") {
@@ -124,34 +163,79 @@ auto sourcemeta::jsonschema::cli::lint(
         return EXIT_FAILURE;
       }
 
-      auto copy = entry.second;
-      bundle.apply(
-          copy, sourcemeta::core::schema_official_walker,
-          resolver(options, options.contains("h") || options.contains("http"),
-                   dialect),
-          get_lint_callback(errors_array, entry.first, output_json), dialect);
-      std::ofstream output{entry.first};
-      if (options.contains("k") || options.contains("keep-ordering")) {
-        sourcemeta::core::prettify(copy, output);
-      } else {
-        sourcemeta::core::prettify(copy, output,
-                                   sourcemeta::core::schema_format_compare);
+      if (!looks_like_json_schema(entry.second)) {
+        std::cerr << "error: The input does not appear to be a JSON Schema\n  "
+                  << entry.first.string() << "\n\n";
+        std::cerr << "The lint command is designed to check JSON Schema "
+                     "documents, not arbitrary JSON.\n";
+        std::cerr << "If this is a JSON Schema, ensure it contains at least "
+                     "one schema keyword\n";
+        std::cerr << "(e.g., $schema, $id, type, properties, $ref, etc.)\n";
+        return EXIT_FAILURE;
       }
-      output << "\n";
+
+      try {
+        auto copy = entry.second;
+        bundle.apply(
+            copy, sourcemeta::core::schema_official_walker,
+            resolver(options, options.contains("h") || options.contains("http"),
+                     dialect),
+            get_lint_callback(errors_array, entry.first, output_json), dialect);
+        std::ofstream output{entry.first};
+        if (options.contains("k") || options.contains("keep-ordering")) {
+          sourcemeta::core::prettify(copy, output);
+        } else {
+          sourcemeta::core::prettify(copy, output,
+                                     sourcemeta::core::schema_format_compare);
+        }
+        output << "\n";
+      } catch (const std::out_of_range &error) {
+        std::cerr << "error: Internal error while linting "
+                  << entry.first.string() << ": " << error.what() << "\n\n";
+        std::cerr << "This often occurs when the input is not a valid JSON "
+                     "Schema.\n";
+        std::cerr << "If you believe this is a valid JSON Schema, please "
+                     "report this issue at\n";
+        std::cerr << "https://github.com/sourcemeta/jsonschema with the "
+                     "problematic file.\n";
+        return EXIT_FAILURE;
+      }
     }
   } else {
-    for (const auto &entry :
-         for_each_json(options.at(""), parse_ignore(options),
-                       parse_extensions(options))) {
+    for (const auto &entry : entries) {
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
-      const bool subresult = bundle.check(
-          entry.second, sourcemeta::core::schema_official_walker,
-          resolver(options, options.contains("h") || options.contains("http"),
-                   dialect),
-          get_lint_callback(errors_array, entry.first, output_json), dialect);
 
-      if (!subresult) {
-        result = false;
+      if (!looks_like_json_schema(entry.second)) {
+        std::cerr << "error: The input does not appear to be a JSON Schema\n  "
+                  << entry.first.string() << "\n\n";
+        std::cerr << "The lint command is designed to check JSON Schema "
+                     "documents, not arbitrary JSON.\n";
+        std::cerr << "If this is a JSON Schema, ensure it contains at least "
+                     "one schema keyword\n";
+        std::cerr << "(e.g., $schema, $id, type, properties, $ref, etc.)\n";
+        return EXIT_FAILURE;
+      }
+
+      try {
+        const bool subresult = bundle.check(
+            entry.second, sourcemeta::core::schema_official_walker,
+            resolver(options, options.contains("h") || options.contains("http"),
+                     dialect),
+            get_lint_callback(errors_array, entry.first, output_json), dialect);
+
+        if (!subresult) {
+          result = false;
+        }
+      } catch (const std::out_of_range &error) {
+        std::cerr << "error: Internal error while linting "
+                  << entry.first.string() << ": " << error.what() << "\n\n";
+        std::cerr << "This often occurs when the input is not a valid JSON "
+                     "Schema.\n";
+        std::cerr << "If you believe this is a valid JSON Schema, please "
+                     "report this issue at\n";
+        std::cerr << "https://github.com/sourcemeta/jsonschema with the "
+                     "problematic file.\n";
+        return EXIT_FAILURE;
       }
     }
   }

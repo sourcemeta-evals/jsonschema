@@ -15,11 +15,12 @@ EOF
 test "$CODE" = "1" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
-error: Could not determine the base dialect of the schema
+error: The input does not appear to be a JSON Schema
+  $TMP/schema.json
 
-Are you sure the input is a valid JSON Schema and its base dialect is known?
-If the input does not declare the \$schema keyword, you might want to
-explicity declare a default dialect using --default-dialect/-d
+The lint command is designed to check JSON Schema documents, not arbitrary JSON.
+If this is a JSON Schema, ensure it contains at least one schema keyword
+(e.g., \$schema, \$id, type, properties, \$ref, etc.)
 EOF
 
 diff "$TMP/output.txt" "$TMP/expected.txt"
