@@ -153,20 +153,26 @@ auto sourcemeta::jsonschema::cli::lint(
       auto copy = entry.second;
 
       try {
-        bundle.apply(
+        const bool subresult = bundle.apply(
             copy, sourcemeta::core::schema_official_walker,
             resolver(options, options.contains("h") || options.contains("http"),
                      dialect),
             get_lint_callback(errors_array, entry.first, output_json), dialect,
             sourcemeta::core::URI::from_path(entry.first).recompose());
+        if (!subresult) {
+          result = false;
+        }
       } catch (const sourcemeta::core::SchemaUnknownBaseDialectError &) {
         throw FileError<sourcemeta::core::SchemaUnknownBaseDialectError>(
             entry.first);
       }
 
-      std::ofstream output{entry.first};
-      sourcemeta::core::prettify(copy, output);
-      output << "\n";
+      // Only write the file if the schema was actually modified
+      if (copy != entry.second) {
+        std::ofstream output{entry.first};
+        sourcemeta::core::prettify(copy, output);
+        output << "\n";
+      }
     }
   } else {
     for (const auto &entry :
