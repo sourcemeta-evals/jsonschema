@@ -91,6 +91,21 @@ auto sourcemeta::jsonschema::cli::lint(
       arguments, {"f", "fix", "json", "j", "k", "keep-ordering"})};
   const bool output_json = options.contains("json") || options.contains("j");
 
+  // Log parsed options for debugging
+  log_verbose(options) << "Lint command started\n";
+  if (options.contains("")) {
+    log_verbose(options) << "Positional arguments: " << options.at("").size()
+                         << "\n";
+  }
+  if (options.contains("ignore") || options.contains("i")) {
+    const auto ignore_paths = parse_ignore(options);
+    log_verbose(options) << "Ignore patterns: " << ignore_paths.size() << "\n";
+  }
+  if (options.contains("extension") || options.contains("e")) {
+    const auto extensions = parse_extensions(options);
+    log_verbose(options) << "Extensions: " << extensions.size() << "\n";
+  }
+
   sourcemeta::core::SchemaTransformer bundle;
   sourcemeta::core::add(bundle, sourcemeta::core::AlterSchemaMode::Readability);
 

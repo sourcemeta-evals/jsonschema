@@ -208,6 +208,13 @@ auto main(int argc, char *argv[]) noexcept -> int {
     }
 
     return EXIT_FAILURE;
+  } catch (const std::out_of_range &error) {
+    std::cerr << "error: Internal option parsing error\n";
+    std::cerr << "  " << error.what() << "\n";
+    std::cerr << "\nThis is likely a bug. Please report it at\n";
+    std::cerr << "https://github.com/sourcemeta/jsonschema\n";
+    std::cerr << "along with the command you ran and any relevant files.\n";
+    return EXIT_FAILURE;
   } catch (const std::runtime_error &error) {
     std::cerr << "error: " << error.what() << "\n";
     return EXIT_FAILURE;
