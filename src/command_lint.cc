@@ -60,7 +60,7 @@ static auto get_lint_callback(sourcemeta::core::JSON &errors_array,
       if (description.empty()) {
         error_obj.assign("description", sourcemeta::core::JSON{nullptr});
       } else {
-        error_obj.assign("description", sourcemeta::core::JSON{message});
+        error_obj.assign("description", sourcemeta::core::JSON{description});
       }
 
       std::ostringstream pointer_stream;
@@ -124,34 +124,58 @@ auto sourcemeta::jsonschema::cli::lint(
         return EXIT_FAILURE;
       }
 
-      auto copy = entry.second;
-      bundle.apply(
-          copy, sourcemeta::core::schema_official_walker,
-          resolver(options, options.contains("h") || options.contains("http"),
-                   dialect),
-          get_lint_callback(errors_array, entry.first, output_json), dialect);
-      std::ofstream output{entry.first};
-      if (options.contains("k") || options.contains("keep-ordering")) {
-        sourcemeta::core::prettify(copy, output);
-      } else {
-        sourcemeta::core::prettify(copy, output,
-                                   sourcemeta::core::schema_format_compare);
+      try {
+        auto copy = entry.second;
+        bundle.apply(
+            copy, sourcemeta::core::schema_official_walker,
+            resolver(options, options.contains("h") || options.contains("http"),
+                     dialect),
+            get_lint_callback(errors_array, entry.first, output_json), dialect);
+        std::ofstream output{entry.first};
+        if (options.contains("k") || options.contains("keep-ordering")) {
+          sourcemeta::core::prettify(copy, output);
+        } else {
+          sourcemeta::core::prettify(copy, output,
+                                     sourcemeta::core::schema_format_compare);
+        }
+        output << "\n";
+      } catch (const std::out_of_range &error) {
+        std::ostringstream message;
+        message
+            << "Internal error while linting file: " << error.what() << "\n  "
+            << entry.first.string()
+            << "\n\nThis may occur when linting a file that is not a valid "
+               "JSON Schema.\n"
+            << "Please verify the file is a proper schema, or use --ignore/-i "
+               "to exclude it.";
+        throw std::runtime_error(message.str());
       }
-      output << "\n";
     }
   } else {
     for (const auto &entry :
          for_each_json(options.at(""), parse_ignore(options),
                        parse_extensions(options))) {
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
-      const bool subresult = bundle.check(
-          entry.second, sourcemeta::core::schema_official_walker,
-          resolver(options, options.contains("h") || options.contains("http"),
-                   dialect),
-          get_lint_callback(errors_array, entry.first, output_json), dialect);
+      try {
+        const bool subresult = bundle.check(
+            entry.second, sourcemeta::core::schema_official_walker,
+            resolver(options, options.contains("h") || options.contains("http"),
+                     dialect),
+            get_lint_callback(errors_array, entry.first, output_json), dialect);
 
-      if (!subresult) {
-        result = false;
+        if (!subresult) {
+          result = false;
+        }
+      } catch (const std::out_of_range &error) {
+        std::ostringstream message;
+        message
+            << "Internal error while linting file: " << error.what() << "\n  "
+            << entry.first.string()
+            << "\n\nThis may occur when linting a file that is not a valid "
+               "JSON Schema.\n"
+            << "Please verify the file is a proper schema, or use --ignore/-i "
+               "to exclude it.";
+        throw std::runtime_error(message.str());
       }
     }
   }
