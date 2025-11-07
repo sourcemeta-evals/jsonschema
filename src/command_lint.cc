@@ -60,7 +60,7 @@ static auto get_lint_callback(sourcemeta::core::JSON &errors_array,
       if (description.empty()) {
         error_obj.assign("description", sourcemeta::core::JSON{nullptr});
       } else {
-        error_obj.assign("description", sourcemeta::core::JSON{message});
+        error_obj.assign("description", sourcemeta::core::JSON{description});
       }
 
       std::ostringstream pointer_stream;
