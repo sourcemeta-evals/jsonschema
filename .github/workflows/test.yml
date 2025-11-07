@@ -4,16 +4,18 @@ on:
   pull_request:
 
 jobs:
+  codespell:
+    runs-on: ubuntu-latest
+    steps:
+      - run: sudo apt-get update && sudo apt-get install --yes codespell
+      - uses: actions/checkout@v4
+      - run: codespell docs *.markdown
+
   test:
     strategy:
       fail-fast: false
       matrix:
         platform:
-          - os: ubuntu-22.04
-            type: native
-            cc: clang
-            cxx: clang++
-            shell: sh
           - os: ubuntu-22.04
             type: native
             cc: gcc
@@ -58,13 +60,10 @@ jobs:
           additional-packages: cmake build-essential shellcheck pipx
           wsl-version: 2
 
-      - name: Install ClangFormat
-        run: pipx install clang-format==19.1.0
       - name: Install pre-commit
         run: pipx install pre-commit
       - name: Surface pipx binaries to WSL
         run: |
-          ln -s -v /root/.local/bin/clang-format /usr/bin/clang-format
           ln -s -v /root/.local/bin/pre-commit /usr/bin/pre-commit
         if: runner.os == 'windows' && matrix.platform.type == 'wsl-2'
 
@@ -112,3 +111,20 @@ jobs:
       - run: docker run --interactive --volume "$PWD:/schema" jsonschema
       - run: ./test/docker/help.sh
       - run: ./test/docker/bundle_fmt.sh
+
+  snap:
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [ ubuntu-24.04, ubuntu-24.04-arm ]
+
+    runs-on: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: snapcore/action-build@v1
+        id: snapcraft
+      - run: sudo snap install --dangerous --classic ${{ steps.snapcraft.outputs.snap }}
+      - run: jsonschema version
+      - run: mkdir "$PWD/build"
+      - run: TMPDIR="$PWD/build" ./test/bundle/pass_resolve_single.sh jsonschema
+      - run: TMPDIR="$PWD/build" ./test/ci/pass_validate_http_verbose.sh jsonschema

@@ -1,64 +1,44 @@
 @PACKAGE_INIT@
 
-# Support both casing styles
-list(APPEND HYDRA_COMPONENTS ${Hydra_FIND_COMPONENTS})
-list(APPEND HYDRA_COMPONENTS ${hydra_FIND_COMPONENTS})
-if(NOT HYDRA_COMPONENTS)
-  list(APPEND HYDRA_COMPONENTS httpclient)
-  # TODO: Make it work on Windows. Main challenge is that uSockets
-  # relies on libuv for that platform.
-  if(NOT WIN32)
-    list(APPEND HYDRA_COMPONENTS httpserver)
-  endif()
-  list(APPEND HYDRA_COMPONENTS bucket)
-endif()
-
 include(CMakeFindDependencyMacro)
 
-# GCC does not allow the use of std::promise, std::future
-# without compiling with pthreads support.
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
-  set(THREADS_PREFER_PTHREAD_FLAG TRUE)
-  find_dependency(Threads)
+find_dependency(ZLIB CONFIG)
+if(TARGET zlib AND NOT TARGET ZLIB::ZLIB)
+  add_library(ZLIB::ZLIB ALIAS zlib)
 endif()
 
-foreach(component ${HYDRA_COMPONENTS})
-  if(component STREQUAL "crypto")
-    find_dependency(BearSSL)
-    include("${CMAKE_CURRENT_LIST_DIR}/sourcemeta_hydra_crypto.cmake")
-  elseif(component STREQUAL "httpclient")
-    include("${CMAKE_CURRENT_LIST_DIR}/sourcemeta_hydra_http.cmake")
-    find_dependency(ZLIB)
-    find_dependency(BearSSL)
-    find_dependency(CURL)
-    include("${CMAKE_CURRENT_LIST_DIR}/sourcemeta_hydra_httpclient.cmake")
-  elseif(component STREQUAL "httpserver")
-    if(WIN32)
-      # TODO: Make it work on Windows. Main challenge is that uSockets
-      # relies on libuv for that platform.
-      message(FATAL_ERROR "Hydra does not support the HTTP Server module on Windows yet")
-    endif()
-
-    include("${CMAKE_CURRENT_LIST_DIR}/sourcemeta_hydra_http.cmake")
-    find_dependency(BearSSL)
-    include("${CMAKE_CURRENT_LIST_DIR}/sourcemeta_hydra_crypto.cmake")
-    find_dependency(uSockets)
-    find_dependency(uWebSockets)
-    find_dependency(Core COMPONENTS json)
-    include("${CMAKE_CURRENT_LIST_DIR}/sourcemeta_hydra_httpserver.cmake")
-  elseif(component STREQUAL "bucket")
-    include("${CMAKE_CURRENT_LIST_DIR}/sourcemeta_hydra_http.cmake")
-    find_dependency(BearSSL)
-    include("${CMAKE_CURRENT_LIST_DIR}/sourcemeta_hydra_crypto.cmake")
-    find_dependency(ZLIB)
-    find_dependency(CURL)
-    include("${CMAKE_CURRENT_LIST_DIR}/sourcemeta_hydra_httpclient.cmake")
-    find_dependency(Core COMPONENTS json uri)
-    include("${CMAKE_CURRENT_LIST_DIR}/sourcemeta_hydra_bucket.cmake")
-  else()
-    message(FATAL_ERROR "Unknown Hydra component: ${component}")
+if(NOT WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "MSYS")
+  find_dependency(MbedTLS CONFIG)
+  if(TARGET mbedtls AND NOT TARGET MbedTLS::mbedtls)
+    add_library(MbedTLS::mbedtls ALIAS mbedtls)
   endif()
-endforeach()
+endif()
+
+find_dependency(Nghttp2 CONFIG)
+if(TARGET nghttp2 AND NOT TARGET Nghttp2::nghttp2)
+  add_library(Nghttp2::nghttp2 ALIAS nghttp2)
+endif()
+
+if(NOT WIN32 AND NOT CMAKE_SYSTEM_NAME STREQUAL "MSYS")
+  find_dependency(CAres CONFIG)
+  if(TARGET cares AND NOT TARGET c-ares::cares)
+    add_library(c-ares::cares ALIAS cares)
+  endif()
+endif()
+
+find_dependency(PSL CONFIG)
+if(TARGET psl AND NOT TARGET PSL::psl)
+  add_library(PSL::psl ALIAS psl)
+endif()
+
+find_dependency(CURL CONFIG)
+if(TARGET curl AND NOT TARGET CURL::libcurl)
+  add_library(CURL::libcurl ALIAS curl)
+endif()
+
+find_dependency(CPR CONFIG)
+if(TARGET cpr AND NOT TARGET CPR::cpr)
+  add_library(CPR::cpr ALIAS cpr)
+endif()
 
 check_required_components("@PROJECT_NAME@")

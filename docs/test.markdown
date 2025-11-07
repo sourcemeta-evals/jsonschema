@@ -8,7 +8,7 @@ Testing
 jsonschema test [schemas-or-directories...]
   [--http/-h] [--verbose/-v] [--resolve/-r <schemas-or-directories> ...]
   [--extension/-e <extension>] [--ignore/-i <schemas-or-directories>]
-  [--default-dialect/-d <uri>]
+  [--default-dialect/-d <uri>] [--json/-j]
 ```
 
 Schemas are code. As such, you should run an automated unit testing suite
@@ -28,7 +28,12 @@ To test a schema, you define one or more test suite (i.e. collections of tests)
 as JSON files that follow a specific format:
 
 - `target`: The URI of the schema you want to test, _which must be imported
-  into the resolution context using the `--resolve` or `--http` options_
+  into the resolution context using the `--resolve` or `--http` options_.
+
+  If the `target` is relative, it will be interpreted as a file path relative
+  to the test file location. For security reasons, the file path still needs be
+  imported into the resolution context using `--resolve`.
+
 - `tests`: An array of tests you want to run.
 
 > [!TIP]

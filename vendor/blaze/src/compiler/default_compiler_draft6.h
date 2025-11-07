@@ -332,7 +332,9 @@ auto compiler_draft6_validation_exclusivemaximum(
     const Context &context, const SchemaContext &schema_context,
     const DynamicContext &dynamic_context, const Instructions &)
     -> Instructions {
-  assert(schema_context.schema.at(dynamic_context.keyword).is_number());
+  if (!schema_context.schema.at(dynamic_context.keyword).is_number()) {
+    return {};
+  }
 
   if (schema_context.schema.defines("type") &&
       schema_context.schema.at("type").is_string() &&
@@ -351,7 +353,9 @@ auto compiler_draft6_validation_exclusiveminimum(
     const Context &context, const SchemaContext &schema_context,
     const DynamicContext &dynamic_context, const Instructions &)
     -> Instructions {
-  assert(schema_context.schema.at(dynamic_context.keyword).is_number());
+  if (!schema_context.schema.at(dynamic_context.keyword).is_number()) {
+    return {};
+  }
 
   if (schema_context.schema.defines("type") &&
       schema_context.schema.at("type").is_string() &&
@@ -402,8 +406,11 @@ auto compiler_draft6_validation_propertynames(
     return {};
   }
 
+  // TODO: How can we avoid this copy?
+  auto nested_schema_context = schema_context;
+  nested_schema_context.is_property_name = true;
   Instructions children{compile(
-      context, schema_context, property_relative_dynamic_context(),
+      context, nested_schema_context, property_relative_dynamic_context(),
       sourcemeta::core::empty_pointer, sourcemeta::core::empty_pointer)};
 
   if (children.empty()) {
