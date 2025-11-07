@@ -2,7 +2,7 @@ Inspect
 =======
 
 ```sh
-jsonschema inspect <schema.json|.yaml> [--json/-j] [--verbose/-v]
+jsonschema inspect <schema.json|.yaml> [--json/-j] [--verbose]
   [--default-dialect/-d <uri>]
 ```
 

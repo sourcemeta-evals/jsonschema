@@ -3,7 +3,7 @@ Formatting
 
 ```sh
 jsonschema fmt [schemas-or-directories...]
-  [--check/-c] [--verbose/-v] [--extension/-e <extension>]
+  [--check/-c] [--verbose] [--extension/-e <extension>]
   [--ignore/-i <schemas-or-directories>] [--keep-ordering/-k]
   [--indentation/-n <spaces>]
 ```

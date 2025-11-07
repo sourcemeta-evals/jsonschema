@@ -6,7 +6,7 @@ Validating
 
 ```sh
 jsonschema validate <schema.json|.yaml> <instance.json|.jsonl|.yaml...>
-  [--http/-h] [--verbose/-v] [--resolve/-r <schemas-or-directories> ...]
+  [--http/-h] [--verbose] [--resolve/-r <schemas-or-directories> ...]
   [--benchmark/-b] [--loop <iterations>] [--extension/-e <extension>]
   [--ignore/-i <schemas-or-directories>] [--trace/-t] [--fast/-f]
   [--template/-m <template.json>] [--json/-j]
@@ -29,7 +29,7 @@ To help scripts distinguish validation errors, these are reported using exit
 code 2.
 
 > [!NOTE]
-> Annotations are only printed when passing the `--verbose`/`-v` or the
+> Annotations are only printed when passing the `--verbose` or the
 > `--trace`/`-t` options. However, annotation collection will be skipped if the
 > `--fast`/`-f` option is passed.
 
