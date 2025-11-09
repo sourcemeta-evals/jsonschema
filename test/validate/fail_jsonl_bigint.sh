@@ -25,8 +25,29 @@ EOF
 test "$CODE" = "1" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
-error: The JSON value is not representable by the IETF RFC 8259 interoperable signed integer range at line 2 and column 10
-  $(realpath "$TMP")/instance.jsonl
+error: The JSON value is not representable by the IETF RFC 8259 interoperable signed integer range
+  at line 2
+  at column 10
+  at file path $(realpath "$TMP")/instance.jsonl
 EOF
 
 diff "$TMP/stderr.txt" "$TMP/expected.txt"
+
+# JSON error
+"$1" validate "$TMP/schema.json" "$TMP/instance.jsonl" --json >"$TMP/stdout.txt" \
+  && CODE="$?" || CODE="$?"
+test "$CODE" = "1" || exit 1
+
+# Extract just the error from JSONL output (skip first 3 lines which is first JSON object)
+tail -n +4 "$TMP/stdout.txt" > "$TMP/error.txt"
+
+cat << EOF > "$TMP/expected.txt"
+{
+  "error": "The JSON value is not representable by the IETF RFC 8259 interoperable signed integer range",
+  "line": 2,
+  "column": 10,
+  "filePath": "$(realpath "$TMP")/instance.jsonl"
+}
+EOF
+
+diff "$TMP/error.txt" "$TMP/expected.txt"
