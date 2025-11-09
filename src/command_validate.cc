@@ -286,7 +286,7 @@ auto sourcemeta::jsonschema::validate(const sourcemeta::core::Options &options)
       }
 
       if (index == 0) {
-        sourcemeta::jsonschema::LOG_WARNING() << "The JSONL file is empty\n";
+        LOG_VERBOSE(options) << "warning: The JSONL file is empty\n";
       }
     } else {
       sourcemeta::core::PointerPositionTracker tracker;
