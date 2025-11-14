@@ -40,7 +40,8 @@ auto handle_json_entry(
     const std::set<std::filesystem::path> &blacklist,
     const std::set<std::string> &extensions,
     std::vector<std::pair<std::filesystem::path, sourcemeta::core::JSON>>
-        &result) -> void {
+        &result,
+    const bool is_direct_file = false) -> void {
   if (std::filesystem::is_directory(entry_path)) {
     for (auto const &entry :
          std::filesystem::recursive_directory_iterator{entry_path}) {
@@ -74,15 +75,21 @@ auto handle_json_entry(
       throw std::runtime_error(error.str());
     }
 
-    if (std::any_of(extensions.cbegin(), extensions.cend(),
+    // When a file is passed directly, accept it regardless of extension
+    // Extension filtering should only apply when traversing directories
+    const bool extension_matches =
+        is_direct_file ||
+        std::any_of(extensions.cbegin(), extensions.cend(),
                     [&canonical](const auto &extension) {
                       return canonical.string().ends_with(extension);
-                    }) &&
-        std::none_of(blacklist.cbegin(), blacklist.cend(),
-                     [&canonical](const auto &prefix) {
-                       return prefix == canonical ||
-                              path_starts_with(canonical, prefix);
-                     })) {
+                    });
+
+    if (extension_matches && std::none_of(blacklist.cbegin(), blacklist.cend(),
+                                          [&canonical](const auto &prefix) {
+                                            return prefix == canonical ||
+                                                   path_starts_with(canonical,
+                                                                    prefix);
+                                          })) {
       if (std::filesystem::is_empty(canonical)) {
         return;
       }
@@ -127,7 +134,10 @@ auto for_each_json(const std::vector<std::string> &arguments,
                       result);
   } else {
     for (const auto &entry : arguments) {
-      handle_json_entry(entry, blacklist, extensions, result);
+      // When a file is passed directly as an argument, accept it regardless of
+      // extension
+      const bool is_direct_file = !std::filesystem::is_directory(entry);
+      handle_json_entry(entry, blacklist, extensions, result, is_direct_file);
     }
   }
 
