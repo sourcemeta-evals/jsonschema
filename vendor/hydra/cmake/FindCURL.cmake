@@ -47,6 +47,7 @@ if(NOT CURL_FOUND)
     "${CURL_DIR}/lib/curl_threads.c"
     "${CURL_DIR}/lib/if2ip.c"
     "${CURL_DIR}/lib/cf-socket.c"
+    "${CURL_DIR}/lib/cf-ip-happy.c"
     "${CURL_DIR}/lib/uint-bset.h"
     "${CURL_DIR}/lib/http_negotiate.c"
     "${CURL_DIR}/lib/doh.c"
@@ -125,7 +126,6 @@ if(NOT CURL_FOUND)
     "${CURL_DIR}/lib/hostip4.c"
     "${CURL_DIR}/lib/cw-out.h"
     "${CURL_DIR}/lib/http1.c"
-    "${CURL_DIR}/lib/inet_ntop.h"
     "${CURL_DIR}/lib/speedcheck.h"
     "${CURL_DIR}/lib/urlapi.c"
     "${CURL_DIR}/lib/ftplistparser.h"
@@ -142,14 +142,12 @@ if(NOT CURL_FOUND)
     "${CURL_DIR}/lib/vquic/curl_ngtcp2.c"
     "${CURL_DIR}/lib/vquic/curl_osslq.c"
     "${CURL_DIR}/lib/vquic/vquic-tls.c"
-    "${CURL_DIR}/lib/vquic/curl_msh3.h"
     "${CURL_DIR}/lib/vquic/curl_quiche.c"
     "${CURL_DIR}/lib/vquic/curl_ngtcp2.h"
     "${CURL_DIR}/lib/vquic/vquic.h"
     "${CURL_DIR}/lib/vquic/vquic-tls.h"
     "${CURL_DIR}/lib/vquic/curl_osslq.h"
     "${CURL_DIR}/lib/vquic/vquic_int.h"
-    "${CURL_DIR}/lib/vquic/curl_msh3.c"
     "${CURL_DIR}/lib/cookie.h"
     "${CURL_DIR}/lib/krb5.c"
     "${CURL_DIR}/lib/uint-spbset.c"
@@ -170,6 +168,7 @@ if(NOT CURL_FOUND)
     "${CURL_DIR}/lib/uint-bset.c"
     "${CURL_DIR}/lib/strequal.c"
     "${CURL_DIR}/lib/cf-socket.h"
+    "${CURL_DIR}/lib/cf-ip-happy.h"
     "${CURL_DIR}/lib/if2ip.h"
     "${CURL_DIR}/lib/socks_sspi.c"
     "${CURL_DIR}/lib/curl_threads.h"
@@ -226,6 +225,8 @@ if(NOT CURL_FOUND)
     "${CURL_DIR}/lib/curlx/base64.h"
     "${CURL_DIR}/lib/curlx/version_win32.c"
     "${CURL_DIR}/lib/curlx/inet_pton.c"
+    "${CURL_DIR}/lib/curlx/inet_ntop.c"
+    "${CURL_DIR}/lib/curlx/wait.c"
     "${CURL_DIR}/lib/curlx/warnless.c"
     "${CURL_DIR}/lib/curlx/multibyte.c"
     "${CURL_DIR}/lib/curlx/nonblock.c"
@@ -233,6 +234,8 @@ if(NOT CURL_FOUND)
     "${CURL_DIR}/lib/curlx/winapi.c"
     "${CURL_DIR}/lib/curlx/timeval.h"
     "${CURL_DIR}/lib/curlx/inet_pton.h"
+    "${CURL_DIR}/lib/curlx/inet_ntop.h"
+    "${CURL_DIR}/lib/curlx/wait.h"
     "${CURL_DIR}/lib/curlx/curlx.h"
     "${CURL_DIR}/lib/curlx/base64.c"
     "${CURL_DIR}/lib/curlx/version_win32.h"
@@ -303,7 +306,6 @@ if(NOT CURL_FOUND)
     "${CURL_DIR}/lib/hsts.c"
     "${CURL_DIR}/lib/vtls/mbedtls.c"
     "${CURL_DIR}/lib/vtls/gtls.c"
-    "${CURL_DIR}/lib/vtls/bearssl.c"
     "${CURL_DIR}/lib/vtls/vtls.h"
     "${CURL_DIR}/lib/vtls/hostcheck.c"
     "${CURL_DIR}/lib/vtls/rustls.c"
@@ -314,12 +316,10 @@ if(NOT CURL_FOUND)
     "${CURL_DIR}/lib/vtls/vtls_scache.c"
     "${CURL_DIR}/lib/vtls/keylog.h"
     "${CURL_DIR}/lib/vtls/cipher_suite.h"
-    "${CURL_DIR}/lib/vtls/sectransp.c"
     "${CURL_DIR}/lib/vtls/schannel_verify.c"
     "${CURL_DIR}/lib/vtls/x509asn1.h"
     "${CURL_DIR}/lib/vtls/mbedtls_threadlock.h"
     "${CURL_DIR}/lib/vtls/vtls.c"
-    "${CURL_DIR}/lib/vtls/bearssl.h"
     "${CURL_DIR}/lib/vtls/hostcheck.h"
     "${CURL_DIR}/lib/vtls/gtls.h"
     "${CURL_DIR}/lib/vtls/mbedtls.h"
@@ -335,7 +335,6 @@ if(NOT CURL_FOUND)
     "${CURL_DIR}/lib/vtls/schannel.h"
     "${CURL_DIR}/lib/vtls/mbedtls_threadlock.c"
     "${CURL_DIR}/lib/vtls/x509asn1.c"
-    "${CURL_DIR}/lib/vtls/sectransp.h"
     "${CURL_DIR}/lib/parsedate.h"
     "${CURL_DIR}/lib/curl_trc.h"
     "${CURL_DIR}/lib/socks.h"
@@ -368,38 +367,96 @@ if(NOT CURL_FOUND)
     "${CURL_DIR}/lib/getinfo.c"
     "${CURL_DIR}/lib/speedcheck.c"
     "${CURL_DIR}/lib/http1.h"
-    "${CURL_DIR}/lib/inet_ntop.c"
     "${CURL_DIR}/lib/cw-out.c"
     "${CURL_DIR}/lib/curl_rtmp.h"
     "${CURL_DIR}/lib/curl_gssapi.c"
     "${CURL_DIR}/lib/curl_fnmatch.c"
     "${CURL_DIR}/lib/select.h")
 
-  if(NOT MSVC)
-    target_compile_options(curl PRIVATE -Wno-enum-conversion)
-    target_compile_options(curl PRIVATE -Wno-implicit-function-declaration)
-    target_compile_options(curl PRIVATE -Wno-int-conversion)
+  if(HYDRA_COMPILER_MSVC)
+    target_compile_options(curl PRIVATE /W3 /MP /wd4996 /GS-)
+    target_compile_definitions(curl PRIVATE _CRT_SECURE_NO_WARNINGS)
+    target_compile_definitions(curl PUBLIC _SSIZE_T_DEFINED)
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+      target_compile_definitions(curl PUBLIC "ssize_t=__int64")
+    else()
+      target_compile_definitions(curl PUBLIC "ssize_t=int")
+    endif()
+  else()
+    target_compile_options(curl PRIVATE
+      -Wall
+      -Wextra
+      -Wpedantic
+      -Werror
+      -Wdouble-promotion
+      -Wfloat-equal
+      -Wformat=2
+      -Wmissing-declarations
+      -Wwrite-strings
+      -Wno-cast-align
+      -Wno-cast-qual
+      -Wno-unused-parameter
+      -Wno-sign-conversion
+      -Wno-sign-compare
+      -Wno-enum-conversion
+      -Wno-implicit-function-declaration
+      -Wno-int-conversion
+      -Wno-deprecated-declarations
+      -Wno-strict-overflow
+      -Wno-format-nonliteral)
+
+    if(HYDRA_COMPILER_CLANG)
+      target_compile_options(curl PRIVATE
+        -Wno-implicit-int-conversion
+        -Wno-documentation-deprecated-sync
+        -Wno-conditional-uninitialized)
+    endif()
+
+    if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+      target_compile_options(curl PRIVATE
+        -funroll-loops
+        -fstrict-aliasing
+        -ftree-vectorize
+        -fno-math-errno
+        -fwrapv)
+    endif()
   endif()
 
-  # General options
   target_compile_definitions(curl PRIVATE BUILDING_LIBCURL)
   target_compile_definitions(curl PRIVATE UNICODE)
   target_compile_definitions(curl PRIVATE _UNICODE)
   target_compile_definitions(curl PRIVATE HTTP_ONLY)
   target_compile_definitions(curl PRIVATE ENABLE_IPV6)
-  target_compile_definitions(curl PRIVATE USE_BEARSSL)
   target_compile_definitions(curl PRIVATE SIZEOF_CURL_OFF_T=8)
-  # To support HTTP compression
-  target_compile_definitions(curl PRIVATE HAVE_LIBZ)
+
   if(NOT BUILD_SHARED_LIBS)
     target_compile_definitions(curl PUBLIC CURL_STATICLIB)
   endif()
 
-  # Platform specific options
-  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_compile_definitions(curl PRIVATE CURL_OS="Linux")
-    target_compile_definitions(curl PRIVATE CURL_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt")
-    target_compile_definitions(curl PRIVATE CURL_CA_PATH="/etc/ssl/certs")
+  target_compile_definitions(curl PRIVATE HAVE_LIBZ)
+  target_link_libraries(curl PRIVATE ZLIB::ZLIB)
+
+  target_compile_definitions(curl PRIVATE USE_NGHTTP2)
+  target_link_libraries(curl PRIVATE Nghttp2::nghttp2)
+
+  target_compile_definitions(curl PRIVATE USE_LIBPSL)
+  target_link_libraries(curl PRIVATE PSL::psl)
+
+  if(WIN32)
+    target_compile_definitions(curl PRIVATE CURL_OS="Windows")
+    target_compile_definitions(curl PRIVATE USE_SCHANNEL)
+    target_compile_definitions(curl PRIVATE USE_WINDOWS_SSPI)
+    target_compile_definitions(curl PRIVATE USE_THREADS_WIN32)
+    target_link_libraries(curl PRIVATE ws2_32)
+    target_link_libraries(curl PRIVATE Crypt32)
+    target_link_libraries(curl PRIVATE Secur32)
+  elseif(CMAKE_SYSTEM_NAME STREQUAL "MSYS")
+    target_compile_definitions(curl PRIVATE CURL_OS="MSYS")
+    target_compile_definitions(curl PRIVATE CURL_CA_BUNDLE="/usr/ssl/certs/ca-bundle.crt")
+    target_compile_definitions(curl PRIVATE CURL_CA_PATH="/usr/ssl/certs")
+    target_compile_definitions(curl PRIVATE USE_MBEDTLS)
+    target_compile_definitions(curl PRIVATE USE_THREADS_POSIX)
+    target_compile_definitions(curl PRIVATE _POSIX_C_SOURCE=200809L)
     target_compile_definitions(curl PRIVATE HAVE_SYS_TIME_H)
     target_compile_definitions(curl PRIVATE HAVE_LONGLONG)
     target_compile_definitions(curl PRIVATE HAVE_RECV)
@@ -416,12 +473,46 @@ if(NOT CURL_FOUND)
     target_compile_definitions(curl PRIVATE HAVE_FCNTL_O_NONBLOCK)
     target_compile_definitions(curl PRIVATE HAVE_STRUCT_TIMEVAL)
     target_compile_definitions(curl PRIVATE HAVE_GETSOCKNAME)
-    # POSIX.1-2008
+    target_compile_definitions(curl PRIVATE HAVE_GETADDRINFO)
+    target_compile_definitions(curl PRIVATE HAVE_GETADDRINFO_THREADSAFE)
+    target_compile_definitions(curl PRIVATE HAVE_FREEADDRINFO)
+    target_compile_definitions(curl PRIVATE HAVE_SYS_TYPES_H)
+    target_compile_definitions(curl PRIVATE HAVE_SYS_SOCKET_H)
+    target_compile_definitions(curl PRIVATE HAVE_NETINET_IN_H)
+    target_compile_definitions(curl PRIVATE HAVE_PTHREAD_H)
+    target_link_libraries(curl PRIVATE MbedTLS::mbedtls)
+    target_link_libraries(curl PRIVATE pthread)
+  elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_compile_definitions(curl PRIVATE CURL_OS="Linux")
+    target_compile_definitions(curl PRIVATE CURL_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt")
+    target_compile_definitions(curl PRIVATE CURL_CA_PATH="/etc/ssl/certs")
+    target_compile_definitions(curl PRIVATE USE_MBEDTLS)
+    target_compile_definitions(curl PRIVATE USE_ARES)
+    target_compile_definitions(curl PRIVATE HAVE_SYS_TIME_H)
+    target_compile_definitions(curl PRIVATE HAVE_LONGLONG)
+    target_compile_definitions(curl PRIVATE HAVE_RECV)
+    target_compile_definitions(curl PRIVATE HAVE_SEND)
+    target_compile_definitions(curl PRIVATE HAVE_SOCKET)
+    target_compile_definitions(curl PRIVATE HAVE_NETDB_H)
+    target_compile_definitions(curl PRIVATE HAVE_ARPA_INET_H)
+    target_compile_definitions(curl PRIVATE HAVE_SNPRINTF)
+    target_compile_definitions(curl PRIVATE HAVE_UNISTD_H)
+    target_compile_definitions(curl PRIVATE HAVE_SYS_STAT_H)
+    target_compile_definitions(curl PRIVATE HAVE_FCNTL_H)
+    target_compile_definitions(curl PRIVATE HAVE_SELECT)
+    target_compile_definitions(curl PRIVATE HAVE_POLL)
+    target_compile_definitions(curl PRIVATE HAVE_FCNTL_O_NONBLOCK)
+    target_compile_definitions(curl PRIVATE HAVE_STRUCT_TIMEVAL)
+    target_compile_definitions(curl PRIVATE HAVE_GETSOCKNAME)
     target_compile_definitions(curl PRIVATE _POSIX_C_SOURCE=200809L)
+    target_link_libraries(curl PRIVATE MbedTLS::mbedtls)
+    target_link_libraries(curl PRIVATE c-ares::cares)
   elseif(APPLE)
     target_compile_definitions(curl PRIVATE CURL_OS="Darwin")
     target_compile_definitions(curl PRIVATE CURL_CA_BUNDLE="/etc/ssl/cert.pem")
     target_compile_definitions(curl PRIVATE CURL_CA_PATH="/etc/ssl/certs")
+    target_compile_definitions(curl PRIVATE USE_MBEDTLS)
+    target_compile_definitions(curl PRIVATE USE_ARES)
     target_compile_definitions(curl PRIVATE HAVE_RECV)
     target_compile_definitions(curl PRIVATE HAVE_SEND)
     target_compile_definitions(curl PRIVATE HAVE_SOCKET)
@@ -435,22 +526,13 @@ if(NOT CURL_FOUND)
     target_compile_definitions(curl PRIVATE HAVE_FCNTL_O_NONBLOCK)
     target_compile_definitions(curl PRIVATE HAVE_STRUCT_TIMEVAL)
     target_compile_definitions(curl PRIVATE HAVE_GETSOCKNAME)
-  elseif(WIN32)
-    target_compile_definitions(curl PRIVATE CURL_OS="Windows")
+    target_link_libraries(curl PRIVATE MbedTLS::mbedtls)
+    target_link_libraries(curl PRIVATE c-ares::cares)
+    target_link_libraries(curl PRIVATE "-framework Foundation")
+    target_link_libraries(curl PRIVATE "-framework SystemConfiguration")
   endif()
 
   target_include_directories(curl PRIVATE "${CURL_DIR}/lib")
-
-  target_link_libraries(curl PRIVATE ZLIB::ZLIB)
-  target_link_libraries(curl PRIVATE BearSSL::BearSSL)
-  if(APPLE)
-    target_link_libraries(curl PRIVATE "-framework Foundation")
-    target_link_libraries(curl PRIVATE "-framework SystemConfiguration")
-  elseif(WIN32)
-    target_link_libraries(curl PRIVATE ws2_32)
-    target_link_libraries(curl PRIVATE Crypt32.lib)
-  endif()
-
   target_include_directories(curl PUBLIC
     "$<BUILD_INTERFACE:${CURL_DIR}/include>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
@@ -459,6 +541,10 @@ if(NOT CURL_FOUND)
 
   set_target_properties(curl
     PROPERTIES
+      C_STANDARD 11
+      C_STANDARD_REQUIRED ON
+      C_EXTENSIONS OFF
+      POSITION_INDEPENDENT_CODE ON
       OUTPUT_NAME curl
       PUBLIC_HEADER "${CURL_PUBLIC_HEADER}"
       PRIVATE_HEADER "${CURL_PRIVATE_HEADERS}"
@@ -466,7 +552,7 @@ if(NOT CURL_FOUND)
       C_VISIBILITY_INLINES_HIDDEN FALSE
       EXPORT_NAME curl)
 
-  if(HYDRA_INSTALL)
+  if(SOURCEMETA_HYDRA_INSTALL)
     include(GNUInstallDirs)
     install(TARGETS curl
       EXPORT curl
@@ -485,10 +571,7 @@ if(NOT CURL_FOUND)
       DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/curl"
       COMPONENT sourcemeta_hydra_dev)
 
-    # TODO: Why does `find_dependency(ZLIB)` fail to locate ZLIB
-    # if even `CMAKE_PREFIX_PATH` is correct?
     file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/curl-config.cmake
-      "include(\"\${CMAKE_CURRENT_LIST_DIR}/../zlib/zlib-config.cmake\")\n"
       "include(\"\${CMAKE_CURRENT_LIST_DIR}/curl.cmake\")\n"
       "check_required_components(\"curl\")\n")
     install(FILES

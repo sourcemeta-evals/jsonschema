@@ -40,12 +40,14 @@ test "$CODE" = "1" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
 Detecting schema resources from file: $(realpath "$TMP")/schema.json
+Importing schema into the resolution context: file://$(realpath "$TMP")/schema.json
 Importing schema into the resolution context: https://example.com
+Looking for target: https://example.com#foo
 $(realpath "$TMP")/test.json:
 error: Could not resolve schema under test
-  https://example.com#foo
+  at identifier https://example.com#foo
 
-This is likely because you forgot to import such schema using --resolve/-r
+This is likely because you forgot to import such schema using \`--resolve/-r\`
 EOF
 
 diff "$TMP/output.txt" "$TMP/expected.txt"
