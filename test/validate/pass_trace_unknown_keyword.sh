@@ -26,36 +26,36 @@ EOF
 "$1" validate "$TMP/schema.json" "$TMP/instance.json" --trace > "$TMP/output.txt"
 
 cat << EOF > "$TMP/expected.txt"
--> (push) "/properties" (LogicalAnd)
-   at ""
-   at keyword location "#/properties"
+-> (push) "/properties" (LogicalWhenType)
+   at instance location "" (line 1, column 1)
+   at keyword location "file://$(realpath "$TMP")/schema.json#/properties"
    at vocabulary "https://json-schema.org/draft/2020-12/vocab/applicator"
 
 @- (annotation) "/properties/foo/unknown" (AnnotationEmit)
    value true
-   at "/foo"
-   at keyword location "#/properties/foo/unknown"
+   at instance location "/foo" (line 1, column 3)
+   at keyword location "file://$(realpath "$TMP")/schema.json#/properties/foo/unknown"
    at vocabulary "<unknown>"
 
 -> (push) "/properties/foo/type" (AssertionTypeStrict)
-   at "/foo"
-   at keyword location "#/properties/foo/type"
+   at instance location "/foo" (line 1, column 3)
+   at keyword location "file://$(realpath "$TMP")/schema.json#/properties/foo/type"
    at vocabulary "https://json-schema.org/draft/2020-12/vocab/validation"
 
 <- (pass) "/properties/foo/type" (AssertionTypeStrict)
-   at "/foo"
-   at keyword location "#/properties/foo/type"
+   at instance location "/foo" (line 1, column 3)
+   at keyword location "file://$(realpath "$TMP")/schema.json#/properties/foo/type"
    at vocabulary "https://json-schema.org/draft/2020-12/vocab/validation"
 
 @- (annotation) "/properties" (AnnotationEmit)
    value "foo"
-   at ""
-   at keyword location "#/properties"
+   at instance location "" (line 1, column 1)
+   at keyword location "file://$(realpath "$TMP")/schema.json#/properties"
    at vocabulary "https://json-schema.org/draft/2020-12/vocab/applicator"
 
-<- (pass) "/properties" (LogicalAnd)
-   at ""
-   at keyword location "#/properties"
+<- (pass) "/properties" (LogicalWhenType)
+   at instance location "" (line 1, column 1)
+   at keyword location "file://$(realpath "$TMP")/schema.json#/properties"
    at vocabulary "https://json-schema.org/draft/2020-12/vocab/applicator"
 EOF
 

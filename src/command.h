@@ -1,19 +1,19 @@
 #ifndef SOURCEMETA_JSONSCHEMA_CLI_COMMAND_H_
 #define SOURCEMETA_JSONSCHEMA_CLI_COMMAND_H_
 
-#include <span>   // std::span
-#include <string> // std::string
+#include <sourcemeta/core/options.h>
 
-namespace sourcemeta::jsonschema::cli {
-auto fmt(const std::span<const std::string> &arguments) -> int;
-auto inspect(const std::span<const std::string> &arguments) -> int;
-auto bundle(const std::span<const std::string> &arguments) -> int;
-auto test(const std::span<const std::string> &arguments) -> int;
-auto lint(const std::span<const std::string> &arguments) -> int;
-auto validate(const std::span<const std::string> &arguments) -> int;
-auto metaschema(const std::span<const std::string> &arguments) -> int;
-auto encode(const std::span<const std::string> &arguments) -> int;
-auto decode(const std::span<const std::string> &arguments) -> int;
-} // namespace sourcemeta::jsonschema::cli
+namespace sourcemeta::jsonschema {
+auto fmt(const sourcemeta::core::Options &options) -> void;
+auto inspect(const sourcemeta::core::Options &options) -> void;
+auto bundle(const sourcemeta::core::Options &options) -> void;
+auto test(const sourcemeta::core::Options &options) -> void;
+auto lint(const sourcemeta::core::Options &options) -> void;
+auto validate(const sourcemeta::core::Options &options) -> void;
+auto metaschema(const sourcemeta::core::Options &options) -> void;
+auto compile(const sourcemeta::core::Options &options) -> void;
+auto encode(const sourcemeta::core::Options &options) -> void;
+auto decode(const sourcemeta::core::Options &options) -> void;
+} // namespace sourcemeta::jsonschema
 
 #endif
