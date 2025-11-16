@@ -1,66 +1,69 @@
 #include <sourcemeta/core/json.h>
 #include <sourcemeta/core/jsonschema.h>
 
-#include <cstdlib>  // EXIT_SUCCESS, EXIT_FAILURE
 #include <fstream>  // std::ofstream
 #include <iostream> // std::cerr
 #include <sstream>  // std::ostringstream
 
 #include "command.h"
+#include "error.h"
+#include "input.h"
+#include "logger.h"
+#include "resolver.h"
 #include "utils.h"
 
-auto sourcemeta::jsonschema::cli::fmt(
-    const std::span<const std::string> &arguments) -> int {
-  const auto options{
-      parse_options(arguments, {"c", "check", "k", "keep-ordering"})};
-
-  for (const auto &entry : for_each_json(options.at(""), parse_ignore(options),
-                                         parse_extensions(options))) {
+auto sourcemeta::jsonschema::fmt(const sourcemeta::core::Options &options)
+    -> void {
+  const auto indentation{parse_indentation(options)};
+  for (const auto &entry : for_each_json(options)) {
     if (entry.first.extension() == ".yaml" ||
         entry.first.extension() == ".yml") {
-      std::cerr << "This command does not support YAML input files yet\n";
-      return EXIT_FAILURE;
+      throw YAMLInputError{"This command does not support YAML input files yet",
+                           entry.first};
     }
 
-    if (options.contains("c") || options.contains("check")) {
-      log_verbose(options) << "Checking: " << entry.first.string() << "\n";
-      std::ifstream input{entry.first};
-      std::ostringstream buffer;
-      buffer << input.rdbuf();
-      std::ostringstream expected;
+    if (options.contains("check")) {
+      LOG_VERBOSE(options) << "Checking: " << entry.first.string() << "\n";
+    } else {
+      LOG_VERBOSE(options) << "Formatting: " << entry.first.string() << "\n";
+    }
 
-      if (options.contains("k") || options.contains("keep-ordering")) {
-        sourcemeta::core::prettify(entry.second, expected);
-      } else {
-        sourcemeta::core::prettify(entry.second, expected,
-                                   sourcemeta::core::schema_format_compare);
-      }
+    const auto configuration_path{find_configuration(entry.first)};
+    const auto &configuration{read_configuration(options, configuration_path)};
+    const auto dialect{default_dialect(options, configuration)};
+    const auto &custom_resolver{
+        resolver(options, options.contains("http"), dialect, configuration)};
 
-      expected << "\n";
+    std::ostringstream expected;
+    if (options.contains("keep-ordering")) {
+      sourcemeta::core::prettify(entry.second, expected, indentation);
+    } else {
+      auto copy = entry.second;
+      sourcemeta::core::format(copy, sourcemeta::core::schema_official_walker,
+                               custom_resolver, dialect);
+      sourcemeta::core::prettify(copy, expected, indentation);
+    }
+    expected << "\n";
 
-      if (buffer.str() == expected.str()) {
-        log_verbose(options) << "PASS: " << entry.first.string() << "\n";
+    std::ifstream current_stream{entry.first};
+    std::ostringstream current;
+    current << current_stream.rdbuf();
+
+    if (options.contains("check")) {
+      if (current.str() == expected.str()) {
+        LOG_VERBOSE(options) << "PASS: " << entry.first.string() << "\n";
       } else {
         std::cerr << "FAIL: " << entry.first.string() << "\n";
         std::cerr << "Got:\n"
-                  << buffer.str() << "\nBut expected:\n"
+                  << current.str() << "\nBut expected:\n"
                   << expected.str() << "\n";
-        return EXIT_FAILURE;
+        throw Fail{EXIT_FAILURE};
       }
     } else {
-      log_verbose(options) << "Formatting: " << entry.first.string() << "\n";
-      std::ofstream output{entry.first};
-
-      if (options.contains("k") || options.contains("keep-ordering")) {
-        sourcemeta::core::prettify(entry.second, output);
-      } else {
-        sourcemeta::core::prettify(entry.second, output,
-                                   sourcemeta::core::schema_format_compare);
+      if (current.str() != expected.str()) {
+        std::ofstream output{entry.first};
+        output << expected.str();
       }
-
-      output << "\n";
     }
   }
-
-  return EXIT_SUCCESS;
 }
