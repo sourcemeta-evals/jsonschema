@@ -8,7 +8,7 @@
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/sourcemeta/jsonschema/blob/main/.pre-commit-hooks.yaml)
 
 The command-line tool for working with [JSON Schema](https://json-schema.org),
-the world most popular schema language. It is a comprehensive solution for
+the world's most popular schema language. It is a comprehensive solution for
 maintaining **repositories of schemas** and ensuring their quality, both during
 local development and when running on CI/CD pipelines. For example:
 
