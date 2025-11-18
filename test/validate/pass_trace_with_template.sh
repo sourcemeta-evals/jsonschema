@@ -28,29 +28,29 @@ EOF
   --trace --template "$TMP/template.json" > "$TMP/output.txt"
 
 cat << EOF > "$TMP/expected.txt"
--> (push) "/properties" (LogicalAnd)
-   at ""
+-> (push) "/properties" (LogicalWhenType)
+   at instance location "" (line 1, column 1)
    at keyword location "https://example.com#/properties"
    at vocabulary "https://json-schema.org/draft/2020-12/vocab/applicator"
 
 -> (push) "/properties/foo/type" (AssertionTypeStrict)
-   at "/foo"
+   at instance location "/foo" (line 1, column 3)
    at keyword location "https://example.com#/properties/foo/type"
    at vocabulary "https://json-schema.org/draft/2020-12/vocab/validation"
 
 <- (pass) "/properties/foo/type" (AssertionTypeStrict)
-   at "/foo"
+   at instance location "/foo" (line 1, column 3)
    at keyword location "https://example.com#/properties/foo/type"
    at vocabulary "https://json-schema.org/draft/2020-12/vocab/validation"
 
 @- (annotation) "/properties" (AnnotationEmit)
    value "foo"
-   at ""
+   at instance location "" (line 1, column 1)
    at keyword location "https://example.com#/properties"
    at vocabulary "https://json-schema.org/draft/2020-12/vocab/applicator"
 
-<- (pass) "/properties" (LogicalAnd)
-   at ""
+<- (pass) "/properties" (LogicalWhenType)
+   at instance location "" (line 1, column 1)
    at keyword location "https://example.com#/properties"
    at vocabulary "https://json-schema.org/draft/2020-12/vocab/applicator"
 EOF
