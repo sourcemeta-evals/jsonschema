@@ -1,19 +1,29 @@
+#include <sourcemeta/core/io.h>
 #include <sourcemeta/core/json.h>
 #include <sourcemeta/core/jsonschema.h>
 #include <sourcemeta/core/uri.h>
+#include <sourcemeta/core/yaml.h>
 
 #include <sourcemeta/blaze/compiler.h>
 #include <sourcemeta/blaze/evaluator.h>
+#include <sourcemeta/blaze/output.h>
 
-#include <cstdlib>    // EXIT_SUCCESS, EXIT_FAILURE
+#include <cstdlib>    // EXIT_FAILURE
 #include <filesystem> // std::filesystem
 #include <iostream>   // std::cerr, std::cout
 
 #include "command.h"
+#include "configuration.h"
+#include "error.h"
+#include "input.h"
+#include "logger.h"
+#include "resolver.h"
 #include "utils.h"
 
 static auto get_data(const sourcemeta::core::JSON &test_case,
-                     const std::filesystem::path &base, const bool verbose)
+                     const std::filesystem::path &base,
+                     const sourcemeta::core::Options &options,
+                     sourcemeta::core::PointerPositionTracker &tracker)
     -> sourcemeta::core::JSON {
   assert(base.is_absolute());
   assert(test_case.is_object());
@@ -25,83 +35,73 @@ static auto get_data(const sourcemeta::core::JSON &test_case,
   assert(test_case.defines("dataPath"));
   assert(test_case.at("dataPath").is_string());
 
-  const std::filesystem::path data_path{
-      sourcemeta::jsonschema::cli::safe_weakly_canonical(
-          base / test_case.at("dataPath").to_string())};
-  if (verbose) {
-    std::cerr << "Reading test instance file: " << data_path.string() << "\n";
-  }
+  const std::filesystem::path data_path{sourcemeta::core::weakly_canonical(
+      base / test_case.at("dataPath").to_string())};
+  sourcemeta::jsonschema::LOG_VERBOSE(options)
+      << "Reading test instance file: " << data_path.string() << "\n";
 
   try {
-    return sourcemeta::jsonschema::cli::read_file(data_path);
+    return sourcemeta::core::read_yaml_or_json(data_path, std::ref(tracker));
   } catch (...) {
     std::cout << "\n";
     throw;
   }
 }
 
-auto sourcemeta::jsonschema::cli::test(
-    const std::span<const std::string> &arguments) -> int {
-  const auto options{parse_options(arguments, {"h", "http"})};
+auto sourcemeta::jsonschema::test(const sourcemeta::core::Options &options)
+    -> void {
   bool result{true};
-  const auto dialect{default_dialect(options)};
-  const auto test_resolver{resolver(
-      options, options.contains("h") || options.contains("http"), dialect)};
-  const auto verbose{options.contains("verbose") || options.contains("v")};
+
+  const auto verbose{options.contains("verbose")};
   sourcemeta::blaze::Evaluator evaluator;
 
-  for (const auto &entry : for_each_json(options.at(""), parse_ignore(options),
-                                         parse_extensions(options))) {
+  for (const auto &entry : for_each_json(options)) {
+    const auto configuration_path{find_configuration(entry.first)};
+    const auto &configuration{read_configuration(options, configuration_path)};
+    const auto dialect{default_dialect(options, configuration)};
+    const auto &test_resolver{
+        resolver(options, options.contains("http"), dialect, configuration)};
+
     const sourcemeta::core::JSON test{
-        sourcemeta::jsonschema::cli::read_file(entry.first)};
-    std::cout << entry.first.string() << ":";
+        sourcemeta::core::read_yaml_or_json(entry.first)};
 
     if (!test.is_object()) {
-      std::cout << "\nerror: The test document must be an object\n\n";
-      std::cout << "Learn more here: "
-                   "https://github.com/sourcemeta/jsonschema/blob/main/"
-                   "docs/test.markdown\n";
-      return EXIT_FAILURE;
+      std::cout << entry.first.string() << ":\n";
+      throw TestError{"The test document must be an object", std::nullopt};
     }
 
     if (!test.defines("target")) {
-      std::cout
-          << "\nerror: The test document must contain a `target` property\n\n";
-      std::cout << "Learn more here: "
-                   "https://github.com/sourcemeta/jsonschema/blob/main/"
-                   "docs/test.markdown\n";
-      return EXIT_FAILURE;
+      std::cout << entry.first.string() << ":\n";
+      throw TestError{"The test document must contain a `target` property",
+                      std::nullopt};
     }
 
     if (!test.at("target").is_string()) {
-      std::cout
-          << "\nerror: The test document `target` property must be a URI\n\n";
-      std::cout << "Learn more here: "
-                   "https://github.com/sourcemeta/jsonschema/blob/main/"
-                   "docs/test.markdown\n";
-      return EXIT_FAILURE;
+      std::cout << entry.first.string() << ":\n";
+      throw TestError{"The test document `target` property must be a URI",
+                      std::nullopt};
     }
 
     if (!test.defines("tests")) {
-      std::cout
-          << "\nerror: The test document must contain a `tests` property\n\n";
-      std::cout << "Learn more here: "
-                   "https://github.com/sourcemeta/jsonschema/blob/main/"
-                   "docs/test.markdown\n";
-      return EXIT_FAILURE;
+      std::cout << entry.first.string() << ":\n";
+      throw TestError{"The test document must contain a `tests` property",
+                      std::nullopt};
     }
 
     if (!test.at("tests").is_array()) {
-      std::cout
-          << "\nerror: The test document `tests` property must be an array\n\n";
-      std::cout << "Learn more here: "
-                   "https://github.com/sourcemeta/jsonschema/blob/main/"
-                   "docs/test.markdown\n";
-      return EXIT_FAILURE;
+      std::cout << entry.first.string() << ":\n";
+      throw TestError{"The test document `tests` property must be an array",
+                      std::nullopt};
     }
 
+    const auto test_path_uri{sourcemeta::core::URI::from_path(entry.first)};
     sourcemeta::core::URI schema_uri{test.at("target").to_string()};
+    schema_uri.resolve_from(test_path_uri);
     schema_uri.canonicalize();
+
+    LOG_VERBOSE(options) << "Looking for target: " << schema_uri.recompose()
+                         << "\n";
+
     const auto schema{sourcemeta::core::wrap(schema_uri.recompose())};
 
     unsigned int pass_count{0};
@@ -109,6 +109,7 @@ auto sourcemeta::jsonschema::cli::test(
     const auto total{test.at("tests").size()};
 
     if (test.at("tests").empty()) {
+      std::cout << entry.first.string() << ":";
       std::cout << " NO TESTS\n";
       continue;
     }
@@ -123,6 +124,7 @@ auto sourcemeta::jsonschema::cli::test(
     } catch (const sourcemeta::core::SchemaReferenceError &error) {
       if (error.location() == sourcemeta::core::Pointer{"$ref"} &&
           error.id() == schema_uri.recompose()) {
+        std::cout << entry.first.string() << ":";
         std::cout << "\n";
         throw sourcemeta::core::SchemaResolutionError(
             test.at("target").to_string(),
@@ -131,10 +133,12 @@ auto sourcemeta::jsonschema::cli::test(
 
       throw;
     } catch (...) {
+      std::cout << entry.first.string() << ":";
       std::cout << "\n";
       throw;
     }
 
+    std::cout << entry.first.string() << ":";
     if (verbose) {
       std::cout << "\n";
     }
@@ -143,80 +147,54 @@ auto sourcemeta::jsonschema::cli::test(
       index += 1;
 
       if (!test_case.is_object()) {
-        std::cout
-            << "\nerror: Test case documents must be objects\n  at test case #"
-            << index << "\n\n";
-        std::cout << "Learn more here: "
-                     "https://github.com/sourcemeta/jsonschema/blob/main/"
-                     "docs/test.markdown\n";
-        return EXIT_FAILURE;
+        std::cout << "\n";
+        throw TestError{"Test case documents must be objects", index};
       }
 
       if (!test_case.defines("data") && !test_case.defines("dataPath")) {
-        std::cout << "\nerror: Test case documents must contain a `data` or "
-                     "`dataPath` property\n  at test case #"
-                  << index << "\n\n";
-        std::cout << "Learn more here: "
-                     "https://github.com/sourcemeta/jsonschema/blob/main/"
-                     "docs/test.markdown\n";
-        return EXIT_FAILURE;
+        std::cout << "\n";
+        throw TestError{
+            "Test case documents must contain a `data` or `dataPath` property",
+            index};
       }
 
       if (test_case.defines("data") && test_case.defines("dataPath")) {
-        std::cout
-            << "\nerror: Test case documents must contain either a `data` or "
-               "`dataPath` property, but not both\n  at test case #"
-            << index << "\n\n";
-        std::cout << "Learn more here: "
-                     "https://github.com/sourcemeta/jsonschema/blob/main/"
-                     "docs/test.markdown\n";
-        return EXIT_FAILURE;
+        std::cout << "\n";
+        throw TestError{"Test case documents must contain either a `data` or "
+                        "`dataPath` property, but not both",
+                        index};
       }
 
       if (test_case.defines("dataPath") &&
           !test_case.at("dataPath").is_string()) {
-        std::cout << "\nerror: Test case documents must set the `dataPath` "
-                     "property to a string\n  at test case #"
-                  << index << "\n\n";
-        std::cout << "Learn more here: "
-                     "https://github.com/sourcemeta/jsonschema/blob/main/"
-                     "docs/test.markdown\n";
-        return EXIT_FAILURE;
+        std::cout << "\n";
+        throw TestError{
+            "Test case documents must set the `dataPath` property to a string",
+            index};
       }
 
       if (test_case.defines("description") &&
           !test_case.at("description").is_string()) {
-        std::cout << "\nerror: If you set a test case description, it must be "
-                     "a string\n  at test case #"
-                  << index << "\n\n";
-        std::cout << "Learn more here: "
-                     "https://github.com/sourcemeta/jsonschema/blob/main/"
-                     "docs/test.markdown\n";
-        return EXIT_FAILURE;
+        std::cout << "\n";
+        throw TestError{
+            "If you set a test case description, it must be a string", index};
       }
 
       if (!test_case.defines("valid")) {
-        std::cout << "\nerror: Test case documents must contain a `valid` "
-                     "property\n  at test case #"
-                  << index << "\n\n";
-        std::cout << "Learn more here: "
-                     "https://github.com/sourcemeta/jsonschema/blob/main/"
-                     "docs/test.markdown\n";
-        return EXIT_FAILURE;
+        std::cout << "\n";
+        throw TestError{"Test case documents must contain a `valid` property",
+                        index};
       }
 
       if (!test_case.at("valid").is_boolean()) {
-        std::cout << "\nerror: The test case document `valid` property must be "
-                     "a boolean\n  at test case #"
-                  << index << "\n\n";
-        std::cout << "Learn more here: "
-                     "https://github.com/sourcemeta/jsonschema/blob/main/"
-                     "docs/test.markdown\n";
-        return EXIT_FAILURE;
+        std::cout << "\n";
+        throw TestError{
+            "The test case document `valid` property must be a boolean", index};
       }
 
+      sourcemeta::core::PointerPositionTracker tracker;
       const auto instance{
-          get_data(test_case, entry.first.parent_path(), verbose)};
+          get_data(test_case, entry.first.parent_path(), options, tracker)};
       const std::string ref{"$ref"};
       sourcemeta::blaze::SimpleOutput output{instance, {std::cref(ref)}};
       const auto case_result{
@@ -256,7 +234,7 @@ auto sourcemeta::jsonschema::cli::test(
 
         std::cout << "  " << index << "/" << total << " FAIL "
                   << test_case_description.str() << "\n\n";
-        print(output, std::cout);
+        print(output, tracker, std::cout);
 
         if (index != total && verbose) {
           std::cout << "\n";
@@ -271,5 +249,7 @@ auto sourcemeta::jsonschema::cli::test(
     }
   }
 
-  return result ? EXIT_SUCCESS : EXIT_FAILURE;
+  if (!result) {
+    throw Fail{EXIT_FAILURE};
+  }
 }
