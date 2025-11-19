@@ -21,13 +21,15 @@ test "$CODE" = "1" || exit 1
 cat << EOF > "$TMP/expected.json"
 {
   "valid": false,
+  "health": 0,
   "errors": [
     {
       "path": "$(realpath "$TMP")/schema.json",
       "id": "enum_with_type",
       "message": "Setting \`type\` alongside \`enum\` is considered an anti-pattern, as the enumeration choices already imply their respective types",
       "description": null,
-      "schemaLocation": ""
+      "schemaLocation": "/enum",
+      "position": [ 4, 3, 4, 19 ]
     }
   ]
 }
