@@ -27,9 +27,26 @@ private:
   std::filesystem::path path_;
 };
 
+class PositionalArgumentError : public std::runtime_error {
+public:
+  PositionalArgumentError(std::string message, std::string example)
+      : std::runtime_error{std::move(message)}, example_{std::move(example)} {}
+
+  [[nodiscard]] auto example() const noexcept -> const std::string & {
+    return example_;
+  }
+
+private:
+  std::string example_;
+};
+
 inline auto try_catch(const std::function<int()> &callback) noexcept -> int {
   try {
     return callback();
+  } catch (const sourcemeta::jsonschema::PositionalArgumentError &error) {
+    std::cerr << "error: " << error.what() << "\n\n"
+              << "  " << error.example() << "\n";
+    return EXIT_FAILURE;
   } catch (const sourcemeta::core::SchemaReferenceError &error) {
     std::cerr << "error: " << error.what() << "\n  " << error.id()
               << "\n    at schema location \"";
