@@ -17,7 +17,21 @@ test "$CODE" = "1" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
 error: No such file or directory
-  $(realpath "$TMP")/foo.json
+  at file path $(realpath "$TMP")/foo.json
 EOF
 
 diff "$TMP/stderr.txt" "$TMP/expected.txt"
+
+# JSON error
+"$1" validate "$TMP/foo.json" "$TMP/instance.json" --json >"$TMP/stdout.txt" \
+  && CODE="$?" || CODE="$?"
+test "$CODE" = "1" || exit 1
+
+cat << EOF > "$TMP/expected.txt"
+{
+  "error": "No such file or directory",
+  "filePath": "$(realpath "$TMP")/foo.json"
+}
+EOF
+
+diff "$TMP/stdout.txt" "$TMP/expected.txt"
