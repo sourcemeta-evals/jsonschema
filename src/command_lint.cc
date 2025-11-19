@@ -152,8 +152,9 @@ auto sourcemeta::jsonschema::cli::lint(
 
       auto copy = entry.second;
 
+      std::pair<bool, bool> apply_result{false, false};
       try {
-        bundle.apply(
+        apply_result = bundle.apply(
             copy, sourcemeta::core::schema_official_walker,
             resolver(options, options.contains("h") || options.contains("http"),
                      dialect),
@@ -164,9 +165,11 @@ auto sourcemeta::jsonschema::cli::lint(
             entry.first);
       }
 
-      std::ofstream output{entry.first};
-      sourcemeta::core::prettify(copy, output);
-      output << "\n";
+      if (apply_result.second) {
+        std::ofstream output{entry.first};
+        sourcemeta::core::prettify(copy, output);
+        output << "\n";
+      }
     }
   } else {
     for (const auto &entry :

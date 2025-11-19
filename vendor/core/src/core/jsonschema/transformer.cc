@@ -144,12 +144,14 @@ auto SchemaTransformer::apply(
     JSON &schema, const SchemaWalker &walker, const SchemaResolver &resolver,
     const SchemaTransformer::Callback &callback,
     const std::optional<JSON::String> &default_dialect,
-    const std::optional<JSON::String> &default_id) const -> bool {
+    const std::optional<JSON::String> &default_id) const
+    -> std::pair<bool, bool> {
   // There is no point in applying an empty bundle
   assert(!this->rules.empty());
   std::set<std::pair<Pointer, JSON::String>> processed_rules;
 
   bool result{true};
+  bool any_applied{false};
   while (true) {
     SchemaFrame frame{SchemaFrame::Mode::References};
     frame.analyse(schema, walker, resolver, default_dialect, default_id);
@@ -230,9 +232,10 @@ auto SchemaTransformer::apply(
     if (!applied) {
       break;
     }
+    any_applied = true;
   }
 
-  return result;
+  return {result, any_applied};
 }
 
 auto SchemaTransformer::remove(const std::string &name) -> bool {
