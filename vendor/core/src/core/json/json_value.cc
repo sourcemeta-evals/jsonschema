@@ -741,8 +741,10 @@ JSON::defines_any(std::initializer_list<JSON::String> keys) const -> bool {
     return true;
   }
 
-  static std::vector<std::uint64_t> cache;
-  cache.reserve(size);
+  // If we re-use the vector across threads, then we will segfault
+  thread_local std::vector<std::uint64_t> cache;
+  cache.clear();
+  cache.resize(size);
 
   for (std::size_t index = 0; index < size; index++) {
     cache[index] = items[index].fast_hash();
@@ -891,6 +893,11 @@ auto JSON::trim() -> const JSON::String & {
   this->data_string.erase(this->data_string.find_last_not_of(WHITESPACE) + 1);
   this->data_string.erase(0, this->data_string.find_first_not_of(WHITESPACE));
   return this->to_string();
+}
+
+auto JSON::reorder(const KeyComparison &compare) -> void {
+  assert(this->is_object());
+  this->data_object.reorder(compare);
 }
 
 auto JSON::rename(const JSON::String &key, JSON::String &&to) -> void {
