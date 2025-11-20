@@ -14,10 +14,9 @@ auto sourcemeta::jsonschema::cli::bundle(
     const sourcemeta::core::Options &options) -> int {
 
   if (options.positional().size() < 1) {
-    std::cerr
-        << "error: This command expects a path to a schema. For example:\n\n"
-        << "  jsonschema bundle path/to/schema.json\n";
-    return EXIT_FAILURE;
+    throw sourcemeta::jsonschema::PositionalArgumentError(
+        "This command expects a path to a schema.",
+        "jsonschema bundle path/to/schema.json");
   }
 
   const std::filesystem::path schema_path{options.positional().front()};
