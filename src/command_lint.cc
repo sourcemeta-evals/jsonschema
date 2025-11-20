@@ -46,10 +46,12 @@ static auto reindent(const std::string_view &value,
 
 static auto get_lint_callback(sourcemeta::core::JSON &errors_array,
                               const std::filesystem::path &path,
-                              const bool output_json) -> auto {
-  return [&path, &errors_array,
-          output_json](const auto &pointer, const auto &name,
+                              const bool output_json, bool &has_issues)
+    -> auto {
+  return [&path, &errors_array, output_json,
+          &has_issues](const auto &pointer, const auto &name,
                        const auto &message, const auto &description) {
+    has_issues = true;
     if (output_json) {
       auto error_obj = sourcemeta::core::JSON::make_object();
 
@@ -151,35 +153,41 @@ auto sourcemeta::jsonschema::cli::lint(
       }
 
       auto copy = entry.second;
+      bool has_issues = false;
 
       try {
         bundle.apply(
             copy, sourcemeta::core::schema_official_walker,
             resolver(options, options.contains("h") || options.contains("http"),
                      dialect),
-            get_lint_callback(errors_array, entry.first, output_json), dialect,
-            sourcemeta::core::URI::from_path(entry.first).recompose());
+            get_lint_callback(errors_array, entry.first, output_json,
+                              has_issues),
+            dialect, sourcemeta::core::URI::from_path(entry.first).recompose());
       } catch (const sourcemeta::core::SchemaUnknownBaseDialectError &) {
         throw FileError<sourcemeta::core::SchemaUnknownBaseDialectError>(
             entry.first);
       }
 
-      std::ofstream output{entry.first};
-      sourcemeta::core::prettify(copy, output);
-      output << "\n";
+      if (copy != entry.second) {
+        std::ofstream output{entry.first};
+        sourcemeta::core::prettify(copy, output);
+        output << "\n";
+      }
     }
   } else {
     for (const auto &entry :
          for_each_json(options.at(""), parse_ignore(options),
                        parse_extensions(options))) {
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
+      bool has_issues = false;
       try {
         const bool subresult = bundle.check(
             entry.second, sourcemeta::core::schema_official_walker,
             resolver(options, options.contains("h") || options.contains("http"),
                      dialect),
-            get_lint_callback(errors_array, entry.first, output_json), dialect,
-            sourcemeta::core::URI::from_path(entry.first).recompose());
+            get_lint_callback(errors_array, entry.first, output_json,
+                              has_issues),
+            dialect, sourcemeta::core::URI::from_path(entry.first).recompose());
         if (!subresult) {
           result = false;
         }
