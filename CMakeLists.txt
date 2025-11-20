@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(jsonschema VERSION 9.3.5 LANGUAGES CXX)
+project(jsonschema VERSION 12.1.0 LANGUAGES C CXX)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 # Options
@@ -28,7 +28,6 @@ add_subdirectory(src)
 if(JSONSCHEMA_DEVELOPMENT)
   sourcemeta_target_clang_format(SOURCES
     src/*.h src/*.cc)
-  sourcemeta_target_clang_tidy(SOURCES src/*.cc)
   sourcemeta_target_shellcheck(SOURCES
     test/*.sh install *.sh)
 endif()

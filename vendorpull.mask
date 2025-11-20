@@ -2,6 +2,10 @@ assets
 bin
 docs
 test
+vendor/blaze
+vendor/core
+vendor/hydra
+vendor/jsonbinpack
 vendor/vendorpull
 .ackrc
 .editorconfig
@@ -13,5 +17,11 @@ Dockerfile
 install
 Makefile
 npm-deploy.sh
+pip-deploy.sh
 README.markdown
-cmake
+cmake/FindBlaze.cmake
+cmake/FindCore.cmake
+cmake/FindHydra.cmake
+cmake/FindJSONBinPack.cmake
+.pre-commit-hooks.yaml
+snapcraft.yaml

@@ -7,16 +7,16 @@ Metaschema
 ```sh
 jsonschema metaschema [schemas-or-directories...]
   [--http/-h] [--verbose/-v] [--extension/-e <extension>]
+  [--resolve/-r <schemas-or-directories> ...]
   [--ignore/-i <schemas-or-directories>] [--trace/-t]
-  [--default-dialect/-d <uri>]
+  [--default-dialect/-d <uri>] [--json/-j]
 ```
 
 Ensure that a schema or a set of schemas are considered valid with regards to
-their metaschemas.
-
-> [!NOTE]
-> This command won't collect annotations. To do so, use the
-> [`validate`](./validate.markdown) command instead.
+their metaschemas. The `--json`/`-j` option outputs the evaluation result using
+the JSON Schema
+[`Basic`](https://json-schema.org/draft/2020-12/json-schema-core#section-12.4.2)
+standard format.
 
 > [!WARNING]
 > The point of this command is to help schema writers make sure their schemas
@@ -24,6 +24,9 @@ their metaschemas.
 > and exhaustive evaluation rather than validation speed. If you require fast
 > validation, use the [`validate`](./validate.markdown) command with its
 > `--fast`/`-f` option instead.
+
+The `--resolve`/`-r` option is crucial to import custom meta-schemas into the
+resolution context, otherwise the validator won't know where to look for them.
 
 To help scripts distinguish validation errors, these are reported using exit
 code 2.
@@ -68,6 +71,12 @@ error: The target is expected to match all of the given assertions
 jsonschema metaschema path/to/my/schema_1.json path/to/my/schema_2.json
 ```
 
+### Validate a JSON Schema with a custom meta-schema
+
+```sh
+jsonschema validate path/to/my/schema.json --resolve path/to/custom-meta-schema.json
+```
+
 ### Validate the metaschema of every `.json` file in a given directory (recursively)
 
 ```sh
@@ -96,4 +105,10 @@ jsonschema metaschema --extension .schema.json
 
 ```sh
 jsonschema metaschema path/to/my/schema.json --trace
+```
+
+### Validate the metaschema of a JSON Schema and print the result as JSON
+
+```sh
+jsonschema metaschema path/to/my/schema.json --json
 ```
