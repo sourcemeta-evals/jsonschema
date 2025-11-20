@@ -39,13 +39,14 @@ test "$CODE" = "1" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
 Detecting schema resources from file: $(realpath "$TMP")/schemas/schema.json
+Importing schema into the resolution context: file://$(realpath "$TMP")/schemas/schema.json
 Importing schema into the resolution context: https://example.com
 Detecting schema resources from file: $(realpath "$TMP")/schemas/test.json
 error: Could not determine the base dialect of the schema
 
 Are you sure the input is a valid JSON Schema and its base dialect is known?
-If the input does not declare the \$schema keyword, you might want to
-explicity declare a default dialect using --default-dialect/-d
+If the input does not declare the \`\$schema\` keyword, you might want to
+explicitly declare a default dialect using \`--default-dialect/-d\`
 EOF
 
 diff "$TMP/output.txt" "$TMP/expected.txt"
