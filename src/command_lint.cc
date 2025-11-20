@@ -150,6 +150,7 @@ auto sourcemeta::jsonschema::cli::lint(
         return EXIT_FAILURE;
       }
 
+      const auto original = entry.second;
       auto copy = entry.second;
 
       try {
@@ -164,9 +165,12 @@ auto sourcemeta::jsonschema::cli::lint(
             entry.first);
       }
 
-      std::ofstream output{entry.first};
-      sourcemeta::core::prettify(copy, output);
-      output << "\n";
+      // Only write the file if changes were made
+      if (copy != original) {
+        std::ofstream output{entry.first};
+        sourcemeta::core::prettify(copy, output);
+        output << "\n";
+      }
     }
   } else {
     for (const auto &entry :
