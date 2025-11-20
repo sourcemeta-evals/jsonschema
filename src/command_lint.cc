@@ -164,6 +164,10 @@ auto sourcemeta::jsonschema::cli::lint(
             entry.first);
       }
 
+      if (copy == entry.second) {
+        continue;
+      }
+
       std::ofstream output{entry.first};
       sourcemeta::core::prettify(copy, output);
       output << "\n";
