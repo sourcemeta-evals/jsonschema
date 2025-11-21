@@ -31,3 +31,16 @@ IGNORED
 
 # Verify no error output
 cat << 'EOF' > "$TMP/output.txt"
+EOF
+
+diff "$TMP/result.txt" "$TMP/output.txt"
+
+# Verify schema wasn't modified
+cat << 'EXPECTED' > "$TMP/expected.json"
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "type": "string"
+}
+EXPECTED
+
+diff "$TMP/schema.json" "$TMP/expected.json"
