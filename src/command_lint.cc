@@ -113,10 +113,13 @@ auto sourcemeta::jsonschema::cli::lint(
   auto errors_array = sourcemeta::core::JSON::make_array();
   const auto dialect{default_dialect(options)};
 
+  // Get positional arguments (schema files/directories)
+  const std::vector<std::string> schemas =
+      options.contains("") ? options.at("") : std::vector<std::string>{};
+
   if (options.contains("f") || options.contains("fix")) {
-    for (const auto &entry :
-         for_each_json(options.at(""), parse_ignore(options),
-                       parse_extensions(options))) {
+    for (const auto &entry : for_each_json(schemas, parse_ignore(options),
+                                           parse_extensions(options))) {
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
       if (entry.first.extension() == ".yaml" ||
           entry.first.extension() == ".yml") {
@@ -140,9 +143,8 @@ auto sourcemeta::jsonschema::cli::lint(
       output << "\n";
     }
   } else {
-    for (const auto &entry :
-         for_each_json(options.at(""), parse_ignore(options),
-                       parse_extensions(options))) {
+    for (const auto &entry : for_each_json(schemas, parse_ignore(options),
+                                           parse_extensions(options))) {
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
       const bool subresult = bundle.check(
           entry.second, sourcemeta::core::schema_official_walker,
