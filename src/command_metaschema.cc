@@ -26,11 +26,14 @@ auto sourcemeta::jsonschema::cli::metaschema(
                default_dialect_option)};
   bool result{true};
   sourcemeta::blaze::Evaluator evaluator;
+  const bool extensions_explicit{options.contains("extension") ||
+                                 options.contains("e")};
 
   std::map<std::string, sourcemeta::blaze::Template> cache;
 
-  for (const auto &entry : for_each_json(options.at(""), parse_ignore(options),
-                                         parse_extensions(options))) {
+  for (const auto &entry :
+       for_each_json(options.at(""), parse_ignore(options),
+                     parse_extensions(options), extensions_explicit)) {
     if (!sourcemeta::core::is_schema(entry.second)) {
       std::cerr << "error: The schema file you provided does not represent a "
                    "valid JSON Schema\n  "

@@ -38,7 +38,7 @@ bool path_starts_with(const std::filesystem::path &path,
 auto handle_json_entry(
     const std::filesystem::path &entry_path,
     const std::set<std::filesystem::path> &blacklist,
-    const std::set<std::string> &extensions,
+    const std::set<std::string> &extensions, const bool extensions_explicit,
     std::vector<std::pair<std::filesystem::path, sourcemeta::core::JSON>>
         &result) -> void {
   if (std::filesystem::is_directory(entry_path)) {
@@ -74,10 +74,14 @@ auto handle_json_entry(
       throw std::runtime_error(error.str());
     }
 
-    if (std::any_of(extensions.cbegin(), extensions.cend(),
-                    [&canonical](const auto &extension) {
-                      return canonical.string().ends_with(extension);
-                    }) &&
+    // For direct file paths, only check extensions if they were explicitly
+    // provided
+    const bool should_check_extension = extensions_explicit;
+    if ((!should_check_extension ||
+         std::any_of(extensions.cbegin(), extensions.cend(),
+                     [&canonical](const auto &extension) {
+                       return canonical.string().ends_with(extension);
+                     })) &&
         std::none_of(blacklist.cbegin(), blacklist.cend(),
                      [&canonical](const auto &prefix) {
                        return prefix == canonical ||
@@ -118,16 +122,18 @@ auto read_file(const std::filesystem::path &path) -> sourcemeta::core::JSON {
 
 auto for_each_json(const std::vector<std::string> &arguments,
                    const std::set<std::filesystem::path> &blacklist,
-                   const std::set<std::string> &extensions)
+                   const std::set<std::string> &extensions,
+                   const bool extensions_explicit)
     -> std::vector<std::pair<std::filesystem::path, sourcemeta::core::JSON>> {
   std::vector<std::pair<std::filesystem::path, sourcemeta::core::JSON>> result;
 
   if (arguments.empty()) {
     handle_json_entry(std::filesystem::current_path(), blacklist, extensions,
-                      result);
+                      extensions_explicit, result);
   } else {
     for (const auto &entry : arguments) {
-      handle_json_entry(entry, blacklist, extensions, result);
+      handle_json_entry(entry, blacklist, extensions, extensions_explicit,
+                        result);
     }
   }
 
@@ -318,11 +324,13 @@ auto resolver(const std::map<std::string, std::vector<std::string>> &options,
           return sourcemeta::core::schema_official_resolver(identifier);
         }
       }};
+  const bool extensions_explicit{options.contains("extension") ||
+                                 options.contains("e")};
 
   if (options.contains("resolve")) {
     for (const auto &entry :
          for_each_json(options.at("resolve"), parse_ignore(options),
-                       parse_extensions(options))) {
+                       parse_extensions(options), extensions_explicit)) {
       log_verbose(options) << "Detecting schema resources from file: "
                            << entry.first.string() << "\n";
       const auto result = dynamic_resolver.add(
@@ -345,7 +353,7 @@ auto resolver(const std::map<std::string, std::vector<std::string>> &options,
   if (options.contains("r")) {
     for (const auto &entry :
          for_each_json(options.at("r"), parse_ignore(options),
-                       parse_extensions(options))) {
+                       parse_extensions(options), extensions_explicit)) {
       log_verbose(options) << "Detecting schema resources from file: "
                            << entry.first.string() << "\n";
       const auto result = dynamic_resolver.add(

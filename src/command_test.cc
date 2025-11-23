@@ -49,9 +49,12 @@ auto sourcemeta::jsonschema::cli::test(
       options, options.contains("h") || options.contains("http"), dialect)};
   const auto verbose{options.contains("verbose") || options.contains("v")};
   sourcemeta::blaze::Evaluator evaluator;
+  const bool extensions_explicit{options.contains("extension") ||
+                                 options.contains("e")};
 
-  for (const auto &entry : for_each_json(options.at(""), parse_ignore(options),
-                                         parse_extensions(options))) {
+  for (const auto &entry :
+       for_each_json(options.at(""), parse_ignore(options),
+                     parse_extensions(options), extensions_explicit)) {
     const sourcemeta::core::JSON test{
         sourcemeta::jsonschema::cli::read_file(entry.first)};
 

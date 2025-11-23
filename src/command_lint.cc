@@ -140,11 +140,13 @@ auto sourcemeta::jsonschema::cli::lint(
   const auto dialect{default_dialect(options)};
   const auto custom_resolver{resolver(
       options, options.contains("h") || options.contains("http"), dialect)};
+  const bool extensions_explicit{options.contains("extension") ||
+                                 options.contains("e")};
 
   if (options.contains("f") || options.contains("fix")) {
     for (const auto &entry :
          for_each_json(options.at(""), parse_ignore(options),
-                       parse_extensions(options))) {
+                       parse_extensions(options), extensions_explicit)) {
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
       if (entry.first.extension() == ".yaml" ||
           entry.first.extension() == ".yml") {
@@ -173,7 +175,7 @@ auto sourcemeta::jsonschema::cli::lint(
   } else {
     for (const auto &entry :
          for_each_json(options.at(""), parse_ignore(options),
-                       parse_extensions(options))) {
+                       parse_extensions(options), extensions_explicit)) {
       log_verbose(options) << "Linting: " << entry.first.string() << "\n";
       try {
         const auto subresult = bundle.check(
