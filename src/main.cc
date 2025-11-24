@@ -5,6 +5,7 @@
 #include <filesystem>  // std::filesystem
 #include <iostream>    // std::cerr, std::cout
 #include <span>        // std::span
+#include <stdexcept>   // std::out_of_range
 #include <string>      // std::string
 #include <string_view> // std::string_view
 #include <vector>      // std::vector
@@ -210,6 +211,12 @@ auto main(int argc, char *argv[]) noexcept -> int {
     return EXIT_FAILURE;
   } catch (const std::runtime_error &error) {
     std::cerr << "error: " << error.what() << "\n";
+    return EXIT_FAILURE;
+  } catch (const std::out_of_range &error) {
+    std::cerr << "unexpected internal error (out_of_range): " << error.what()
+              << "\nThis indicates a bug in the jsonschema CLI.\n"
+              << "Please report it at "
+              << "https://github.com/sourcemeta/jsonschema\n";
     return EXIT_FAILURE;
   } catch (const std::exception &error) {
     std::cerr << "unexpected error: " << error.what()
