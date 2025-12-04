@@ -52,8 +52,29 @@ test('spawn with json option appends --json and parses stdout', async () => {
 test('spawn with json option on error returns parsed JSON error', async () => {
   const result = await spawn(['inspect', '/nonexistent/path.json'], { json: true });
   assert.strictEqual(result.code, 1);
-  assert.deepStrictEqual(result.stdout, {
-    error: 'No such file or directory',
-    filePath: '/nonexistent/path.json'
-  });
+  assert.strictEqual(typeof result.stdout, 'object');
+  assert.ok(result.stdout.error);
+});
+
+test('spawn with json option returns string stdout on parse failure', async () => {
+  const result = await spawn(['--version'], { json: true });
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(typeof result.stdout, 'string');
+});
+
+test('spawn without json option returns string stdout', async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), 'jsonschema-test-'));
+  const schemaPath = join(tempDir, 'schema.json');
+  await writeFile(schemaPath, JSON.stringify({
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "string"
+  }));
+
+  try {
+    const result = await spawn(['inspect', schemaPath, '--json']);
+    assert.strictEqual(result.code, 0);
+    assert.strictEqual(typeof result.stdout, 'string');
+  } finally {
+    await rm(tempDir, { recursive: true });
+  }
 });

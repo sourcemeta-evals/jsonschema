@@ -55,9 +55,16 @@ function spawn(args, options = {}) {
     });
 
     process.on('close', (code) => {
+      let parsedStdout = stdout;
+      if (json && stdout.trim()) {
+        try {
+          parsedStdout = JSON.parse(stdout);
+        } catch (e) {
+        }
+      }
       resolve({
         code: code,
-        stdout: json ? JSON.parse(stdout) : stdout,
+        stdout: parsedStdout,
         stderr: stderr
       });
     });
