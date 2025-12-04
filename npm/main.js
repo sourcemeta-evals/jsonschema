@@ -23,12 +23,16 @@ function spawn(args, options = {}) {
       child_process.spawnSync('/usr/bin/xattr', ['-c', EXECUTABLE], { stdio: 'inherit' });
     }
 
+    const jsonMode = options.json === true;
+    const finalArgs = jsonMode ? ['--json', ...args] : args;
+
+    const { json, ...spawnOnlyOptions } = options;
     const spawnOptions = {
       windowsHide: true,
-      ...options
+      ...spawnOnlyOptions
     };
 
-    const process = child_process.spawn(EXECUTABLE, args, spawnOptions);
+    const process = child_process.spawn(EXECUTABLE, finalArgs, spawnOptions);
 
     let stdout = '';
     let stderr = '';
@@ -50,9 +54,17 @@ function spawn(args, options = {}) {
     });
 
     process.on('close', (code) => {
+      let parsedStdout = stdout;
+      if (jsonMode && stdout.trim()) {
+        try {
+          parsedStdout = JSON.parse(stdout);
+        } catch (e) {
+          // If parsing fails, keep the raw stdout
+        }
+      }
       resolve({
         code: code,
-        stdout: stdout,
+        stdout: parsedStdout,
         stderr: stderr
       });
     });
