@@ -26,3 +26,35 @@ test('spawn captures stderr on error', async () => {
   assert.strictEqual(result.code, 1);
   assert.ok(result.stderr.length > 0);
 });
+
+test('spawn with json option passes --json flag and parses stdout', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const os = await import('node:os');
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jsonschema-test-'));
+  const schemaPath = path.join(tmpDir, 'schema.json');
+  const instancePath = path.join(tmpDir, 'instance.json');
+
+  try {
+    fs.writeFileSync(schemaPath, JSON.stringify({
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "https://example.com",
+      "type": "object"
+    }));
+    fs.writeFileSync(instancePath, JSON.stringify({ "foo": "bar" }));
+
+    const result = await spawn(['validate', schemaPath, instancePath], { json: true });
+    assert.strictEqual(result.code, 0);
+    assert.strictEqual(typeof result.stdout, 'object');
+    assert.strictEqual(result.stdout.valid, true);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true });
+  }
+});
+
+test('spawn without json option returns stdout as string', async () => {
+  const result = await spawn(['--version']);
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(typeof result.stdout, 'string');
+});
