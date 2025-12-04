@@ -26,3 +26,23 @@ test('spawn captures stderr on error', async () => {
   assert.strictEqual(result.code, 1);
   assert.ok(result.stderr.length > 0);
 });
+
+test('spawn with json option adds --json flag', async () => {
+  const result = await spawn(['fmt', '--check', 'nonexistent.json'], { json: true });
+  assert.strictEqual(result.code, 1);
+  assert.strictEqual(typeof result.stdout, 'object');
+  assert.strictEqual(result.stdout.valid, false);
+});
+
+test('spawn with json option parses stdout as JSON', async () => {
+  const result = await spawn(['lint', '--list'], { json: true });
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(typeof result.stdout, 'object');
+  assert.ok(Array.isArray(result.stdout));
+});
+
+test('spawn without json option returns raw stdout', async () => {
+  const result = await spawn(['--version']);
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(typeof result.stdout, 'string');
+});
