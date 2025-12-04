@@ -10,6 +10,9 @@ const EXECUTABLE = path.join(__dirname, '..', 'build', 'github-releases',
   `jsonschema-${PLATFORM}-${ARCH}${EXTENSION}`);
 
 function spawn(args, options = {}) {
+  const json = options.json === true;
+  const spawnArgs = json ? [...args, '--json'] : args;
+
   return new Promise((resolve, reject) => {
     if (!fs.existsSync(EXECUTABLE)) {
       reject(new Error(
@@ -23,16 +26,14 @@ function spawn(args, options = {}) {
       child_process.spawnSync('/usr/bin/xattr', ['-c', EXECUTABLE], { stdio: 'inherit' });
     }
 
-    const jsonMode = options.json === true;
-    const finalArgs = jsonMode ? ['--json', ...args] : args;
-
-    const { json, ...spawnOpts } = options;
     const spawnOptions = {
       windowsHide: true,
-      ...spawnOpts
+      ...options
     };
 
-    const process = child_process.spawn(EXECUTABLE, finalArgs, spawnOptions);
+    delete spawnOptions.json;
+
+    const process = child_process.spawn(EXECUTABLE, spawnArgs, spawnOptions);
 
     let stdout = '';
     let stderr = '';
@@ -55,7 +56,7 @@ function spawn(args, options = {}) {
 
     process.on('close', (code) => {
       let parsedStdout = stdout;
-      if (jsonMode && stdout.trim()) {
+      if (json && stdout.trim()) {
         try {
           parsedStdout = JSON.parse(stdout);
         } catch (e) {

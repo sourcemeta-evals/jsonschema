@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { spawn } from './main.js';
 import packageJson from '../package.json' with { type: 'json' };
 
@@ -27,17 +30,11 @@ test('spawn captures stderr on error', async () => {
   assert.ok(result.stderr.length > 0);
 });
 
-test('spawn with json option passes --json flag and parses output', async () => {
-  const fs = await import('node:fs');
-  const os = await import('node:os');
-  const path = await import('node:path');
-
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jsonschema-test-'));
-  const schemaPath = path.join(tmpDir, 'schema.json');
-
-  fs.writeFileSync(schemaPath, JSON.stringify({
+test('spawn with json option appends --json and parses stdout', async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), 'jsonschema-test-'));
+  const schemaPath = join(tempDir, 'schema.json');
+  await writeFile(schemaPath, JSON.stringify({
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://example.com",
     "type": "string"
   }));
 
@@ -48,8 +45,15 @@ test('spawn with json option passes --json flag and parses output', async () => 
     assert.ok(result.stdout.locations);
     assert.ok(result.stdout.references);
   } finally {
-    fs.rmSync(tmpDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
+});
+
+test('spawn with json option on error returns parsed JSON error', async () => {
+  const result = await spawn(['inspect', '/nonexistent/path.json'], { json: true });
+  assert.strictEqual(result.code, 1);
+  assert.strictEqual(typeof result.stdout, 'object');
+  assert.ok(result.stdout.error);
 });
 
 test('spawn with json option returns string stdout on parse failure', async () => {
@@ -59,16 +63,10 @@ test('spawn with json option returns string stdout on parse failure', async () =
 });
 
 test('spawn without json option returns string stdout', async () => {
-  const fs = await import('node:fs');
-  const os = await import('node:os');
-  const path = await import('node:path');
-
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jsonschema-test-'));
-  const schemaPath = path.join(tmpDir, 'schema.json');
-
-  fs.writeFileSync(schemaPath, JSON.stringify({
+  const tempDir = await mkdtemp(join(tmpdir(), 'jsonschema-test-'));
+  const schemaPath = join(tempDir, 'schema.json');
+  await writeFile(schemaPath, JSON.stringify({
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://example.com",
     "type": "string"
   }));
 
@@ -77,6 +75,6 @@ test('spawn without json option returns string stdout', async () => {
     assert.strictEqual(result.code, 0);
     assert.strictEqual(typeof result.stdout, 'string');
   } finally {
-    fs.rmSync(tmpDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
