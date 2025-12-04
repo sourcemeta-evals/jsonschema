@@ -23,36 +23,46 @@ function spawn(args, options = {}) {
       child_process.spawnSync('/usr/bin/xattr', ['-c', EXECUTABLE], { stdio: 'inherit' });
     }
 
+    const { json, ...spawnOptionsRest } = options;
     const spawnOptions = {
       windowsHide: true,
-      ...options
+      ...spawnOptionsRest
     };
 
-    const process = child_process.spawn(EXECUTABLE, args, spawnOptions);
+    const finalArgs = json ? ['--json', ...args] : args;
+    const childProcess = child_process.spawn(EXECUTABLE, finalArgs, spawnOptions);
 
     let stdout = '';
     let stderr = '';
 
-    if (process.stdout) {
-      process.stdout.on('data', (data) => {
+    if (childProcess.stdout) {
+      childProcess.stdout.on('data', (data) => {
         stdout += data.toString();
       });
     }
 
-    if (process.stderr) {
-      process.stderr.on('data', (data) => {
+    if (childProcess.stderr) {
+      childProcess.stderr.on('data', (data) => {
         stderr += data.toString();
       });
     }
 
-    process.on('error', (error) => {
+    childProcess.on('error', (error) => {
       reject(error);
     });
 
-    process.on('close', (code) => {
+    childProcess.on('close', (code) => {
+      let parsedStdout = stdout;
+      if (json && stdout.trim()) {
+        try {
+          parsedStdout = JSON.parse(stdout);
+        } catch (e) {
+          // If parsing fails, return raw stdout
+        }
+      }
       resolve({
         code: code,
-        stdout: stdout,
+        stdout: parsedStdout,
         stderr: stderr
       });
     });

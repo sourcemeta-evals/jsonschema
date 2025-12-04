@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
 import { spawn } from './main.js';
 import packageJson from '../package.json' with { type: 'json' };
 
@@ -25,4 +28,51 @@ test('spawn captures stderr on error', async () => {
   const result = await spawn(['validate']);
   assert.strictEqual(result.code, 1);
   assert.ok(result.stderr.length > 0);
+});
+
+test('spawn with json option passes --json flag and parses stdout', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jsonschema-test-'));
+  const schemaPath = path.join(tmpDir, 'schema.json');
+  fs.writeFileSync(schemaPath, JSON.stringify({
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com",
+    "type": "string"
+  }));
+
+  try {
+    const result = await spawn(['inspect', schemaPath], { json: true });
+    assert.strictEqual(result.code, 0);
+    assert.strictEqual(typeof result.stdout, 'object');
+    assert.ok(result.stdout.locations);
+    assert.ok(result.stdout.references);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true });
+  }
+});
+
+test('spawn without json option returns stdout as string', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jsonschema-test-'));
+  const schemaPath = path.join(tmpDir, 'schema.json');
+  fs.writeFileSync(schemaPath, JSON.stringify({
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com",
+    "type": "string"
+  }));
+
+  try {
+    const result = await spawn(['inspect', schemaPath, '--json']);
+    assert.strictEqual(result.code, 0);
+    assert.strictEqual(typeof result.stdout, 'string');
+    const parsed = JSON.parse(result.stdout);
+    assert.ok(parsed.locations);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true });
+  }
+});
+
+test('spawn with json option handles non-JSON output gracefully', async () => {
+  const result = await spawn(['--help'], { json: true });
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(typeof result.stdout, 'string');
+  assert.match(result.stdout, /Usage:/);
 });
