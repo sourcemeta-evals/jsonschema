@@ -10,6 +10,9 @@ const EXECUTABLE = path.join(__dirname, '..', 'build', 'github-releases',
   `jsonschema-${PLATFORM}-${ARCH}${EXTENSION}`);
 
 function spawn(args, options = {}) {
+  const json = options.json === true;
+  const spawnArgs = json ? [...args, '--json'] : args;
+
   return new Promise((resolve, reject) => {
     if (!fs.existsSync(EXECUTABLE)) {
       reject(new Error(
@@ -28,7 +31,9 @@ function spawn(args, options = {}) {
       ...options
     };
 
-    const process = child_process.spawn(EXECUTABLE, args, spawnOptions);
+    delete spawnOptions.json;
+
+    const process = child_process.spawn(EXECUTABLE, spawnArgs, spawnOptions);
 
     let stdout = '';
     let stderr = '';
@@ -50,9 +55,13 @@ function spawn(args, options = {}) {
     });
 
     process.on('close', (code) => {
+      let parsedStdout = stdout;
+      if (json && code === 0) {
+        parsedStdout = JSON.parse(stdout);
+      }
       resolve({
         code: code,
-        stdout: stdout,
+        stdout: parsedStdout,
         stderr: stderr
       });
     });
