@@ -26,3 +26,58 @@ test('spawn captures stderr on error', async () => {
   assert.strictEqual(result.code, 1);
   assert.ok(result.stderr.length > 0);
 });
+
+test('spawn with json option passes --json flag and parses output', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const os = await import('node:os');
+
+  // Create a temporary schema file for testing
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jsonschema-test-'));
+  const schemaPath = path.join(tmpDir, 'schema.json');
+  fs.writeFileSync(schemaPath, JSON.stringify({
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "string"
+  }));
+
+  try {
+    const result = await spawn(['inspect', schemaPath], { json: true });
+    assert.strictEqual(result.code, 0);
+    // stdout should be parsed as JSON (an object), not a string
+    assert.strictEqual(typeof result.stdout, 'object');
+    assert.ok(result.stdout !== null);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true });
+  }
+});
+
+test('spawn with json option returns raw stdout on parse failure', async () => {
+  // --version does not output JSON, so parsing should fail gracefully
+  const result = await spawn(['--version'], { json: true });
+  assert.strictEqual(result.code, 0);
+  // stdout should remain a string since it's not valid JSON
+  assert.strictEqual(typeof result.stdout, 'string');
+});
+
+test('spawn without json option does not parse stdout', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const os = await import('node:os');
+
+  // Create a temporary schema file for testing
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jsonschema-test-'));
+  const schemaPath = path.join(tmpDir, 'schema.json');
+  fs.writeFileSync(schemaPath, JSON.stringify({
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "string"
+  }));
+
+  try {
+    const result = await spawn(['inspect', schemaPath]);
+    assert.strictEqual(result.code, 0);
+    // stdout should be a string when json option is not set
+    assert.strictEqual(typeof result.stdout, 'string');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true });
+  }
+});
