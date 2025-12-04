@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { spawn } = require('./npm/main.js');
+const { spawn } = require('./main.js');
 
 spawn(process.argv.slice(2), { stdio: 'inherit' }).then((result) => {
   process.exit(result.code);
