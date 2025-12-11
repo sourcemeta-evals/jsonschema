@@ -240,6 +240,7 @@ auto sourcemeta::jsonschema::lint(const sourcemeta::core::Options &options)
             }
           });
 
+      // Only write the file if the schema was actually modified
       if (wrapper_result == EXIT_SUCCESS) {
         if (copy != entry.second) {
           std::ofstream output{entry.first};
