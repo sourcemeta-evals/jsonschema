@@ -7,6 +7,7 @@
 
 #include <sourcemeta/blaze/evaluator_string_set.h>
 
+#include <bitset>        // std::bitset
 #include <cstdint>       // std::uint8_t
 #include <optional>      // std::optional
 #include <string>        // std::string
@@ -47,8 +48,7 @@ using ValueString = sourcemeta::core::JSON::String;
 /// @ingroup evaluator
 /// Represents a compiler step object property value
 using ValueProperty =
-    std::pair<ValueString,
-              sourcemeta::core::JSON::Object::Container::hash_type>;
+    std::pair<ValueString, sourcemeta::core::JSON::Object::hash_type>;
 
 /// @ingroup evaluator
 /// Represents a compiler step string values
@@ -59,8 +59,8 @@ using ValueStrings = std::vector<ValueString>;
 using ValueStringSet = StringSet;
 
 /// @ingroup evaluator
-/// Represents a compiler step JSON types value
-using ValueTypes = std::vector<sourcemeta::core::JSON::Type>;
+/// Represents a compiler step JSON types value as a bitmask
+using ValueTypes = std::bitset<8>;
 
 /// @ingroup evaluator
 /// Represents a compiler step JSON type value
@@ -73,7 +73,7 @@ using ValueType = sourcemeta::core::JSON::Type;
 /// purposes)
 struct ValueRegex {
   using second_type = ValueString;
-  using first_type = sourcemeta::core::Regex<second_type>;
+  using first_type = sourcemeta::core::Regex;
   const first_type first;
   const second_type second;
 
@@ -111,23 +111,20 @@ using ValueRange = std::tuple<std::size_t, std::optional<std::size_t>, bool>;
 /// Represents a compiler step boolean value
 using ValueBoolean = bool;
 
-// TODO: Don't use FlatMap directly, as it is an internal module of Core
 /// @ingroup evaluator
 /// Represents a compiler step string to index map
-using ValueNamedIndexes =
-    sourcemeta::core::FlatMap<ValueString, ValueUnsignedInteger,
-                              sourcemeta::core::PropertyHashJSON<ValueString>>;
+using ValueNamedIndexes = sourcemeta::core::JSONObject<
+    ValueString, ValueUnsignedInteger,
+    sourcemeta::core::PropertyHashJSON<ValueString>>;
 
 /// @ingroup evaluator
 /// Represents a compiler step string logical type
 enum class ValueStringType : std::uint8_t { URI };
 
-// TODO: Don't use FlatMap directly, as it is an internal module of Core
 /// @ingroup evaluator
 /// Represents an compiler step that maps strings to strings
-using ValueStringMap =
-    sourcemeta::core::FlatMap<ValueString, ValueStrings,
-                              sourcemeta::core::PropertyHashJSON<ValueString>>;
+using ValueStringMap = sourcemeta::core::JSONObject<
+    ValueString, ValueStrings, sourcemeta::core::PropertyHashJSON<ValueString>>;
 
 /// @ingroup evaluator
 /// Represents a compiler step value that consist of object property filters

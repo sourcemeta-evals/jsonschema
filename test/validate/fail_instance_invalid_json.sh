@@ -21,12 +21,30 @@ cat << 'EOF' > "$TMP/instance.json"
 EOF
 
 "$1" validate "$TMP/schema.json" "$TMP/instance.json" 2>"$TMP/stderr.txt" \
-  && CODE="$?" || CODE="$?"
-test "$CODE" = "1" || exit 1
+  && EXIT_CODE="$?" || EXIT_CODE="$?"
+test "$EXIT_CODE" = "1" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
-error: Failed to parse the JSON document at line 2 and column 9
-  $(realpath "$TMP")/instance.json
+error: Failed to parse the JSON document
+  at line 2
+  at column 9
+  at file path $(realpath "$TMP")/instance.json
 EOF
 
 diff "$TMP/stderr.txt" "$TMP/expected.txt"
+
+# JSON error
+"$1" validate "$TMP/schema.json" "$TMP/instance.json" --json >"$TMP/stdout.txt" \
+  && EXIT_CODE="$?" || EXIT_CODE="$?"
+test "$EXIT_CODE" = "1" || exit 1
+
+cat << EOF > "$TMP/expected.txt"
+{
+  "error": "Failed to parse the JSON document",
+  "line": 2,
+  "column": 9,
+  "filePath": "$(realpath "$TMP")/instance.json"
+}
+EOF
+
+diff "$TMP/stdout.txt" "$TMP/expected.txt"

@@ -15,13 +15,17 @@ cat << 'EOF' > "$TMP/schema.json"
 }
 EOF
 
+cd "$TMP"
 "$1" lint "$TMP/schema.json" >"$TMP/stderr.txt" 2>&1 && CODE="$?" || CODE="$?"
-test "$CODE" = "1" || exit 1
+test "$CODE" = "2" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
-$(realpath "$TMP")/schema.json:
+schema.json:4:3:
   Setting \`type\` alongside \`enum\` is considered an anti-pattern, as the enumeration choices already imply their respective types (enum_with_type)
-    at schema location ""
+    at location "/enum"
+schema.json:3:3:
+  Setting \`type\` alongside \`enum\` is considered an anti-pattern, as the enumeration choices already imply their respective types (enum_with_type)
+    at location "/type"
 EOF
 
 diff "$TMP/stderr.txt" "$TMP/expected.txt"

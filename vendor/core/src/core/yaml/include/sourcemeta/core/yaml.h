@@ -41,8 +41,8 @@ namespace sourcemeta::core {
 /// assert(document.is_object());
 /// ```
 SOURCEMETA_CORE_YAML_EXPORT
-auto parse_yaml(std::basic_istream<JSON::Char, JSON::CharTraits> &stream)
-    -> JSON;
+auto parse_yaml(std::basic_istream<JSON::Char, JSON::CharTraits> &stream,
+                const JSON::ParseCallback &callback = nullptr) -> JSON;
 
 /// @ingroup yaml
 ///
@@ -62,7 +62,8 @@ auto parse_yaml(std::basic_istream<JSON::Char, JSON::CharTraits> &stream)
 /// std::cerr << "\n";
 /// ```
 SOURCEMETA_CORE_YAML_EXPORT
-auto parse_yaml(const JSON::String &input) -> JSON;
+auto parse_yaml(const JSON::String &input,
+                const JSON::ParseCallback &callback = nullptr) -> JSON;
 
 /// @ingroup yaml
 ///
@@ -83,7 +84,30 @@ auto parse_yaml(const JSON::String &input) -> JSON;
 /// std::cerr << "\n";
 /// ```
 SOURCEMETA_CORE_YAML_EXPORT
-auto read_yaml(const std::filesystem::path &path) -> JSON;
+auto read_yaml(const std::filesystem::path &path,
+               const JSON::ParseCallback &callback = nullptr) -> JSON;
+
+/// @ingroup yaml
+///
+/// Read a JSON document from a file location that represents a YAML file or a
+/// JSON file. For example:
+///
+/// ```cpp
+/// #include <sourcemeta/core/json.h>
+/// #include <sourcemeta/core/yaml.h>
+///
+/// #include <iostream>
+/// #include <filesystem>
+///
+/// const std::filesystem::path path{"test.yaml"};
+/// const sourcemeta::core::JSON document =
+///   sourcemeta::core::read_yaml_or_json(path);
+/// sourcemeta::core::prettify(document, std::cerr);
+/// std::cerr << "\n";
+/// ```
+SOURCEMETA_CORE_YAML_EXPORT
+auto read_yaml_or_json(const std::filesystem::path &path,
+                       const JSON::ParseCallback &callback = nullptr) -> JSON;
 
 } // namespace sourcemeta::core
 

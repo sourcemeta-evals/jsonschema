@@ -83,13 +83,29 @@ JSON::JSON(const Array &value) : current_type{Type::Array} {
   new (&this->data_array) Array{value};
 }
 
-JSON::JSON(std::initializer_list<typename Object::Container::value_type> values)
+JSON::JSON(std::initializer_list<typename Object::pair_value_type> values)
     : current_type{Type::Object} {
   new (&this->data_object) Object{values};
 }
 
 JSON::JSON(const Object &value) : current_type{Type::Object} {
   new (&this->data_object) Object{value};
+}
+
+JSON::JSON(const Decimal &value) : current_type{Type::Decimal} {
+  if (value.is_nan() || value.is_infinite()) {
+    throw std::invalid_argument("JSON does not support Infinity or NaN");
+  }
+
+  this->data_decimal = new Decimal{value};
+}
+
+JSON::JSON(Decimal &&value) : current_type{Type::Decimal} {
+  if (value.is_nan() || value.is_infinite()) {
+    throw std::invalid_argument("JSON does not support Infinity or NaN");
+  }
+
+  this->data_decimal = new Decimal{std::move(value)};
 }
 
 JSON::JSON(const JSON &other) : current_type{other.current_type} {
@@ -111,6 +127,9 @@ JSON::JSON(const JSON &other) : current_type{other.current_type} {
       break;
     case Type::Object:
       new (&this->data_object) Object{other.data_object};
+      break;
+    case Type::Decimal:
+      this->data_decimal = new Decimal{*other.data_decimal};
       break;
     default:
       break;
@@ -140,6 +159,11 @@ JSON::JSON(JSON &&other) noexcept : current_type{other.current_type} {
       new (&this->data_object) Object{std::move(other.data_object)};
       other.current_type = Type::Null;
       break;
+    case Type::Decimal:
+      this->data_decimal = other.data_decimal;
+      other.data_decimal = nullptr;
+      other.current_type = Type::Null;
+      break;
     default:
       break;
   }
@@ -166,6 +190,9 @@ auto JSON::operator=(const JSON &other) -> JSON & {
       break;
     case Type::Object:
       new (&this->data_object) Object{other.data_object};
+      break;
+    case Type::Decimal:
+      this->data_decimal = new Decimal{*other.data_decimal};
       break;
     default:
       break;
@@ -197,6 +224,11 @@ auto JSON::operator=(JSON &&other) noexcept -> JSON & {
       break;
     case Type::Object:
       new (&this->data_object) Object{std::move(other.data_object)};
+      other.current_type = Type::Null;
+      break;
+    case Type::Decimal:
+      this->data_decimal = other.data_decimal;
+      other.data_decimal = nullptr;
       other.current_type = Type::Null;
       break;
     default:
@@ -236,6 +268,19 @@ auto JSON::operator<(const JSON &other) const noexcept -> bool {
     return this->as_real() < other.as_real();
   }
 
+  if ((this->type() == Type::Decimal &&
+       (other.type() == Type::Integer || other.type() == Type::Real)) ||
+      ((this->type() == Type::Integer || this->type() == Type::Real) &&
+       other.type() == Type::Decimal)) {
+    const Decimal left = this->is_decimal()   ? this->to_decimal()
+                         : this->is_integer() ? Decimal{this->to_integer()}
+                                              : Decimal{this->to_real()};
+    const Decimal right = other.is_decimal()   ? other.to_decimal()
+                          : other.is_integer() ? Decimal{other.to_integer()}
+                                               : Decimal{other.to_real()};
+    return left < right;
+  }
+
   if (this->type() != other.type()) {
     return this->current_type < other.current_type;
   }
@@ -249,6 +294,8 @@ auto JSON::operator<(const JSON &other) const noexcept -> bool {
       return this->to_integer() < other.to_integer();
     case Type::Real:
       return this->to_real() < other.to_real();
+    case Type::Decimal:
+      return this->to_decimal() < other.to_decimal();
     case Type::String:
       return this->to_string() < other.to_string();
     case Type::Array:
@@ -278,6 +325,19 @@ auto JSON::operator==(const JSON &other) const noexcept -> bool {
     return this->as_real() == other.as_real();
   }
 
+  if ((this->type() == Type::Decimal &&
+       (other.type() == Type::Integer || other.type() == Type::Real)) ||
+      ((this->type() == Type::Integer || this->type() == Type::Real) &&
+       other.type() == Type::Decimal)) {
+    const Decimal left = this->is_decimal()   ? this->to_decimal()
+                         : this->is_integer() ? Decimal{this->to_integer()}
+                                              : Decimal{this->to_real()};
+    const Decimal right = other.is_decimal()   ? other.to_decimal()
+                          : other.is_integer() ? Decimal{other.to_integer()}
+                                               : Decimal{other.to_real()};
+    return left == right;
+  }
+
   if (this->current_type != other.current_type) {
     return false;
   }
@@ -289,6 +349,8 @@ auto JSON::operator==(const JSON &other) const noexcept -> bool {
       return this->data_integer == other.data_integer;
     case Type::Real:
       return this->data_real == other.data_real;
+    case Type::Decimal:
+      return *this->data_decimal == *other.data_decimal;
     case Type::String:
       return this->data_string == other.data_string;
     case Type::Array:
@@ -304,7 +366,15 @@ auto JSON::operator+(const JSON &other) const -> JSON {
   assert(this->is_number());
   assert(other.is_number());
 
-  if (this->is_integer() && other.is_integer()) {
+  if (this->is_decimal() || other.is_decimal()) {
+    const Decimal left = this->is_decimal()   ? this->to_decimal()
+                         : this->is_integer() ? Decimal{this->to_integer()}
+                                              : Decimal{this->to_real()};
+    const Decimal right = other.is_decimal()   ? other.to_decimal()
+                          : other.is_integer() ? Decimal{other.to_integer()}
+                                               : Decimal{other.to_real()};
+    return JSON{left + right};
+  } else if (this->is_integer() && other.is_integer()) {
     return JSON{this->to_integer() + other.to_integer()};
   } else if (this->is_integer() && other.is_real()) {
     return JSON{this->as_real() + other.to_real()};
@@ -319,7 +389,15 @@ auto JSON::operator-(const JSON &other) const -> JSON {
   assert(this->is_number());
   assert(other.is_number());
 
-  if (this->is_integer() && other.is_integer()) {
+  if (this->is_decimal() || other.is_decimal()) {
+    const Decimal left = this->is_decimal()   ? this->to_decimal()
+                         : this->is_integer() ? Decimal{this->to_integer()}
+                                              : Decimal{this->to_real()};
+    const Decimal right = other.is_decimal()   ? other.to_decimal()
+                          : other.is_integer() ? Decimal{other.to_integer()}
+                                               : Decimal{other.to_real()};
+    return JSON{left - right};
+  } else if (this->is_integer() && other.is_integer()) {
     return JSON{this->to_integer() - other.to_integer()};
   } else if (this->is_integer() && other.is_real()) {
     return JSON{this->as_real() - other.to_real()};
@@ -354,19 +432,23 @@ auto JSON::operator-=(const JSON &substractive) -> JSON & {
   return this->current_type == Type::Real;
 }
 
-[[nodiscard]] auto JSON::is_integer_real() const noexcept -> bool {
-  if (!this->is_real()) {
-    return false;
-  } else {
-    const auto value{this->to_real()};
-    Real integral = 0.0;
-    return !std::isinf(value) && !std::isnan(value) &&
-           std::modf(value, &integral) == 0.0;
+[[nodiscard]] auto JSON::is_integral() const noexcept -> bool {
+  switch (this->type()) {
+    case Type::Integer:
+      return true;
+    case Type::Real: {
+      Real integral = 0.0;
+      return std::modf(this->to_real(), &integral) == 0.0;
+    }
+    case Type::Decimal:
+      return this->to_decimal().is_integral();
+    default:
+      return false;
   }
 }
 
 [[nodiscard]] auto JSON::is_number() const noexcept -> bool {
-  return this->is_integer() || this->is_real();
+  return this->is_integer() || this->is_real() || this->is_decimal();
 }
 
 [[nodiscard]] auto JSON::is_positive() const noexcept -> bool {
@@ -375,6 +457,8 @@ auto JSON::operator-=(const JSON &substractive) -> JSON & {
       return this->to_integer() >= 0;
     case Type::Real:
       return this->to_real() >= static_cast<Real>(0.0);
+    case Type::Decimal:
+      return this->to_decimal() >= Decimal{0};
     default:
       return false;
   }
@@ -390,6 +474,10 @@ auto JSON::operator-=(const JSON &substractive) -> JSON & {
 
 [[nodiscard]] auto JSON::is_object() const noexcept -> bool {
   return this->current_type == Type::Object;
+}
+
+[[nodiscard]] auto JSON::is_decimal() const noexcept -> bool {
+  return this->current_type == Type::Decimal;
 }
 
 [[nodiscard]] auto JSON::type() const noexcept -> Type {
@@ -408,7 +496,18 @@ auto JSON::operator-=(const JSON &substractive) -> JSON & {
 
 [[nodiscard]] auto JSON::to_real() const noexcept -> Real {
   assert(this->is_real());
+  // This MUST not happen
+  assert(!std::isinf(this->data_real));
+  assert(!std::isnan(this->data_real));
   return this->data_real;
+}
+
+[[nodiscard]] auto JSON::to_decimal() const noexcept -> const Decimal & {
+  assert(this->is_decimal());
+  // This MUST not happen
+  assert(this->data_decimal->is_finite());
+  assert(!this->data_decimal->is_nan());
+  return *this->data_decimal;
 }
 
 [[nodiscard]] auto JSON::to_string() const noexcept -> const JSON::String & {
@@ -475,35 +574,33 @@ auto JSON::operator-=(const JSON &substractive) -> JSON & {
   assert(this->is_object());
   assert(this->defines(key));
   const auto &object{this->data_object};
-  return object.data.at(key, object.data.hash(key));
+  return object.at(key, object.hash(key));
 }
 
-[[nodiscard]] auto
-JSON::at(const String &key,
-         const typename Object::Container::hash_type hash) const
+[[nodiscard]] auto JSON::at(const String &key,
+                            const typename Object::hash_type hash) const
     -> const JSON & {
   assert(this->is_object());
   assert(this->defines(key));
-  return this->data_object.data.at(key, hash);
+  return this->data_object.at(key, hash);
 }
 
 [[nodiscard]] auto JSON::at(const JSON::String &key) -> JSON & {
   assert(this->is_object());
   assert(this->defines(key));
   auto &object{this->data_object};
-  return object.data.at(key, object.data.hash(key));
+  return object.at(key, object.hash(key));
 }
 
 [[nodiscard]] auto JSON::at(const String &key,
-                            const typename Object::Container::hash_type hash)
-    -> JSON & {
+                            const typename Object::hash_type hash) -> JSON & {
   assert(this->is_object());
   assert(this->defines(key));
-  return this->data_object.data.at(key, hash);
+  return this->data_object.at(key, hash);
 }
 
 [[nodiscard]] auto JSON::at_or(const String &key,
-                               const typename Object::Container::hash_type hash,
+                               const typename Object::hash_type hash,
                                const JSON &otherwise) const -> const JSON & {
   assert(this->is_object());
   const auto result{this->try_at(key, hash)};
@@ -513,7 +610,7 @@ JSON::at(const String &key,
 [[nodiscard]] auto JSON::at_or(const String &key, const JSON &otherwise) const
     -> const JSON & {
   assert(this->is_object());
-  return this->at_or(key, this->data_object.data.hash(key), otherwise);
+  return this->at_or(key, this->data_object.hash(key), otherwise);
 }
 
 [[nodiscard]] auto JSON::front() -> JSON & {
@@ -649,29 +746,53 @@ JSON::at(const String &key,
     return divisor_value != 0 && this->to_integer() % divisor_value == 0;
   }
 
-  const auto divisor_value(divisor.as_real());
-  if (divisor_value == 0.0) {
-    return false;
+  if (!this->is_decimal() && !divisor.is_decimal()) {
+    const auto divisor_value(divisor.as_real());
+    if (divisor_value == 0.0) {
+      return false;
+    }
+
+    const auto dividend_value{this->as_real()};
+
+    // Every real number that represents an integral is divisible by 0.5.
+    Real dividend_integral = 0;
+    if (std::modf(dividend_value, &dividend_integral) == 0.0 &&
+        divisor_value == 0.5) {
+      return true;
+    }
+
+    const auto division{dividend_value / divisor_value};
+    Real integral = 0;
+    return !std::isinf(division) && !std::isnan(division) &&
+           std::modf(division, &integral) == 0.0;
   }
 
-  const auto dividend_value{this->as_real()};
-
-  // Every real number that represents an integral is divisible by 0.5.
-  Real dividend_integral = 0;
-  if (std::modf(dividend_value, &dividend_integral) == 0.0 &&
-      divisor_value == 0.5) {
-    return true;
+  if (this->is_decimal() && divisor.is_decimal()) {
+    return this->to_decimal().divisible_by(divisor.to_decimal());
   }
 
-  const auto division{dividend_value / divisor_value};
-  Real integral = 0;
-  return !std::isinf(division) && !std::isnan(division) &&
-         std::modf(division, &integral) == 0.0;
+  if (this->is_decimal()) {
+    if (divisor.is_integer()) {
+      const Decimal divisor_decimal{divisor.to_integer()};
+      return this->to_decimal().divisible_by(divisor_decimal);
+    }
+
+    const Decimal divisor_decimal{divisor.to_real()};
+    return this->to_decimal().divisible_by(divisor_decimal);
+  }
+
+  if (this->is_integer()) {
+    const Decimal dividend_decimal{this->to_integer()};
+    return dividend_decimal.divisible_by(divisor.to_decimal());
+  }
+
+  const Decimal dividend_decimal{this->to_real()};
+  return dividend_decimal.divisible_by(divisor.to_decimal());
 }
 
 [[nodiscard]] auto JSON::empty() const -> bool {
   if (this->is_object()) {
-    return this->data_object.data.empty();
+    return this->data_object.empty();
   } else if (this->is_array()) {
     return this->data_array.data.empty();
   } else {
@@ -682,28 +803,26 @@ JSON::at(const String &key,
 [[nodiscard]] auto JSON::try_at(const JSON::String &key) const -> const JSON * {
   assert(this->is_object());
   const auto &object{this->data_object};
-  return object.data.try_at(key, object.data.hash(key));
+  return object.try_at(key, object.hash(key));
 }
 
-[[nodiscard]] auto
-JSON::try_at(const String &key,
-             const typename Object::Container::hash_type hash) const
+[[nodiscard]] auto JSON::try_at(const String &key,
+                                const typename Object::hash_type hash) const
     -> const JSON * {
   assert(this->is_object());
   const auto &object{this->data_object};
-  return object.data.try_at(key, hash);
+  return object.try_at(key, hash);
 }
 
 [[nodiscard]] auto JSON::defines(const JSON::String &key) const -> bool {
   assert(this->is_object());
   const auto &object{this->data_object};
-  return object.data.contains(key, object.data.hash(key));
+  return object.defines(key, object.hash(key));
 }
 
 [[nodiscard]] auto
 JSON::defines(const JSON::String &key,
-              const typename JSON::Object::Container::hash_type hash) const
-    -> bool {
+              const typename JSON::Object::hash_type hash) const -> bool {
   assert(this->is_object());
   return this->data_object.defines(key, hash);
 }
@@ -745,8 +864,10 @@ JSON::defines_any(std::initializer_list<JSON::String> keys) const -> bool {
     return true;
   }
 
-  static std::vector<std::uint64_t> cache;
-  cache.reserve(size);
+  // If we re-use the vector across threads, then we will segfault
+  thread_local std::vector<std::uint64_t> cache;
+  cache.clear();
+  cache.resize(size);
 
   for (std::size_t index = 0; index < size; index++) {
     cache[index] = items[index].fast_hash();
@@ -801,18 +922,18 @@ auto JSON::push_back_if_unique(JSON &&value)
 
 auto JSON::assign(const JSON::String &key, const JSON &value) -> void {
   assert(this->is_object());
-  this->data_object.data.emplace(key, value);
+  this->data_object.emplace(key, value);
 }
 
 auto JSON::assign(const JSON::String &key, JSON &&value) -> void {
   assert(this->is_object());
-  this->data_object.data.emplace(key, value);
+  this->data_object.emplace(key, value);
 }
 
 auto JSON::try_assign_before(const String &key, const JSON &value,
                              const String &other) -> void {
   assert(this->is_object());
-  this->data_object.data.try_emplace_before(key, value, other);
+  this->data_object.try_emplace_before(key, value, other);
 }
 
 auto JSON::assign_if_missing(const JSON::String &key, const JSON &value)
@@ -832,7 +953,7 @@ auto JSON::assign_if_missing(const JSON::String &key, JSON &&value) -> void {
 
 auto JSON::erase(const JSON::String &key) -> typename Object::size_type {
   assert(this->is_object());
-  return this->data_object.data.erase(key);
+  return this->data_object.erase(key);
 }
 
 auto JSON::erase_keys(std::initializer_list<JSON::String> keys) -> void {
@@ -860,7 +981,7 @@ auto JSON::erase_if(const std::function<bool(const JSON &)> &predicate)
 
 auto JSON::clear() -> void {
   if (this->is_object()) {
-    this->data_object.data.clear();
+    this->data_object.clear();
   } else {
     this->data_array.data.clear();
   }
@@ -897,11 +1018,15 @@ auto JSON::trim() -> const JSON::String & {
   return this->to_string();
 }
 
+auto JSON::reorder(const KeyComparison &compare) -> void {
+  assert(this->is_object());
+  this->data_object.reorder(compare);
+}
+
 auto JSON::rename(const JSON::String &key, JSON::String &&to) -> void {
   assert(this->is_object());
   auto &object{this->data_object};
-  object.data.rename(key, object.data.hash(key), std::move(to),
-                     object.data.hash(to));
+  object.rename(key, object.hash(key), std::move(to), object.hash(to));
 }
 
 auto JSON::into(const JSON &other) -> void { this->operator=(other); }
@@ -924,6 +1049,9 @@ auto JSON::maybe_destruct_union() -> void {
       break;
     case Type::Object:
       this->data_object.~JSONObject();
+      break;
+    case Type::Decimal:
+      delete this->data_decimal;
       break;
     default:
       break;

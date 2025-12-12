@@ -1,66 +1,119 @@
 #include <sourcemeta/core/json.h>
 #include <sourcemeta/core/jsonschema.h>
 
-#include <cstdlib>  // EXIT_SUCCESS, EXIT_FAILURE
 #include <fstream>  // std::ofstream
-#include <iostream> // std::cerr
+#include <iostream> // std::cerr, std::cout
 #include <sstream>  // std::ostringstream
+#include <utility>  // std::move
+#include <vector>   // std::vector
 
 #include "command.h"
+#include "error.h"
+#include "input.h"
+#include "logger.h"
+#include "resolver.h"
 #include "utils.h"
 
-auto sourcemeta::jsonschema::cli::fmt(
-    const std::span<const std::string> &arguments) -> int {
-  const auto options{
-      parse_options(arguments, {"c", "check", "k", "keep-ordering"})};
-
-  for (const auto &entry : for_each_json(options.at(""), parse_ignore(options),
-                                         parse_extensions(options))) {
+auto sourcemeta::jsonschema::fmt(const sourcemeta::core::Options &options)
+    -> void {
+  const bool output_json{options.contains("json")};
+  bool result{true};
+  std::vector<std::string> failed_files;
+  const auto indentation{parse_indentation(options)};
+  for (const auto &entry : for_each_json(options)) {
     if (entry.first.extension() == ".yaml" ||
         entry.first.extension() == ".yml") {
-      std::cerr << "This command does not support YAML input files yet\n";
-      return EXIT_FAILURE;
+      throw YAMLInputError{"This command does not support YAML input files yet",
+                           entry.first};
     }
 
-    if (options.contains("c") || options.contains("check")) {
-      log_verbose(options) << "Checking: " << entry.first.string() << "\n";
-      std::ifstream input{entry.first};
-      std::ostringstream buffer;
-      buffer << input.rdbuf();
+    if (options.contains("check")) {
+      LOG_VERBOSE(options) << "Checking: " << entry.first.string() << "\n";
+    } else {
+      LOG_VERBOSE(options) << "Formatting: " << entry.first.string() << "\n";
+    }
+
+    try {
+      const auto configuration_path{find_configuration(entry.first)};
+      const auto &configuration{
+          read_configuration(options, configuration_path, entry.first)};
+      const auto dialect{default_dialect(options, configuration)};
+      const auto &custom_resolver{
+          resolver(options, options.contains("http"), dialect, configuration)};
+
       std::ostringstream expected;
-
-      if (options.contains("k") || options.contains("keep-ordering")) {
-        sourcemeta::core::prettify(entry.second, expected);
+      if (options.contains("keep-ordering")) {
+        sourcemeta::core::prettify(entry.second, expected, indentation);
       } else {
-        sourcemeta::core::prettify(entry.second, expected,
-                                   sourcemeta::core::schema_format_compare);
+        auto copy = entry.second;
+        sourcemeta::core::format(copy, sourcemeta::core::schema_official_walker,
+                                 custom_resolver, dialect);
+        sourcemeta::core::prettify(copy, expected, indentation);
       }
-
       expected << "\n";
 
-      if (buffer.str() == expected.str()) {
-        log_verbose(options) << "PASS: " << entry.first.string() << "\n";
-      } else {
-        std::cerr << "FAIL: " << entry.first.string() << "\n";
-        std::cerr << "Got:\n"
-                  << buffer.str() << "\nBut expected:\n"
-                  << expected.str() << "\n";
-        return EXIT_FAILURE;
-      }
-    } else {
-      log_verbose(options) << "Formatting: " << entry.first.string() << "\n";
-      std::ofstream output{entry.first};
+      std::ifstream current_stream{entry.first};
+      std::ostringstream current;
+      current << current_stream.rdbuf();
 
-      if (options.contains("k") || options.contains("keep-ordering")) {
-        sourcemeta::core::prettify(entry.second, output);
+      if (options.contains("check")) {
+        if (current.str() == expected.str()) {
+          LOG_VERBOSE(options) << "ok: " << entry.first.string() << "\n";
+        } else if (output_json) {
+          failed_files.push_back(entry.first.string());
+          result = false;
+        } else {
+          std::cerr << "fail: " << entry.first.string() << "\n";
+          result = false;
+        }
       } else {
-        sourcemeta::core::prettify(entry.second, output,
-                                   sourcemeta::core::schema_format_compare);
+        if (current.str() != expected.str()) {
+          std::ofstream output{entry.first};
+          output << expected.str();
+        }
       }
-
-      output << "\n";
+    } catch (const sourcemeta::core::SchemaRelativeMetaschemaResolutionError
+                 &error) {
+      throw FileError<
+          sourcemeta::core::SchemaRelativeMetaschemaResolutionError>(
+          entry.first, error);
+    } catch (const sourcemeta::core::SchemaResolutionError &error) {
+      throw FileError<sourcemeta::core::SchemaResolutionError>(entry.first,
+                                                               error);
+    } catch (const sourcemeta::core::SchemaUnknownBaseDialectError &) {
+      throw FileError<sourcemeta::core::SchemaUnknownBaseDialectError>(
+          entry.first);
+    } catch (const sourcemeta::core::SchemaError &error) {
+      throw FileError<sourcemeta::core::SchemaError>(entry.first, error.what());
     }
   }
 
-  return EXIT_SUCCESS;
+  if (options.contains("check") && output_json) {
+    auto output_json_object{sourcemeta::core::JSON::make_object()};
+    output_json_object.assign("valid", sourcemeta::core::JSON{result});
+
+    if (!result) {
+      auto errors_array{sourcemeta::core::JSON::make_array()};
+      for (auto &file_path : failed_files) {
+        errors_array.push_back(sourcemeta::core::JSON{std::move(file_path)});
+      }
+
+      output_json_object.assign("errors", sourcemeta::core::JSON{errors_array});
+    }
+
+    sourcemeta::core::prettify(output_json_object, std::cout, indentation);
+    std::cout << "\n";
+  }
+
+  if (!result) {
+    if (!output_json) {
+      std::cerr << "\nRun the `fmt` command without `--check/-c` to fix the "
+                   "formatting"
+                << "\n";
+    }
+
+    // Report a different exit code for formatting check failures, to
+    // distinguish them from other errors
+    throw Fail{2};
+  }
 }
