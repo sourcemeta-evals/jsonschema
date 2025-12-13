@@ -30,11 +30,10 @@ static auto has_data(std::ifstream &stream) -> bool {
 auto sourcemeta::jsonschema::cli::decode(
     const sourcemeta::core::Options &options) -> int {
   if (options.positional().size() < 2) {
-    std::cerr
-        << "error: This command expects a path to a binary file and an "
-           "output path. For example:\n\n"
-        << "  jsonschema decode path/to/output.binpack path/to/document.json\n";
-    return EXIT_FAILURE;
+    throw sourcemeta::jsonschema::PositionalArgumentError(
+        "This command expects a path to a binary file and an output path. "
+        "For example:",
+        "jsonschema decode path/to/output.binpack path/to/document.json");
   }
 
   // TODO: Take a real schema as argument
