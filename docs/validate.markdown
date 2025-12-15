@@ -5,17 +5,17 @@ Validating
 > JSON Schema Draft 3 and older are not supported at this point in time.
 
 ```sh
-jsonschema validate <schema.json|.yaml> <instance.json|.jsonl|.yaml...>
+jsonschema validate <schema.json|.yaml> <instance.json|.jsonl|.yaml|directory...>
   [--http/-h] [--verbose/-v] [--resolve/-r <schemas-or-directories> ...]
-  [--benchmark/-b] [--extension/-e <extension>]
+  [--benchmark/-b] [--loop <iterations>] [--extension/-e <extension>]
   [--ignore/-i <schemas-or-directories>] [--trace/-t] [--fast/-f]
-  [--default-dialect/-d <uri>] [--template/-m <template.json>] [--json/-j]
+  [--template/-m <template.json>] [--json/-j]
 ```
 
 The most popular use case of JSON Schema is to validate JSON documents. The
 JSON Schema CLI offers a `validate` command to evaluate one or many JSON
-instances or JSONL datasets against a JSON Schema, presenting human-friendly
-information on unsuccessful validation.
+instances, directories of instances, or JSONL datasets against a JSON Schema,
+presenting human-friendly information on unsuccessful validation.
 
 The `--json`/`-j` option outputs the evaluation result using the JSON Schema
 [`Flag`](https://json-schema.org/draft/2020-12/json-schema-core#section-12.4.1) or
@@ -44,6 +44,22 @@ To speed-up the compilation process, you may pre-compile a schema using the
 for error reporting purposes. Make sure they match and that the compilation and
 evaluation were done with the same version of this tool or you might get
 non-sense results.
+
+> [!WARNING]
+> This tool (and its underlying [Blaze](https://github.com/sourcemeta/blaze)
+> evaluator) does not support turning on
+> [`format`](https://www.learnjsonschema.com/2020-12/format-annotation/format/)
+> validation in JSON Schema 2019-09 and older (an optional feature as per the
+> specification), nor the optional JSON Schema 2020-12
+> [`format-assertion`](https://www.learnjsonschema.com/2020-12/format-assertion/)
+> vocabulary (which has seen extremely little adoption in the wild). Over time,
+> `format` optional validation proved to be inconsistent across implementations
+> and led to significant confusion in the community. We strongly suggest you
+> treat
+> [`format`](https://www.learnjsonschema.com/2020-12/format-annotation/format/)
+> as an annotation and explicitly validate strings with the less ambiguous
+> [`pattern`](https://www.learnjsonschema.com/2020-12/validation/pattern/)
+> keyword, if needed.
 
 Examples
 --------
@@ -146,4 +162,23 @@ jsonschema validate path/to/my/schema.json path/to/my/instance.json --benchmark
 
 ```sh
 jsonschema validate path/to/my/schema.json path/to/my/instance.json --trace
+```
+
+### Validate a directory of instances against a schema
+
+```sh
+jsonschema validate path/to/my/schema.json path/to/instances/
+```
+
+### Validate a directory of instances with a specific extension
+
+```sh
+jsonschema validate path/to/my/schema.json path/to/instances/ --extension .data.json
+```
+
+### Validate a directory of instances while ignoring certain paths
+
+```sh
+jsonschema validate path/to/my/schema.json path/to/instances/ \
+  --ignore path/to/instances/drafts
 ```

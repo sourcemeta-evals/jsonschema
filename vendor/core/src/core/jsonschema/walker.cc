@@ -6,6 +6,21 @@
 namespace {
 enum class SchemaWalkerType_t : std::uint8_t { Deep, Flat };
 
+auto ref_overrides_adjacent_keywords(const std::string &base_dialect) -> bool {
+  // In older drafts, the presence of `$ref` would override any sibling
+  // keywords
+  // See
+  // https://json-schema.org/draft-07/draft-handrews-json-schema-01#rfc.section.8.3
+  return base_dialect == "http://json-schema.org/draft-07/schema#" ||
+         base_dialect == "http://json-schema.org/draft-07/hyper-schema#" ||
+         base_dialect == "http://json-schema.org/draft-06/schema#" ||
+         base_dialect == "http://json-schema.org/draft-06/hyper-schema#" ||
+         base_dialect == "http://json-schema.org/draft-04/schema#" ||
+         base_dialect == "http://json-schema.org/draft-04/hyper-schema#" ||
+         base_dialect == "http://json-schema.org/draft-03/schema#" ||
+         base_dialect == "http://json-schema.org/draft-03/hyper-schema#";
+}
+
 auto walk(const std::optional<sourcemeta::core::Pointer> &parent,
           const sourcemeta::core::Pointer &pointer,
           const sourcemeta::core::PointerTemplate &instance_location,
@@ -34,18 +49,26 @@ auto walk(const std::optional<sourcemeta::core::Pointer> &parent,
   // / base dialect and ignore the invalid standalone `$schema`. The caller has
   // enough information to detect those cases and throw an error if they desire
   // to be more strict.
-  const auto maybe_current_dialect{
-      sourcemeta::core::dialect(subschema, dialect)};
+  auto maybe_current_dialect{sourcemeta::core::dialect(subschema, dialect)};
   assert(maybe_current_dialect.has_value());
-  const auto id{sourcemeta::core::identify(
-      subschema, resolver,
-      sourcemeta::core::SchemaIdentificationStrategy::Strict,
-      maybe_current_dialect)};
+
+  // TODO: Note that we determine the identifier here, but the framing does it
+  // all over again. Maybe we should be storing this instead?
+  auto id{
+      sourcemeta::core::identify(subschema, resolver, maybe_current_dialect)};
+  const auto different_parent_dialect{maybe_current_dialect.value() != dialect};
+  if (!id.has_value() && different_parent_dialect) {
+    id = sourcemeta::core::identify(subschema, base_dialect);
+    if (id.has_value()) {
+      maybe_current_dialect = dialect;
+    }
+  }
+
   const auto is_schema_resource{level == 0 || id.has_value()};
-  const auto current_dialect{is_schema_resource ? maybe_current_dialect.value()
-                                                : dialect};
-  const auto current_base_dialect{
-      is_schema_resource
+  const auto &current_dialect{is_schema_resource ? maybe_current_dialect.value()
+                                                 : dialect};
+  auto current_base_dialect{
+      is_schema_resource && current_dialect != dialect
           ? sourcemeta::core::base_dialect(subschema, resolver, current_dialect)
                 .value_or(base_dialect)
           : base_dialect};
@@ -73,8 +96,22 @@ auto walk(const std::optional<sourcemeta::core::Pointer> &parent,
     return;
   }
 
+  const auto has_overriding_ref{
+      subschema.defines("$ref") &&
+      ref_overrides_adjacent_keywords(current_base_dialect)};
   for (auto &pair : subschema.as_object()) {
-    switch (walker(pair.first, vocabularies).type) {
+    const auto keyword_info{walker(pair.first, vocabularies)};
+
+    // Ignore the current keyword sibling to `$ref in Draft 7 and older in EVERY
+    // case. Note that we purposely DO NOT try to add workarounds for the
+    // top-level, `$schema`, or anything else to be purely compliant and avoid
+    // lots of gray areas here
+    if (has_overriding_ref &&
+        keyword_info.type != sourcemeta::core::SchemaKeywordType::Reference) {
+      continue;
+    }
+
+    switch (keyword_info.type) {
       case sourcemeta::core::SchemaKeywordType::
           ApplicatorValueTraverseSomeProperty: {
         sourcemeta::core::Pointer new_pointer{pointer};
@@ -460,11 +497,11 @@ sourcemeta::core::SchemaKeywordIterator::SchemaKeywordIterator(
   const std::optional<std::string> base_dialect{
       sourcemeta::core::base_dialect(schema, resolver, dialect)};
 
-  Vocabularies vocabularies;
-  if (base_dialect.has_value() && dialect.has_value()) {
-    vocabularies.merge(sourcemeta::core::vocabularies(
-        resolver, base_dialect.value(), dialect.value()));
-  }
+  Vocabularies vocabularies{
+      base_dialect.has_value() && dialect.has_value()
+          ? sourcemeta::core::vocabularies(resolver, base_dialect.value(),
+                                           dialect.value())
+          : Vocabularies{}};
 
   for (const auto &entry : schema.as_object()) {
     sourcemeta::core::SchemaIteratorEntry subschema_entry{

@@ -3,21 +3,16 @@
 
 #include <sourcemeta/core/json.h>
 #include <sourcemeta/core/jsonpointer.h>
-#include <sourcemeta/core/uri.h>
+#include <sourcemeta/core/jsonschema_vocabularies.h>
 
-#include <cstdint>       // std::uint8_t
-#include <functional>    // std::function, std::reference_wrapper
-#include <optional>      // std::optional
-#include <set>           // std::set
-#include <string>        // std::string
-#include <string_view>   // std::string_view
-#include <unordered_map> // std::unordered_map
+#include <cstdint>     // std::uint8_t
+#include <functional>  // std::function, std::reference_wrapper
+#include <optional>    // std::optional
+#include <set>         // std::set
+#include <string>      // std::string
+#include <string_view> // std::string_view
 
 namespace sourcemeta::core {
-
-/// @ingroup jsonschema
-/// A set of vocabularies
-using Vocabularies = std::unordered_map<JSON::String, bool>;
 
 // Take a URI and get back a schema
 /// @ingroup jsonschema
@@ -35,16 +30,6 @@ using Vocabularies = std::unordered_map<JSON::String, bool>;
 /// is trivial, it is recommended to create a callable object that implements
 /// the function interface.
 using SchemaResolver = std::function<std::optional<JSON>(std::string_view)>;
-
-/// @ingroup jsonschema
-/// The strategy to follow when attempting to identify a schema
-enum class SchemaIdentificationStrategy : std::uint8_t {
-  /// Only proceed if we can guarantee the identifier is valid
-  Strict,
-
-  /// Attempt to guess even if we don't know the base dialect
-  Loose
-};
 
 /// @ingroup jsonschema
 /// The reference type
@@ -167,29 +152,17 @@ enum class SchemaKeywordType : std::uint8_t {
 #endif
 
 /// @ingroup jsonschema
-///
-/// Visit every reference in a schema. The arguments are as follows:
-///
-/// - The current subschema
-/// - The base URI of the current subschema
-/// - The reference vocabulary
-/// - The reference keyword name
-/// - The reference reference destination
-using SchemaVisitorReference = std::function<void(
-    JSON &, const URI &, const JSON::String &, const JSON::String &, URI &)>;
-
-/// @ingroup jsonschema
 /// A structure that encapsulates the result of walker over a specific keyword
 struct SchemaWalkerResult {
   /// The walker strategy to continue traversing across the schema
-  const SchemaKeywordType type;
+  SchemaKeywordType type;
   /// The vocabulary associated with the keyword, if any
-  const std::optional<std::string> vocabulary;
+  std::optional<std::string> vocabulary;
   /// The keywords a given keyword depends on (if any) during the evaluation
   /// process
-  const std::set<std::string> dependencies;
+  std::set<std::string> dependencies;
   /// The JSON instance types that this keyword applies to (or to all of them)
-  const std::set<JSON::Type> instances;
+  std::set<JSON::Type> instances;
 };
 
 /// @ingroup jsonschema

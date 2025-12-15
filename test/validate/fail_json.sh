@@ -24,8 +24,8 @@ cat << 'EOF' > "$TMP/instance.json"
 EOF
 
 "$1" validate "$TMP/schema.json" "$TMP/instance.json" --json > "$TMP/output.json" \
-  && CODE="$?" || CODE="$?"
-test "$CODE" = "2" || exit 1
+  && EXIT_CODE="$?" || EXIT_CODE="$?"
+test "$EXIT_CODE" = "2" || exit 1
 
 cat << EOF > "$TMP/expected.json"
 {
@@ -35,12 +35,14 @@ cat << EOF > "$TMP/expected.json"
       "keywordLocation": "/properties/foo/type",
       "absoluteKeywordLocation": "file://$(realpath "$TMP")/schema.json#/properties/foo/type",
       "instanceLocation": "/foo",
+      "instancePosition": [ 1, 3, 1, 10 ],
       "error": "The value was expected to be of type string but it was of type integer"
     },
     {
       "keywordLocation": "/properties",
       "absoluteKeywordLocation": "file://$(realpath "$TMP")/schema.json#/properties",
       "instanceLocation": "",
+      "instancePosition": [ 1, 1, 1, 12 ],
       "error": "The object value was expected to validate against the single defined property subschema"
     }
   ]

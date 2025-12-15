@@ -23,13 +23,30 @@ cat << 'EOF' > "$TMP/instance.json"
 EOF
 
 "$1" validate "$TMP/schema.json" "$TMP/instance.json" 2>"$TMP/stderr.txt" \
-  && CODE="$?" || CODE="$?"
-test "$CODE" = "1" || exit 1
+  && EXIT_CODE="$?" || EXIT_CODE="$?"
+test "$EXIT_CODE" = "1" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
 error: Could not resolve schema reference
-  file://$(realpath "$TMP")/schema.json#/definitions/i-dont-exist
-    at schema location "/properties/foo/\$ref"
+  at identifier file://$(realpath "$TMP")/schema.json#/definitions/i-dont-exist
+  at file path $(realpath "$TMP")/schema.json
+  at location "/properties/foo/\$ref"
 EOF
 
 diff "$TMP/stderr.txt" "$TMP/expected.txt"
+
+# JSON error
+"$1" validate "$TMP/schema.json" "$TMP/instance.json" --json >"$TMP/stdout.txt" \
+  && EXIT_CODE="$?" || EXIT_CODE="$?"
+test "$EXIT_CODE" = "1" || exit 1
+
+cat << EOF > "$TMP/expected.txt"
+{
+  "error": "Could not resolve schema reference",
+  "identifier": "file://$(realpath "$TMP")/schema.json#/definitions/i-dont-exist",
+  "filePath": "$(realpath "$TMP")/schema.json",
+  "location": "/properties/foo/\$ref"
+}
+EOF
+
+diff "$TMP/stdout.txt" "$TMP/expected.txt"

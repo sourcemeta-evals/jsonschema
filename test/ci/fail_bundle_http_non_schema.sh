@@ -10,7 +10,7 @@ trap clean EXIT
 cat << 'EOF' > "$TMP/schema.json"
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "allOf": [ { "$ref": "https://jsonplaceholder.typicode.com/todos/1" } ]
+  "allOf": [ { "$ref": "https://schemas.sourcemeta.com/self/api/schemas/stats/jsonschema/2020-12/schema" } ]
 }
 EOF
 
@@ -20,8 +20,9 @@ test "$CODE" = "1" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
 error: The JSON document is not a valid JSON Schema
-  https://jsonplaceholder.typicode.com/todos/1
-    at schema location "/allOf/0/\$ref"
+  at identifier https://schemas.sourcemeta.com/self/api/schemas/stats/jsonschema/2020-12/schema
+  at file path $(realpath "$TMP")/schema.json
+  at location "/allOf/0/\$ref"
 EOF
 
 diff "$TMP/stderr.txt" "$TMP/expected.txt"

@@ -1,3 +1,5 @@
+#include <sourcemeta/core/io.h>
+
 #include <sourcemeta/core/json.h>
 #include <sourcemeta/core/json_error.h>
 #include <sourcemeta/core/json_value.h>
@@ -43,34 +45,11 @@ auto parse_json(const std::basic_string<JSON::Char, JSON::CharTraits> &input,
   return parse_json(input, line, column, callback);
 }
 
-auto read_file(const std::filesystem::path &path)
-    -> std::basic_ifstream<JSON::Char, JSON::CharTraits> {
-  if (std::filesystem::is_directory(path)) {
-    throw std::filesystem::filesystem_error(
-        "Cannot parse a directory as JSON", path,
-        std::make_error_code(std::errc::is_a_directory));
-  }
-
-  std::ifstream stream{
-      // On Linux, FIFO files (like /dev/fd/XX due to process substitution)
-      // cannot be
-      // made canonical
-      // See https://github.com/sourcemeta/jsonschema/issues/252
-      std::filesystem::is_fifo(path) ? path : std::filesystem::canonical(path)};
-  stream.exceptions(std::ifstream::badbit);
-  assert(!stream.fail());
-  assert(stream.is_open());
-  return stream;
-}
-
 auto read_json(const std::filesystem::path &path,
                const JSON::ParseCallback &callback) -> JSON {
-  auto stream{read_file(path)};
+  auto stream{read_file<JSON::Char, JSON::CharTraits>(path)};
   try {
     return parse_json(stream, callback);
-  } catch (const JSONParseIntegerLimitError &error) {
-    // For producing better error messages
-    throw JSONFileParseError(path, error);
   } catch (const JSONParseError &error) {
     // For producing better error messages
     throw JSONFileParseError(path, error);
@@ -80,25 +59,13 @@ auto read_json(const std::filesystem::path &path,
 auto stringify(const JSON &document,
                std::basic_ostream<JSON::Char, JSON::CharTraits> &stream)
     -> void {
-  stringify<std::allocator>(document, stream, nullptr);
-}
-
-auto prettify(const JSON &document,
-              std::basic_ostream<JSON::Char, JSON::CharTraits> &stream)
-    -> void {
-  prettify<std::allocator>(document, stream, nullptr);
-}
-
-auto stringify(const JSON &document,
-               std::basic_ostream<JSON::Char, JSON::CharTraits> &stream,
-               const JSON::KeyComparison &compare) -> void {
-  stringify<std::allocator>(document, stream, compare);
+  stringify<std::allocator>(document, stream);
 }
 
 auto prettify(const JSON &document,
               std::basic_ostream<JSON::Char, JSON::CharTraits> &stream,
-              const JSON::KeyComparison &compare) -> void {
-  prettify<std::allocator>(document, stream, compare);
+              const std::size_t spaces) -> void {
+  prettify<std::allocator>(document, stream, 0, spaces);
 }
 
 auto operator<<(std::basic_ostream<JSON::Char, JSON::CharTraits> &stream,
@@ -124,6 +91,8 @@ auto operator<<(std::basic_ostream<JSON::Char, JSON::CharTraits> &stream,
       return stream << "integer";
     case sourcemeta::core::JSON::Type::Real:
       return stream << "real";
+    case sourcemeta::core::JSON::Type::Decimal:
+      return stream << "decimal";
     case sourcemeta::core::JSON::Type::String:
       return stream << "string";
     case sourcemeta::core::JSON::Type::Array:
