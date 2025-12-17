@@ -9,6 +9,8 @@
 #include <sourcemeta/core/json_hash.h>
 #include <sourcemeta/core/json_object.h>
 
+#include <sourcemeta/core/numeric.h>
+
 #include <algorithm>        // std::any_of
 #include <cassert>          // assert
 #include <cstddef>          // std::size_t
@@ -45,7 +47,7 @@ public:
   /// The object type used by the JSON document.
   using Object = JSONObject<String, JSON, PropertyHashJSON<JSON::String>>;
   /// The parsing phase of a JSON document.
-  enum class ParsePhase { Pre, Post };
+  enum class ParsePhase : std::uint8_t { Pre, Post };
   // The enumeration indexes must stay in sync with the internal variant
   /// The different types of a JSON instance.
   enum class Type : std::uint8_t {
@@ -55,7 +57,8 @@ public:
     Real = 3,
     String = 4,
     Array = 5,
-    Object = 6
+    Object = 6,
+    Decimal = 7
   };
 
   /// An optional callback that can be passed to parsing functions to obtain
@@ -209,11 +212,16 @@ public:
   ///
   /// assert(my_object.is_object());
   /// ```
-  explicit JSON(
-      std::initializer_list<typename Object::Container::value_type> values);
+  explicit JSON(std::initializer_list<typename Object::pair_value_type> values);
 
   /// A copy constructor for the object type.
   explicit JSON(const Object &value);
+
+  /// A copy constructor for the decimal type.
+  explicit JSON(const Decimal &value);
+
+  /// A move constructor for the decimal type.
+  explicit JSON(Decimal &&value);
 
   /// Misc constructors
   JSON(const JSON &);
@@ -389,17 +397,17 @@ public:
   /// ```
   [[nodiscard]] auto is_real() const noexcept -> bool;
 
-  /// Check if the input JSON document is a real number that represents an
-  /// integer. For example:
+  /// Check if the input JSON document is an integer, a real number that
+  /// represents an integer, or an integer decimal. For example:
   ///
   /// ```cpp
   /// #include <sourcemeta/core/json.h>
   /// #include <cassert>
   ///
   /// const sourcemeta::core::JSON document{5.0};
-  /// assert(document.is_integer_real());
+  /// assert(document.is_integral());
   /// ```
-  [[nodiscard]] auto is_integer_real() const noexcept -> bool;
+  [[nodiscard]] auto is_integral() const noexcept -> bool;
 
   /// Check if the input JSON document is either an integer or a real type. For
   /// example:
@@ -464,6 +472,19 @@ public:
   /// ```
   [[nodiscard]] auto is_object() const noexcept -> bool;
 
+  /// Check if the input JSON document is an arbitrary precision decimal value.
+  /// For example:
+  ///
+  /// ```cpp
+  /// #include <sourcemeta/core/json.h>
+  /// #include <cassert>
+  ///
+  /// const sourcemeta::core::Decimal value{1234567890};
+  /// const sourcemeta::core::JSON document{value};
+  /// assert(document.is_decimal());
+  /// ```
+  [[nodiscard]] auto is_decimal() const noexcept -> bool;
+
   /// Get the type of the JSON document. For example:
   ///
   /// ```cpp
@@ -519,6 +540,20 @@ public:
   /// assert(document.to_real() == 3.14);
   /// ```
   [[nodiscard]] auto to_real() const noexcept -> Real;
+
+  /// Convert a JSON instance into a decimal value. The result of this method
+  /// is undefined unless the JSON instance holds a decimal value. For example:
+  ///
+  /// ```cpp
+  /// #include <sourcemeta/core/json.h>
+  /// #include <cassert>
+  ///
+  /// const sourcemeta::core::Decimal value{1234567890};
+  /// const sourcemeta::core::JSON document{value};
+  /// assert(document.is_decimal());
+  /// assert(document.to_decimal().to_int64() == 1234567890);
+  /// ```
+  [[nodiscard]] auto to_decimal() const noexcept -> const Decimal &;
 
   /// Convert a JSON instance into a standard string value. The result of this
   /// method is undefined unless the JSON instance holds a string value. For
@@ -727,7 +762,7 @@ public:
   ///  my_object.as_object().hash("bar")).to_integer() == 2);
   /// ```
   [[nodiscard]] auto at(const String &key,
-                        const typename Object::Container::hash_type hash) const
+                        const typename Object::hash_type hash) const
       -> const JSON &;
 
   /// This method retrieves an object element.
@@ -759,8 +794,7 @@ public:
   ///   my_object.as_object().hash("bar")).to_integer() == 2);
   /// ```
   [[nodiscard]] auto at(const String &key,
-                        const typename Object::Container::hash_type hash)
-      -> JSON &;
+                        const typename Object::hash_type hash) -> JSON &;
 
   /// This method retrieves an object property or a user provided value if such
   /// property is not defined.
@@ -796,7 +830,7 @@ public:
   ///   default_value).to_integer() == 1);
   /// ```
   [[nodiscard]] auto at_or(const String &key,
-                           const typename Object::Container::hash_type hash,
+                           const typename Object::hash_type hash,
                            const JSON &otherwise) const -> const JSON &;
 
   // Constant reference parameters can accept xvalues which will be destructed
@@ -807,7 +841,7 @@ public:
   // This overload avoids mis-uses of retuning const reference parameter as
   // constant reference.
   [[nodiscard]] auto at_or(const String &key,
-                           const typename Object::Container::hash_type hash,
+                           const typename Object::hash_type hash,
                            JSON &&otherwise) const -> const JSON & = delete;
 
   /// This method retrieves a reference to the first element of a JSON array.
@@ -1044,9 +1078,8 @@ public:
   ///   document.as_object().hash("foo"));
   /// EXPECT_TRUE(result);
   /// EXPECT_EQ(result->to_integer(), 1);
-  [[nodiscard]] auto
-  try_at(const String &key,
-         const typename Object::Container::hash_type hash) const
+  [[nodiscard]] auto try_at(const String &key,
+                            const typename Object::hash_type hash) const
       -> const JSON *;
 
   /// This method checks whether an input JSON object defines a specific key.
@@ -1077,9 +1110,9 @@ public:
   /// assert(document.defines("bar",
   ///   document.as_object().hash("bar")));
   /// ```
-  [[nodiscard]] auto
-  defines(const String &key,
-          const typename Object::Container::hash_type hash) const -> bool;
+  [[nodiscard]] auto defines(const String &key,
+                             const typename Object::hash_type hash) const
+      -> bool;
 
   /// This method checks whether an input JSON object defines a specific integer
   /// key. For example:
@@ -1386,7 +1419,7 @@ public:
   auto erase_keys(Iterator first, Iterator last) -> void {
     assert(this->is_object());
     for (auto iterator = first; iterator != last; ++iterator) {
-      this->data_object.data.erase(*iterator);
+      this->data_object.erase(*iterator);
     }
   }
 
@@ -1590,6 +1623,32 @@ public:
   /// ```
   auto trim() -> const JSON::String &;
 
+  /// Reorder the properties of an object by sorting keys according to a
+  /// comparator function. The object is modified in-place. For example:
+  ///
+  /// ```cpp
+  /// #include <sourcemeta/core/json.h>
+  /// #include <cassert>
+  ///
+  /// sourcemeta::core::JSON document =
+  ///   sourcemeta::core::JSON::make_object();
+  /// document.assign("zebra", sourcemeta::core::JSON{1});
+  /// document.assign("apple", sourcemeta::core::JSON{2});
+  /// document.assign("banana", sourcemeta::core::JSON{3});
+  ///
+  /// document.reorder([](const auto &left, const auto &right) {
+  ///   return left < right;
+  /// });
+  ///
+  /// auto iterator = document.as_object().cbegin();
+  /// assert(iterator->first == "apple");
+  /// ++iterator;
+  /// assert(iterator->first == "banana");
+  /// ++iterator;
+  /// assert(iterator->first == "zebra");
+  /// ```
+  auto reorder(const KeyComparison &compare) -> void;
+
   /*
    * Transform operations
    */
@@ -1690,6 +1749,10 @@ private:
     String data_string;
     Array data_array;
     Object data_object;
+    // Move Decimal to the heap to reduce the size of the JSON class.
+    // Dealing with arbitrary precision numbers is not common, so we pay the
+    // indirection cost only when needed.
+    Decimal *data_decimal;
   };
 #if defined(_MSC_VER)
 #pragma warning(default : 4251)

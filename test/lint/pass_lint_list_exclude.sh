@@ -10,6 +10,9 @@ trap clean EXIT
 "$1" lint --list --exclude blaze/valid_default --exclude blaze/valid_examples > "$TMP/output.txt"
 
 cat << 'EOF' > "$TMP/expected.txt"
+additional_items_with_schema_items
+  The `additionalItems` keyword is ignored when the `items` keyword is set to a schema
+
 additional_properties_default
   Setting the `additionalProperties` keyword to the true schema does not add any further constraint
 
@@ -25,6 +28,9 @@ content_schema_default
 content_schema_without_media_type
   The `contentSchema` keyword is meaningless without the presence of the `contentMediaType` keyword
 
+definitions_to_defs
+  `definitions` was superseded by `$defs` in 2019-09 and later versions
+
 dependencies_default
   Setting the `dependencies` keyword to an empty object does not add any further constraint
 
@@ -36,6 +42,12 @@ dependent_required_default
 
 dependent_required_tautology
   Defining requirements for a property using `dependentRequired` that is already marked as required is an unnecessarily complex use of `dependentRequired`
+
+draft_official_dialect_without_empty_fragment
+  The official dialect URI of Draft 7 and older versions must contain the empty fragment
+
+draft_ref_siblings
+  In Draft 7 and older dialects, keywords sibling to `$ref` are never evaluated
 
 duplicate_allof_branches
   Setting duplicate subschemas in `allOf` is redundant, as it produces unnecessary additional validation that is guaranteed to not affect the validation result
@@ -49,6 +61,9 @@ duplicate_enum_values
 duplicate_required_values
   Setting duplicate values in `required` is considered an anti-pattern
 
+else_empty
+  Setting the `else` keyword to the empty schema does not add any further constraint
+
 else_without_if
   The `else` keyword is meaningless without the presence of the `if` keyword
 
@@ -57,6 +72,9 @@ enum_to_const
 
 enum_with_type
   Setting `type` alongside `enum` is considered an anti-pattern, as the enumeration choices already imply their respective types
+
+equal_numeric_bounds_to_const
+  Setting `minimum` and `maximum` to the same number only leaves one possible value
 
 equal_numeric_bounds_to_enum
   Setting `minimum` and `maximum` to the same number only leaves one possible value
@@ -69,6 +87,9 @@ exclusive_minimum_number_and_minimum
 
 if_without_then_else
   The `if` keyword is meaningless without the presence of the `then` or `else` keywords
+
+ignored_metaschema
+  A `$schema` declaration without a sibling identifier (or with a sibling `$ref` in Draft 7 and older dialects), is ignored
 
 items_array_default
   Setting the `items` keyword to the empty array does not add any further constraint
@@ -88,11 +109,20 @@ min_contains_without_contains
 minimum_real_for_integer
   If an instance is guaranteed to be an integer, setting a real number lower bound is the same as a ceil of that lower bound
 
+modern_official_dialect_with_empty_fragment
+  The official dialect URI of 2019-09 and newer versions must not contain the empty fragment
+
 multiple_of_default
   Setting `multipleOf` to 1 does not add any further constraint
 
+non_applicable_enum_validation_keywords
+  Setting validation keywords that do not apply to any item in `enum` is considered an anti-pattern
+
 non_applicable_type_specific_keywords
-  Avoid keywords that don't apply to the current explicitly declared type
+  Avoid keywords that don't apply to the type or types that the current subschema expects
+
+not_false
+  Setting the `not` keyword to `false` imposes no constraints. Negating `false` yields the always-true schema
 
 pattern_properties_default
   Setting the `patternProperties` keyword to the empty object does not add any further constraint
@@ -100,8 +130,17 @@ pattern_properties_default
 properties_default
   Setting the `properties` keyword to the empty object does not add any further constraint
 
+property_names_default
+  Setting the `propertyNames` keyword to the empty object does not add any further constraint
+
+property_names_type_default
+  Setting the `type` keyword to `string` inside `propertyNames` does not add any further constraint
+
 single_type_array
   Setting `type` to an array of a single type is the same as directly declaring such type
+
+then_empty
+  Setting the `then` keyword to the empty schema does not add any further constraint
 
 then_without_if
   The `then` keyword is meaningless without the presence of the `if` keyword
@@ -112,14 +151,17 @@ unevaluated_items_default
 unevaluated_properties_default
   Setting the `unevaluatedProperties` keyword to the true schema does not add any further constraint
 
-unnecessary_allof_wrapper_draft
-  Wrapping any keyword other than `$ref` in `allOf` is unnecessary
+unknown_keywords_prefix
+  Future versions of JSON Schema will refuse to evaluate unknown keywords or custom keywords from optional vocabularies that don't have an x- prefix
 
-unnecessary_allof_wrapper_modern
-  Wrapping any keyword in `allOf` is unnecessary
+unknown_local_ref
+  Local references that point to unknown locations are invalid and will result in evaluation failures
 
-unnecessary_allof_wrapper_properties
-  Avoid unnecessarily wrapping object `properties` in `allOf`
+unnecessary_allof_ref_wrapper_draft
+  Wrapping `$ref` in `allOf` is only necessary if there are other sibling keywords
+
+unnecessary_allof_ref_wrapper_modern
+  Wrapping `$ref` in `allOf` was only necessary in JSON Schema Draft 7 and older
 
 unsatisfiable_max_contains
   Setting the `maxContains` keyword to a number greater than or equal to the array upper bound does not add any further constraint
@@ -127,7 +169,7 @@ unsatisfiable_max_contains
 unsatisfiable_min_properties
   Setting `minProperties` to a number less than `required` does not add any further constraint
 
-Number of rules: 39
+Number of rules: 53
 EOF
 
 diff "$TMP/output.txt" "$TMP/expected.txt"

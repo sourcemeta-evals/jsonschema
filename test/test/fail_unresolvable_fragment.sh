@@ -45,9 +45,10 @@ Importing schema into the resolution context: https://example.com
 Looking for target: https://example.com#/foo
 $(realpath "$TMP")/test.json:
 error: Could not resolve schema under test
-  https://example.com#/foo
+  at identifier https://example.com#/foo
+  at file path $(realpath "$TMP")/test.json
 
-This is likely because you forgot to import such schema using --resolve/-r
+This is likely because you forgot to import such schema using \`--resolve/-r\`
 EOF
 
 diff "$TMP/output.txt" "$TMP/expected.txt"

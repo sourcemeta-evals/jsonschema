@@ -4,21 +4,16 @@
 #include <sourcemeta/core/json_value.h>
 
 #include <algorithm>  // std::sort
+#include <bitset>     // std::bitset
 #include <cassert>    // assert
+#include <chrono>     // std::chrono
 #include <concepts>   // std::same_as, std::constructible_from
+#include <filesystem> // std::filesystem
 #include <functional> // std::function
 #include <optional>   // std::optional, std::nullopt, std::bad_optional_access
 #include <tuple> // std::tuple, std::apply, std::tuple_element_t, std::tuple_size, std::tuple_size_v
 #include <type_traits> // std::false_type, std::true_type, std::void_t, std::is_enum_v, std::underlying_type_t, std::is_same_v, std::is_base_of_v, std::remove_cvref_t
 #include <utility> // std::pair, std:::make_index_sequence, std::index_sequence
-
-// Forward declarations (added as needed)
-#ifndef DOXYGEN
-namespace sourcemeta::core {
-template <typename L, typename R>
-auto to_json(const std::pair<L, R> &value) -> JSON;
-}
-#endif
 
 namespace sourcemeta::core {
 
@@ -34,6 +29,17 @@ template <typename T> struct json_auto_is_basic_string : std::false_type {};
 template <typename CharT, typename Traits, typename Alloc>
 struct json_auto_is_basic_string<std::basic_string<CharT, Traits, Alloc>>
     : std::true_type {};
+
+/// @ingroup json
+template <typename T> struct json_auto_is_bitset : std::false_type {};
+template <std::size_t N>
+struct json_auto_is_bitset<std::bitset<N>> : std::true_type {};
+
+/// @ingroup json
+template <typename T> struct json_auto_bitset_size;
+template <std::size_t N>
+struct json_auto_bitset_size<std::bitset<N>>
+    : std::integral_constant<std::size_t, N> {};
 
 /// @ingroup json
 template <typename T>
@@ -119,6 +125,16 @@ concept json_auto_tuple_poly =
                   std::tuple_element_t<1, std::remove_cvref_t<T>>>,
         std::remove_cvref_t<T>>);
 
+// Forward declarations for recursive type conversions
+#ifndef DOXYGEN
+template <json_auto_list_like T> auto to_json(const T &value) -> JSON;
+template <json_auto_map_like T> auto to_json(const T &value) -> JSON;
+template <typename L, typename R>
+auto to_json(const std::pair<L, R> &value) -> JSON;
+template <json_auto_tuple_mono T> auto to_json(const T &value) -> JSON;
+template <json_auto_tuple_poly T> auto to_json(const T &value) -> JSON;
+#endif
+
 /// @ingroup json
 /// If the value has a `.to_json()` method, always prefer that
 template <typename T>
@@ -157,11 +173,22 @@ auto from_json(const JSON &value) -> std::optional<T> {
   }
 }
 
+/// @ingroup json
+template <typename T>
+  requires std::is_same_v<T, Decimal>
+auto from_json(const JSON &value) -> std::optional<T> {
+  if (value.is_decimal()) {
+    return value.to_decimal();
+  } else {
+    return std::nullopt;
+  }
+}
+
 // TODO: How can we keep this in the hash header that does not yet know about
 // JSON?
 /// @ingroup json
 template <typename T>
-  requires std::is_same_v<T, JSON::Object::Container::hash_type>
+  requires std::is_same_v<T, JSON::Object::hash_type>
 auto to_json(const T &hash) -> JSON {
   auto result{JSON::make_array()};
 #if defined(__SIZEOF_INT128__)
@@ -182,7 +209,7 @@ auto to_json(const T &hash) -> JSON {
 // JSON?
 /// @ingroup json
 template <typename T>
-  requires std::is_same_v<T, JSON::Object::Container::hash_type>
+  requires std::is_same_v<T, JSON::Object::hash_type>
 auto from_json(const JSON &value) -> std::optional<T> {
   if (!value.is_array() || value.size() != 4 || !value.at(0).is_integer() ||
       !value.at(1).is_integer() || !value.at(2).is_integer() ||
@@ -209,9 +236,91 @@ auto from_json(const JSON &value) -> std::optional<T> {
 
 /// @ingroup json
 template <typename T>
-  requires std::constructible_from<JSON, T>
+  requires(std::constructible_from<JSON, T> &&
+           // Otherwise MSVC gets confused
+           !std::is_same_v<T, unsigned long long>)
 auto to_json(const T &value) -> JSON {
   return JSON{value};
+}
+
+/// @ingroup json
+template <typename T>
+  requires std::is_same_v<T, std::filesystem::file_time_type>
+auto to_json(const T value) -> JSON {
+  return JSON{static_cast<std::int64_t>(value.time_since_epoch().count())};
+}
+
+/// @ingroup json
+template <typename T>
+  requires std::is_same_v<T, std::filesystem::file_time_type>
+auto from_json(const JSON &value) -> std::optional<T> {
+  if (value.is_integer()) {
+    using file_time_type = std::filesystem::file_time_type;
+    return file_time_type{file_time_type::duration{
+        static_cast<file_time_type::duration::rep>(value.to_integer())}};
+  } else {
+    return std::nullopt;
+  }
+}
+
+/// @ingroup json
+template <typename T>
+  requires(std::is_same_v<T, std::filesystem::path> &&
+           // In at least Clang and GCC, paths are convertible to strings,
+           // resulting in ambiguous templated calls
+           !std::is_convertible_v<T, std::string>)
+auto to_json(const T value) -> JSON {
+  return JSON{value.string()};
+}
+
+/// @ingroup json
+template <typename T>
+  requires std::is_same_v<T, std::filesystem::path>
+auto from_json(const JSON &value) -> std::optional<T> {
+  if (value.is_string()) {
+    return value.to_string();
+  } else {
+    return std::nullopt;
+  }
+}
+
+/// @ingroup json
+template <typename T>
+  requires json_auto_is_bitset<T>::value
+auto to_json(const T &bitset) -> JSON {
+  constexpr std::size_t N{json_auto_bitset_size<T>::value};
+  if constexpr (N <= 64) {
+    return JSON{static_cast<std::int64_t>(bitset.to_ullong())};
+  } else {
+    return JSON{bitset.to_string()};
+  }
+}
+
+/// @ingroup json
+template <typename T>
+  requires json_auto_is_bitset<T>::value
+auto from_json(const JSON &value) -> std::optional<T> {
+  constexpr std::size_t N{json_auto_bitset_size<T>::value};
+  if constexpr (N <= 64) {
+    if (value.is_integer()) {
+      return T{static_cast<unsigned long long>(value.to_integer())};
+    } else {
+      return std::nullopt;
+    }
+  } else {
+    if (value.is_string()) {
+      return T{value.to_string()};
+    } else {
+      return std::nullopt;
+    }
+  }
+}
+
+/// @ingroup json
+template <typename T>
+  requires std::is_same_v<T, unsigned long long>
+auto to_json(const T value) -> JSON {
+  return JSON{static_cast<std::int64_t>(value)};
 }
 
 /// @ingroup json
