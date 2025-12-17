@@ -15,7 +15,7 @@ EOF
 test "$CODE" = "1" || exit 1
 
 cat << 'EOF' > "$TMP/expected.txt"
-error: This command expects a path to a JSON document and an output path. For example:
+error: This command expects a path to a JSON document and an output path
 
   jsonschema encode path/to/document.json path/to/output.binpack
 EOF

@@ -18,8 +18,7 @@ EOF
 test "$CODE" = "1" || exit 1
 
 cat << 'EOF' > "$TMP/expected.txt"
-error: In addition to the schema, you must also pass an argument
-that represents the instance to validate against. For example:
+error: In addition to the schema, you must also pass an argument that represents the instance to validate against
 
   jsonschema validate path/to/schema.json path/to/instance.json
 EOF
