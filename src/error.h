@@ -11,6 +11,19 @@
 
 namespace sourcemeta::jsonschema {
 
+class PositionalArgumentError : public std::runtime_error {
+public:
+  PositionalArgumentError(std::string message, std::string example)
+      : std::runtime_error{std::move(message)}, example_{std::move(example)} {}
+
+  [[nodiscard]] auto example() const noexcept -> const std::string & {
+    return example_;
+  }
+
+private:
+  std::string example_;
+};
+
 template <typename T> class FileError : public T {
 public:
   template <typename... Args>
@@ -165,6 +178,10 @@ inline auto try_catch(const std::function<int()> &callback) noexcept -> int {
   } catch (const sourcemeta::core::OptionsUnknownOptionError &error) {
     std::cerr << "error: " << error.what() << " '" << error.name() << "'\n";
     std::cerr << "Use '--help' for usage information\n";
+    return EXIT_FAILURE;
+  } catch (const sourcemeta::jsonschema::PositionalArgumentError &error) {
+    std::cerr << "error: " << error.what() << "\n\n"
+              << "  " << error.example() << "\n";
     return EXIT_FAILURE;
   } catch (const std::runtime_error &error) {
     std::cerr << "error: " << error.what() << "\n";
