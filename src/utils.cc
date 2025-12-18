@@ -74,11 +74,10 @@ auto handle_json_entry(
       throw std::runtime_error(error.str());
     }
 
-    if (std::any_of(extensions.cbegin(), extensions.cend(),
-                    [&canonical](const auto &extension) {
-                      return canonical.string().ends_with(extension);
-                    }) &&
-        std::none_of(blacklist.cbegin(), blacklist.cend(),
+    // For direct file inputs, skip the extension check - if the user
+    // explicitly passes a file, we should accept it regardless of extension.
+    // Only check the blacklist.
+    if (std::none_of(blacklist.cbegin(), blacklist.cend(),
                      [&canonical](const auto &prefix) {
                        return prefix == canonical ||
                               path_starts_with(canonical, prefix);
