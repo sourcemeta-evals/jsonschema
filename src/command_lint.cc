@@ -241,6 +241,7 @@ auto sourcemeta::jsonschema::lint(const sourcemeta::core::Options &options)
           });
 
       if (wrapper_result == EXIT_SUCCESS) {
+        // Only write the file if the schema was actually modified
         if (copy != entry.second) {
           std::ofstream output{entry.first};
           sourcemeta::core::prettify(copy, output, indentation);
