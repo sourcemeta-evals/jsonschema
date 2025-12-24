@@ -124,6 +124,7 @@ handle_json_entry(const std::filesystem::path &entry_path,
       }
     }
   } else {
+    // Direct file entries are accepted regardless of their extension
     const auto canonical{sourcemeta::core::weakly_canonical(entry_path)};
     if (std::none_of(blacklist.cbegin(), blacklist.cend(),
                      [&canonical](const auto &prefix) {
