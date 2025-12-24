@@ -311,6 +311,7 @@ add_jsonschema_test_unix(compile/pass_resolve_remap_relative)
 
 # Lint
 add_jsonschema_test_unix(lint/pass_lint_fix)
+add_jsonschema_test_unix(lint/pass_lint_fix_no_warnings)
 add_jsonschema_test_unix(lint/pass_lint_no_fix)
 add_jsonschema_test_unix(lint/pass_lint_embedded_resource)
 add_jsonschema_test_unix(lint/fail_lint)
