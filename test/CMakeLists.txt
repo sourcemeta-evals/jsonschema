@@ -349,6 +349,7 @@ add_jsonschema_test_unix(lint/pass_lint_examples_fix)
 add_jsonschema_test_unix(lint/pass_lint_examples_no_fix)
 add_jsonschema_test_unix(lint/pass_lint_default_fix)
 add_jsonschema_test_unix(lint/pass_lint_default_no_fix)
+add_jsonschema_test_unix(lint/pass_lint_ignore_short_flag)
 add_jsonschema_test_unix(lint/pass_lint_anonymous_default_with_ref)
 add_jsonschema_test_unix(lint/pass_lint_anonymous_nested_default_with_ref)
 add_jsonschema_test_unix(lint/pass_lint_default_nested_with_id)
@@ -367,6 +368,7 @@ add_jsonschema_test_unix(lint/fail_lint_only_with_exclude)
 add_jsonschema_test_unix(lint/fail_lint_only_unknown)
 add_jsonschema_test_unix(lint/fail_lint_only_unknown_verbose)
 add_jsonschema_test_unix(lint/pass_config_path)
+
 
 # Encode
 add_jsonschema_test_unix(encode/pass_schema_less)
