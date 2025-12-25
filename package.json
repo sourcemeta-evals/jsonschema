@@ -2,18 +2,18 @@
   "name": "@sourcemeta/jsonschema",
   "version": "12.8.1",
   "description": "The CLI for working with JSON Schema. Covers formatting, linting, testing, and much more for both local development and CI/CD pipelines",
-    "main": "npm/main.js",
-    "bin": {
-      "jsonschema": "npm/cli.js"
-    },
-    "exports": {
-      ".": {
-        "require": "./npm/main.js",
-        "import": "./npm/main.mjs"
-      }
-    },
+  "main": "npm/main.js",
+  "bin": {
+    "jsonschema": "npm/cli.js"
+  },
+  "exports": {
+    ".": {
+      "require": "./npm/main.js",
+      "import": "./npm/main.mjs"
+    }
+  },
   "scripts": {
-    "test": "eslint cli.js"
+    "test": "eslint npm/"
   },
   "license": "AGPL-3.0",
   "homepage": "https://github.com/sourcemeta/jsonschema",
