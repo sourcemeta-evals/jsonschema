@@ -22,6 +22,8 @@ touch "$TMP/instance.jsonl"
 
 "$1" validate "$TMP/schema.json" "$TMP/instance.jsonl" --verbose 2> "$TMP/output.txt" 1>&2
 
+# The "Interpreting input as JSONL" message is verbose-only,
+# but the warning is always printed
 cat << EOF > "$TMP/expected.txt"
 Interpreting input as JSONL: $(realpath "$TMP")/instance.jsonl
 warning: The JSONL file is empty
