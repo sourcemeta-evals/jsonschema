@@ -39,7 +39,7 @@ auto sourcemeta::jsonschema::bundle(const sourcemeta::core::Options &options)
             .recompose());
 
     if (options.contains("without-id")) {
-      sourcemeta::jsonschema::LOG_WARNING()
+      LOG_WARNING()
           << "You are opting in to remove schema identifiers in "
              "the bundled schema.\n"
           << "The only legit use case of this advanced feature we know of "

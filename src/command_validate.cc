@@ -381,7 +381,7 @@ auto sourcemeta::jsonschema::validate(const sourcemeta::core::Options &options)
       }
 
       if (index == 0) {
-        sourcemeta::jsonschema::LOG_WARNING() << "The JSONL file is empty\n";
+        LOG_WARNING() << "The JSONL file is empty\n";
       }
     } else if (std::filesystem::is_directory(instance_path)) {
       for (const auto &entry : for_each_json({instance_path_view}, options)) {
