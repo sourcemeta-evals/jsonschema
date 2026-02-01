@@ -15,6 +15,7 @@ if(NOT CPR_FOUND)
     "${CPR_DIR}/include/cpr/callback.h"
     "${CPR_DIR}/include/cpr/cert_info.h"
     "${CPR_DIR}/include/cpr/connect_timeout.h"
+    "${CPR_DIR}/include/cpr/connection_pool.h"
     "${CPR_DIR}/include/cpr/cookies.h"
     "${CPR_DIR}/include/cpr/cprtypes.h"
     "${CPR_DIR}/include/cpr/curl_container.h"
@@ -63,6 +64,7 @@ if(NOT CPR_FOUND)
     "${CPR_DIR}/cpr/callback.cpp"
     "${CPR_DIR}/cpr/cert_info.cpp"
     "${CPR_DIR}/cpr/cookies.cpp"
+    "${CPR_DIR}/cpr/connection_pool.cpp"
     "${CPR_DIR}/cpr/cprtypes.cpp"
     "${CPR_DIR}/cpr/curl_container.cpp"
     "${CPR_DIR}/cpr/curlholder.cpp"
@@ -107,7 +109,8 @@ if(NOT CPR_FOUND)
       -Wno-newline-eof
       -Wno-implicit-int-conversion
       -Wno-conversion
-      -Wno-strict-overflow)
+      -Wno-strict-overflow
+      -Wno-odr)
 
     if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
       target_compile_options(cpr PRIVATE

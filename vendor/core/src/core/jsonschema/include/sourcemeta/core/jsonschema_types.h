@@ -3,20 +3,16 @@
 
 #include <sourcemeta/core/json.h>
 #include <sourcemeta/core/jsonpointer.h>
+#include <sourcemeta/core/jsonschema_vocabularies.h>
 
-#include <cstdint>       // std::uint8_t
-#include <functional>    // std::function, std::reference_wrapper
-#include <optional>      // std::optional
-#include <set>           // std::set
-#include <string>        // std::string
-#include <string_view>   // std::string_view
-#include <unordered_map> // std::unordered_map
+#include <cstdint>     // std::uint8_t
+#include <functional>  // std::function, std::reference_wrapper
+#include <optional>    // std::optional
+#include <set>         // std::set
+#include <string>      // std::string
+#include <string_view> // std::string_view
 
 namespace sourcemeta::core {
-
-/// @ingroup jsonschema
-/// A set of vocabularies
-using Vocabularies = std::unordered_map<JSON::String, bool>;
 
 // Take a URI and get back a schema
 /// @ingroup jsonschema
@@ -34,16 +30,6 @@ using Vocabularies = std::unordered_map<JSON::String, bool>;
 /// is trivial, it is recommended to create a callable object that implements
 /// the function interface.
 using SchemaResolver = std::function<std::optional<JSON>(std::string_view)>;
-
-/// @ingroup jsonschema
-/// The strategy to follow when attempting to identify a schema
-enum class SchemaIdentificationStrategy : std::uint8_t {
-  /// Only proceed if we can guarantee the identifier is valid
-  Strict,
-
-  /// Attempt to guess even if we don't know the base dialect
-  Loose
-};
 
 /// @ingroup jsonschema
 /// The reference type

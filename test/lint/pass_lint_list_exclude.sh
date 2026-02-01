@@ -88,6 +88,9 @@ exclusive_minimum_number_and_minimum
 if_without_then_else
   The `if` keyword is meaningless without the presence of the `then` or `else` keywords
 
+ignored_metaschema
+  A `$schema` declaration without a sibling identifier (or with a sibling `$ref` in Draft 7 and older dialects), is ignored
+
 items_array_default
   Setting the `items` keyword to the empty array does not add any further constraint
 
@@ -149,16 +152,16 @@ unevaluated_properties_default
   Setting the `unevaluatedProperties` keyword to the true schema does not add any further constraint
 
 unknown_keywords_prefix
-  Future versions of JSON Schema will refuse to evaluate unknown keywords that don't have an x- prefix
+  Future versions of JSON Schema will refuse to evaluate unknown keywords or custom keywords from optional vocabularies that don't have an x- prefix
 
-unnecessary_allof_wrapper_draft
-  Wrapping keywords other than `$ref` in `allOf` is often unnecessary and may even introduce a minor evaluation performance overhead
+unknown_local_ref
+  Local references that point to unknown locations are invalid and will result in evaluation failures
 
-unnecessary_allof_wrapper_modern
-  Wrapping keywords in `allOf` is often unnecessary and may even introduce a minor evaluation performance overhead
+unnecessary_allof_ref_wrapper_draft
+  Wrapping `$ref` in `allOf` is only necessary if there are other sibling keywords
 
-unnecessary_allof_wrapper_properties
-  Avoid unnecessarily wrapping object `properties` in `allOf` as it may introduce a minor evaluation performance overhead and even confuse documentation generators
+unnecessary_allof_ref_wrapper_modern
+  Wrapping `$ref` in `allOf` was only necessary in JSON Schema Draft 7 and older
 
 unsatisfiable_max_contains
   Setting the `maxContains` keyword to a number greater than or equal to the array upper bound does not add any further constraint
@@ -166,7 +169,7 @@ unsatisfiable_max_contains
 unsatisfiable_min_properties
   Setting `minProperties` to a number less than `required` does not add any further constraint
 
-Number of rules: 52
+Number of rules: 53
 EOF
 
 diff "$TMP/output.txt" "$TMP/expected.txt"

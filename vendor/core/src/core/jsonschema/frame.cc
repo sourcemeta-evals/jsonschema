@@ -213,16 +213,15 @@ auto fragment_string(const sourcemeta::core::URI &uri)
 
 [[noreturn]]
 auto throw_already_exists(const sourcemeta::core::JSON::String &uri) -> void {
-  std::ostringstream error;
-  error << "Schema identifier already exists: " << uri;
-  throw sourcemeta::core::SchemaError(error.str());
+  throw sourcemeta::core::SchemaFrameError(uri,
+                                           "Schema identifier already exists");
 }
 
 auto store(sourcemeta::core::SchemaFrame::Locations &frame,
            sourcemeta::core::SchemaFrame::Instances &instances,
            const sourcemeta::core::SchemaReferenceType type,
            const sourcemeta::core::SchemaFrame::LocationType entry_type,
-           sourcemeta::core::JSON::String uri,
+           const sourcemeta::core::JSON::String &uri,
            const std::optional<sourcemeta::core::JSON::String> &root_id,
            const sourcemeta::core::JSON::String &base_id,
            const sourcemeta::core::Pointer &pointer_from_root,
@@ -233,9 +232,8 @@ auto store(sourcemeta::core::SchemaFrame::Locations &frame,
            const std::optional<sourcemeta::core::Pointer> &parent,
            const bool ignore_if_present = false,
            const bool already_canonical = false) -> void {
-  const auto canonical{already_canonical
-                           ? std::move(uri)
-                           : sourcemeta::core::URI::canonicalize(uri)};
+  const auto canonical{
+      already_canonical ? uri : sourcemeta::core::URI::canonicalize(uri)};
   const auto inserted{frame
                           .insert({{type, canonical},
                                    {.parent = parent,
@@ -311,24 +309,19 @@ auto repopulate_instance_locations(
     sourcemeta::core::SchemaFrame::Instances::mapped_type &destination,
     const std::optional<sourcemeta::core::PointerTemplate> &accumulator)
     -> void {
-  if (cache_entry.orphan && cache_entry.instance_location.empty()) {
-    return;
-  } else if (cache_entry.parent.has_value() &&
-             // Don't consider bases from the root subschema, as if that
-             // subschema has any instance location other than "", then it
-             // indicates a recursive reference
-             !cache_entry.parent.value().empty()) {
+  // Check parent first as even orphan schemas can inherit instance locations
+  // from their parents if the parent is in the evaluation flow
+  if (cache_entry.parent.has_value() &&
+      // Don't consider bases from the root subschema, as if that
+      // subschema has any instance location other than "", then it
+      // indicates a recursive reference
+      !cache_entry.parent.value().empty()) {
     const auto match{instances.find(cache_entry.parent.value())};
     if (match == instances.cend()) {
       return;
     }
 
     for (const auto &parent_instance_location : match->second) {
-      // Guard against overly unrolling recursive schemas
-      if (parent_instance_location == cache_entry.instance_location) {
-        continue;
-      }
-
       auto new_accumulator = cache_entry.relative_instance_location;
       if (accumulator.has_value()) {
         for (const auto &token : accumulator.value()) {
@@ -349,6 +342,9 @@ auto repopulate_instance_locations(
           frame, instances, cache, cache_entry.parent.value(),
           cache.at(cache_entry.parent.value()), destination, new_accumulator);
     }
+  } else if (cache_entry.orphan && cache_entry.instance_location.empty()) {
+    // Only return early for orphan schemas if they don't have a parent
+    return;
   }
 }
 
@@ -546,7 +542,7 @@ auto SchemaFrame::analyse(const JSON &root, const SchemaWalker &walker,
       // Schema identifier
       std::optional<JSON::String> id{sourcemeta::core::identify(
           entry.subschema.get(), entry.base_dialect.value(),
-          entry.pointer.empty() ? default_id : std::nullopt)};
+          entry.pointer.empty() ? root_id : std::nullopt)};
 
       // Store information
       subschemas.emplace(
@@ -834,8 +830,8 @@ auto SchemaFrame::analyse(const JSON &root, const SchemaWalker &walker,
                 this->mode_ == SchemaFrame::Mode::Instances) {
               store(this->locations_, this->instances_,
                     SchemaReferenceType::Static,
-                    SchemaFrame::LocationType::Subschema, std::move(result),
-                    root_id, current_base, pointer,
+                    SchemaFrame::LocationType::Subschema, result, root_id,
+                    current_base, pointer,
                     pointer.resolve_from(nearest_bases.second),
                     dialects.first.front(), current_base_dialect,
                     {subschema->second.instance_location},
@@ -843,8 +839,8 @@ auto SchemaFrame::analyse(const JSON &root, const SchemaWalker &walker,
             } else {
               store(this->locations_, this->instances_,
                     SchemaReferenceType::Static,
-                    SchemaFrame::LocationType::Subschema, std::move(result),
-                    root_id, current_base, pointer,
+                    SchemaFrame::LocationType::Subschema, result, root_id,
+                    current_base, pointer,
                     pointer.resolve_from(nearest_bases.second),
                     dialects.first.front(), current_base_dialect, {},
                     subschema->second.parent, false, true);
@@ -852,8 +848,8 @@ auto SchemaFrame::analyse(const JSON &root, const SchemaWalker &walker,
           } else {
             store(this->locations_, this->instances_,
                   SchemaReferenceType::Static,
-                  SchemaFrame::LocationType::Pointer, std::move(result),
-                  root_id, current_base, pointer,
+                  SchemaFrame::LocationType::Pointer, result, root_id,
+                  current_base, pointer,
                   pointer.resolve_from(nearest_bases.second),
                   dialects.first.front(), current_base_dialect, {},
                   dialects.second, false, true);
@@ -905,9 +901,10 @@ auto SchemaFrame::analyse(const JSON &root, const SchemaWalker &walker,
         // See
         // https://json-schema.org/draft/2019-09/draft-handrews-json-schema-02#rfc.section.8.2.4.2.1
         if (ref != "#") {
-          std::ostringstream error;
-          error << "Invalid recursive reference: " << ref;
-          throw sourcemeta::core::SchemaError(error.str());
+          throw sourcemeta::core::SchemaReferenceError(
+              entry.id.value_or(""),
+              entry.common.pointer.concat({"$recursiveRef"}),
+              "Invalid recursive reference");
         }
 
         auto anchor_uri_string{

@@ -30,8 +30,8 @@ EOF
 
 "$1" validate "$TMP/schema.json" "$TMP/instance.json" \
   --resolve "$TMP/schemas" 2>"$TMP/stderr.txt" \
-  && CODE="$?" || CODE="$?"
-test "$CODE" = "1" || exit 1
+  && EXIT_CODE="$?" || EXIT_CODE="$?"
+test "$EXIT_CODE" = "1" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
 error: Failed to parse the JSON document
@@ -41,3 +41,20 @@ error: Failed to parse the JSON document
 EOF
 
 diff "$TMP/stderr.txt" "$TMP/expected.txt"
+
+# JSON error
+"$1" validate "$TMP/schema.json" "$TMP/instance.json" \
+  --resolve "$TMP/schemas" --json >"$TMP/stdout.txt" \
+  && EXIT_CODE="$?" || EXIT_CODE="$?"
+test "$EXIT_CODE" = "1" || exit 1
+
+cat << EOF > "$TMP/expected.txt"
+{
+  "error": "Failed to parse the JSON document",
+  "line": 1,
+  "column": 3,
+  "filePath": "$(realpath "$TMP")/schemas/02-invalid.json"
+}
+EOF
+
+diff "$TMP/stdout.txt" "$TMP/expected.txt"

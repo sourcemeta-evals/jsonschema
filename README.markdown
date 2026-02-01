@@ -29,8 +29,10 @@ local development and when running on CI/CD pipelines. For example:
 > [!TIP]
 > Do you want to level up your JSON Schema skills? Check out
 > [learnjsonschema.com](https://www.learnjsonschema.com), our growing JSON
-> Schema documentation website, and our O'Reilly book [Unifying Business, Data,
-> and Code: Designing Data Products with JSON
+> Schema documentation website, our [JSON Schema for
+> OpenAPI](https://www.sourcemeta.com/courses/jsonschema-for-openapi) video
+> course, and our O'Reilly book [Unifying Business, Data, and Code: Designing
+> Data Products with JSON
 > Schema](https://www.oreilly.com/library/view/unifying-business-data/9781098144999/).
 
 ***
@@ -130,7 +132,7 @@ Where `X.Y.Z` is replaced with the desired version. For example:
   uses: actions/checkout@v4
 
 - name: Install the JSON Schema CLI
-  uses: sourcemeta/jsonschema@v11.11.1
+  uses: sourcemeta/jsonschema@v12.9.1
 
 # Then use as usual
 - run: jsonschema fmt path/to/schemas --check
