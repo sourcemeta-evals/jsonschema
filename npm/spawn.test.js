@@ -3,7 +3,6 @@ const assert = require('node:assert');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const child_process = require('child_process');
 
 const { spawn } = require('./main');
 
