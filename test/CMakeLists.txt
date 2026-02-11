@@ -33,6 +33,7 @@ add_jsonschema_test_unix(format_check_single_pass)
 add_jsonschema_test_unix(format_check_single_pass_keep_ordering)
 add_jsonschema_test_unix(format_directory_ignore_directory)
 add_jsonschema_test_unix(format_directory_ignore_file)
+add_jsonschema_test_unix(format_directory_ignore_file_short)
 add_jsonschema_test_unix(format_check_single_invalid)
 
 # Validate
@@ -201,6 +202,7 @@ add_jsonschema_test_unix(lint/pass_lint_examples_no_fix)
 add_jsonschema_test_unix(lint/fail_lint_default)
 add_jsonschema_test_unix(lint/pass_lint_default_fix)
 add_jsonschema_test_unix(lint/pass_lint_default_no_fix)
+add_jsonschema_test_unix(lint/pass_lint_ignore_short)
 
 # Encode
 add_jsonschema_test_unix(encode/pass_schema_less)
