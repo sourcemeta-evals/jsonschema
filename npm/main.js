@@ -10,6 +10,10 @@ const EXECUTABLE = path.join(__dirname, '..', 'build', 'github-releases',
   `jsonschema-${PLATFORM}-${ARCH}${EXTENSION}`);
 
 function spawn(args, options = {}) {
+  const jsonMode = options.json === true;
+  const spawnOptionsBase = { ...options };
+  delete spawnOptionsBase.json;
+
   return new Promise((resolve, reject) => {
     if (!fs.existsSync(EXECUTABLE)) {
       reject(new Error(
@@ -25,10 +29,11 @@ function spawn(args, options = {}) {
 
     const spawnOptions = {
       windowsHide: true,
-      ...options
+      ...spawnOptionsBase
     };
 
-    const process = child_process.spawn(EXECUTABLE, args, spawnOptions);
+    const spawnArgs = jsonMode ? [...args, '--json'] : args;
+    const process = child_process.spawn(EXECUTABLE, spawnArgs, spawnOptions);
 
     let stdout = '';
     let stderr = '';
@@ -50,11 +55,23 @@ function spawn(args, options = {}) {
     });
 
     process.on('close', (code) => {
-      resolve({
-        code: code,
-        stdout: stdout,
-        stderr: stderr
-      });
+      if (jsonMode && stdout.length > 0) {
+        try {
+          resolve({
+            code: code,
+            stdout: JSON.parse(stdout),
+            stderr: stderr
+          });
+        } catch (error) {
+          reject(new Error(`Failed to parse JSON output: ${error.message}`));
+        }
+      } else {
+        resolve({
+          code: code,
+          stdout: stdout,
+          stderr: stderr
+        });
+      }
     });
   });
 }
