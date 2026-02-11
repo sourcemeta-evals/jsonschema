@@ -1,0 +1,57 @@
+const os = require('os');
+const path = require('path');
+const fs = require('fs');
+const child_process = require('child_process');
+
+const PLATFORM = os.platform() === 'win32' ? 'windows' : os.platform();
+const ARCH = os.arch() === 'x64' ? 'x86_64' : os.arch();
+const EXECUTABLE = PLATFORM === 'windows'
+  ? path.join(__dirname, '..', 'build', 'github-releases', `jsonschema-${PLATFORM}-${ARCH}.exe`)
+  : path.join(__dirname, '..', 'build', 'github-releases', `jsonschema-${PLATFORM}-${ARCH}`);
+
+function spawn(args, options) {
+  return new Promise(function (resolve, reject) {
+    if (!fs.existsSync(EXECUTABLE)) {
+      reject(new Error(
+        `The JSON Schema CLI NPM package does not support ${os.platform()} for ${ARCH} yet`
+      ));
+      return;
+    }
+
+    if (PLATFORM === 'darwin') {
+      child_process.spawnSync('/usr/bin/xattr', ['-c', EXECUTABLE], { stdio: 'inherit' });
+    }
+
+    const spawnOptions = Object.assign({ windowsHide: true }, options || {});
+    const child = child_process.spawn(EXECUTABLE, args || [], spawnOptions);
+
+    const stdoutChunks = [];
+    const stderrChunks = [];
+
+    if (child.stdout) {
+      child.stdout.on('data', function (data) {
+        stdoutChunks.push(data);
+      });
+    }
+
+    if (child.stderr) {
+      child.stderr.on('data', function (data) {
+        stderrChunks.push(data);
+      });
+    }
+
+    child.on('error', function (error) {
+      reject(error);
+    });
+
+    child.on('close', function (code) {
+      resolve({
+        code: code,
+        stdout: Buffer.concat(stdoutChunks).toString(),
+        stderr: Buffer.concat(stderrChunks).toString()
+      });
+    });
+  });
+}
+
+module.exports = { spawn: spawn };
