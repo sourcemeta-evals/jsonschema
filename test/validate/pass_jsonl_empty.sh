@@ -20,7 +20,7 @@ EOF
 
 touch "$TMP/instance.jsonl"
 
-"$1" validate "$TMP/schema.json" "$TMP/instance.jsonl" 2> "$TMP/output.txt" 1>&2
+"$1" validate "$TMP/schema.json" "$TMP/instance.jsonl" 2> "$TMP/output.txt"
 
 cat << EOF > "$TMP/expected.txt"
 warning: The JSONL file is empty
