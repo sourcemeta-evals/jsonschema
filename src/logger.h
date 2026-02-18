@@ -19,9 +19,7 @@ inline auto LOG_VERBOSE(const sourcemeta::core::Options &options)
   return null_stream;
 }
 
-inline auto LOG_WARNING() -> std::ostream & {
-  return std::cerr << "warning: ";
-}
+inline auto LOG_WARNING() -> std::ostream & { return std::cerr << "warning: "; }
 } // namespace sourcemeta::jsonschema
 
 #endif
