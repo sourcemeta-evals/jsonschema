@@ -23,6 +23,7 @@ inline auto LOG_WARNING() -> std::ostream & {
   std::cerr << "warning: ";
   return std::cerr;
 }
+
 } // namespace sourcemeta::jsonschema
 
 #endif
