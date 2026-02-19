@@ -17,11 +17,14 @@ cat << 'EOF' > "$TMP/schema.json"
 EOF
 
 cd "$TMP"
-"$1" lint "$TMP/schema.json" --exclude foo_bar >"$TMP/stderr.txt" 2>&1 && CODE="$?" || CODE="$?"
+"$1" lint "$TMP/schema.json" --exclude foo_bar >"$TMP/stdout.txt" 2>"$TMP/stderr.txt" && CODE="$?" || CODE="$?"
 test "$CODE" = "1" || exit 1
 
-cat << EOF > "$TMP/expected.txt"
+cat << EOF > "$TMP/expected-stderr.txt"
 warning: Cannot exclude unknown rule: foo_bar
+EOF
+
+cat << EOF > "$TMP/expected-stdout.txt"
 schema.json:4:3:
   The \`contentMediaType\` keyword is meaningless without the presence of the \`contentEncoding\` keyword (content_media_type_without_encoding)
     at location "/contentMediaType"
@@ -33,4 +36,5 @@ schema.json:5:3:
     at location "/enum"
 EOF
 
-diff "$TMP/stderr.txt" "$TMP/expected.txt"
+diff "$TMP/stderr.txt" "$TMP/expected-stderr.txt"
+diff "$TMP/stdout.txt" "$TMP/expected-stdout.txt"
