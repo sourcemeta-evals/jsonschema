@@ -96,7 +96,8 @@ public:
                             << identifier << "\n";
                       });
         if (!result) {
-          LOG_WARNING() << "No schema resources were imported from this file\n";
+          LOG_WARNING()
+              << "No schema resources were imported from this file\n";
           std::cerr << "  at " << entry.first.string() << "\n";
           std::cerr << "Are you sure this schema sets any identifiers?\n";
         }
