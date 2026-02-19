@@ -27,5 +27,4 @@ Interpreting input as JSONL: $(realpath "$TMP")/instance.jsonl
 warning: The JSONL file is empty
 EOF
 
-
 diff "$TMP/output.txt" "$TMP/expected.txt"
