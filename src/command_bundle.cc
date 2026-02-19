@@ -37,7 +37,7 @@ auto sourcemeta::jsonschema::bundle(const sourcemeta::core::Options &options)
 
   if (options.contains("without-id")) {
     LOG_WARNING() << "You are opting in to remove schema identifiers in "
-                      "the bundled schema.\n";
+                     "the bundled schema.\n";
     std::cerr << "The only legit use case of this advanced feature we know of "
                  "is to workaround\n";
     std::cerr << "non-compliant JSON Schema implementations such as Visual "
