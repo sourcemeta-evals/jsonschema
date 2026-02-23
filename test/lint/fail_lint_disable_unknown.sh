@@ -17,12 +17,20 @@ cat << 'EOF' > "$TMP/schema.json"
 EOF
 
 cd "$TMP"
-"$1" lint "$TMP/schema.json" --exclude foo_bar >"$TMP/stdout.txt" 2>"$TMP/stderr.txt" && CODE="$?" || CODE="$?"
+"$1" lint "$TMP/schema.json" --exclude foo_bar >"$TMP/stderr.txt" 2>&1 && CODE="$?" || CODE="$?"
 test "$CODE" = "1" || exit 1
 
-cat << EOF > "$TMP/expected-stderr.txt"
+cat << EOF > "$TMP/expected.txt"
 warning: Cannot exclude unknown rule: foo_bar
+schema.json:4:3:
+  The \`contentMediaType\` keyword is meaningless without the presence of the \`contentEncoding\` keyword (content_media_type_without_encoding)
+    at location "/contentMediaType"
+schema.json:5:3:
+  An \`enum\` of a single value can be expressed as \`const\` (enum_to_const)
+    at location "/enum"
+schema.json:5:3:
+  Setting \`type\` alongside \`enum\` is considered an anti-pattern, as the enumeration choices already imply their respective types (enum_with_type)
+    at location "/enum"
 EOF
 
-# Verify the warning appears in stderr even without --verbose
-grep "warning: Cannot exclude unknown rule: foo_bar" "$TMP/stderr.txt"
+diff "$TMP/stderr.txt" "$TMP/expected.txt"
