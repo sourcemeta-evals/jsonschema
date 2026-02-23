@@ -27,4 +27,13 @@ Interpreting input as JSONL: $(realpath "$TMP")/instance.jsonl
 warning: The JSONL file is empty
 EOF
 
+# The warning must also appear without --verbose
+"$1" validate "$TMP/schema.json" "$TMP/instance.jsonl" 2> "$TMP/output_no_verbose.txt" 1>&2
+
+cat << EOF > "$TMP/expected_no_verbose.txt"
+warning: The JSONL file is empty
+EOF
+
+diff "$TMP/output_no_verbose.txt" "$TMP/expected_no_verbose.txt"
+
 diff "$TMP/output.txt" "$TMP/expected.txt"
