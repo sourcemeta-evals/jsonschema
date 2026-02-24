@@ -411,8 +411,9 @@ auto sourcemeta::jsonschema::install(const sourcemeta::core::Options &options)
         emit_json(events_array, "warning", "message",
                   "Ignoring corrupted lock file");
       } else {
-        std::cerr << "warning: Ignoring corrupted lock file\n  at "
-                  << lock_path.string() << "\n";
+        sourcemeta::jsonschema::LOG_WARNING()
+            << "Ignoring corrupted lock file\n  at " << lock_path.string()
+            << "\n";
       }
     }
   }
