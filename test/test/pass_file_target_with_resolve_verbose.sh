@@ -10,6 +10,8 @@ trap clean EXIT
 cat << 'EOF' > "$TMP/schema.json"
 {
   "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Test",
+  "description": "Test schema",
   "type": "string"
 }
 EOF
@@ -34,9 +36,6 @@ EOF
 "$1" test "$TMP/test.json" --resolve "$TMP/schema.json" --verbose 1> "$TMP/output.txt" 2>&1
 
 cat << EOF > "$TMP/expected.txt"
-Detecting schema resources from file: $(realpath "$TMP")/schema.json
-Importing schema into the resolution context: file://$(realpath "$TMP")/schema.json
-Looking for target: file://$(realpath "$TMP")/schema.json
 $(realpath "$TMP")/test.json:
   1/2 PASS <no description>
   2/2 PASS <no description>

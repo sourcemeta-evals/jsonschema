@@ -108,7 +108,7 @@ auto compiler_draft6_validation_type(const Context &context,
                sourcemeta::blaze::InstructionIndex::
                    LoopItemsPropertiesExactlyTypeStrictHash3) &&
           current.back().relative_instance_location ==
-              dynamic_context.base_instance_location) {
+              to_pointer(dynamic_context.base_instance_location)) {
         return {};
       }
 
@@ -193,7 +193,7 @@ auto compiler_draft6_validation_type(const Context &context,
                    schema_context, dynamic_context,
                    sourcemeta::core::JSON::Type::Integer)};
     } else if (type == "string") {
-      if (dynamic_context.property_as_target) {
+      if (schema_context.is_property_name) {
         return {};
       }
 
@@ -274,7 +274,7 @@ auto compiler_draft6_validation_type(const Context &context,
                    schema_context, dynamic_context,
                    sourcemeta::core::JSON::Type::Integer)};
     } else if (type == "string") {
-      if (dynamic_context.property_as_target) {
+      if (schema_context.is_property_name) {
         return {};
       }
 
@@ -313,7 +313,7 @@ auto compiler_draft6_validation_type(const Context &context,
         types.set(
             static_cast<std::uint8_t>(sourcemeta::core::JSON::Type::Integer));
       } else if (type_string == "string") {
-        if (dynamic_context.property_as_target) {
+        if (schema_context.is_property_name) {
           continue;
         }
 
@@ -392,9 +392,10 @@ auto compiler_draft6_applicator_contains(const Context &context,
     return {};
   }
 
-  Instructions children{compile(
-      context, schema_context, relative_dynamic_context(dynamic_context),
-      sourcemeta::core::empty_pointer, sourcemeta::core::empty_pointer)};
+  Instructions children{compile(context, schema_context,
+                                relative_dynamic_context(),
+                                sourcemeta::core::empty_weak_pointer,
+                                sourcemeta::core::empty_weak_pointer)};
 
   if (children.empty()) {
     // We still need to check the instance is not empty
@@ -421,9 +422,10 @@ auto compiler_draft6_validation_propertynames(
   // TODO: How can we avoid this copy?
   auto nested_schema_context = schema_context;
   nested_schema_context.is_property_name = true;
-  Instructions children{compile(
-      context, nested_schema_context, property_relative_dynamic_context(),
-      sourcemeta::core::empty_pointer, sourcemeta::core::empty_pointer)};
+  Instructions children{compile(context, nested_schema_context,
+                                relative_dynamic_context(),
+                                sourcemeta::core::empty_weak_pointer,
+                                sourcemeta::core::empty_weak_pointer)};
 
   if (children.empty()) {
     return {};

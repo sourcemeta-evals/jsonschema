@@ -10,15 +10,17 @@
 
 #include <cassert>     // assert
 #include <concepts>    // std::derived_from, std::same_as
+#include <cstdint>     // std::uint8_t
 #include <functional>  // std::function
 #include <iterator>    // std::make_move_iterator, std::begin, std::end
-#include <map>         // std::map
 #include <memory>      // std::make_unique, std::unique_ptr
 #include <optional>    // std::optional, std::nullopt
 #include <set>         // std::set
 #include <string>      // std::string
 #include <string_view> // std::string_view
-#include <utility>     // std::move, std::forward, std::pair
+#include <tuple>       // std::tuple
+#include <type_traits> // std::is_same_v, std::true_type
+#include <utility>     // std::move, std::forward
 #include <vector>      // std::vector
 
 namespace sourcemeta::core {
@@ -60,7 +62,8 @@ namespace sourcemeta::core {
 class SOURCEMETA_CORE_JSONSCHEMA_EXPORT SchemaTransformRule {
 public:
   /// Create a transformation rule. Each rule must have a unique name.
-  SchemaTransformRule(std::string &&name, std::string &&message);
+  SchemaTransformRule(const std::string_view name,
+                      const std::string_view message);
 
   // Necessary to wrap rules on smart pointers
   virtual ~SchemaTransformRule() = default;
@@ -75,10 +78,10 @@ public:
   auto operator==(const SchemaTransformRule &other) const -> bool;
 
   /// Fetch the name of a rule
-  [[nodiscard]] auto name() const -> const std::string &;
+  [[nodiscard]] auto name() const noexcept -> std::string_view;
 
   /// Fetch the message of a rule
-  [[nodiscard]] auto message() const -> const std::string &;
+  [[nodiscard]] auto message() const noexcept -> std::string_view;
 
   /// The result of evaluating a rule
   struct Result {
@@ -108,27 +111,19 @@ public:
     std::optional<JSON::String> description;
   };
 
-  /// Apply the rule to a schema
-  auto apply(JSON &schema, const JSON &root, const Vocabularies &vocabularies,
-             const SchemaWalker &walker, const SchemaResolver &resolver,
-             const SchemaFrame &frame,
-             const SchemaFrame::Location &location) const
-      -> std::pair<bool, Result>;
-
   /// Check if the rule applies to a schema
   [[nodiscard]] auto
   check(const JSON &schema, const JSON &root, const Vocabularies &vocabularies,
         const SchemaWalker &walker, const SchemaResolver &resolver,
-        const SchemaFrame &frame, const SchemaFrame::Location &location) const
-      -> Result;
+        const SchemaFrame &frame, const SchemaFrame::Location &location,
+        const JSON::String &exclude_keyword) const -> Result;
 
   /// A method to optionally fix any reference location that was affected by the
   /// transformation.
   [[nodiscard]] virtual auto
-  rereference(const std::string &reference, const Pointer &origin,
+  rereference(const std::string_view reference, const Pointer &origin,
               const Pointer &target, const Pointer &current) const -> Pointer;
 
-private:
   /// The rule condition
   [[nodiscard]] virtual auto
   condition(const JSON &schema, const JSON &root,
@@ -137,9 +132,10 @@ private:
             const SchemaResolver &resolver) const -> Result = 0;
 
   /// The rule transformation. If this virtual method is not overriden,
-  /// then the rule condition is considered to not be fixable.
+  /// then the rule is considered to not mutate the schema.
   virtual auto transform(JSON &schema, const Result &result) const -> void;
 
+private:
 // Exporting symbols that depends on the standard C++ library is considered
 // safe.
 // https://learn.microsoft.com/en-us/cpp/error-messages/compiler-warnings/compiler-warning-level-2-c4275?view=msvc-170&redirectedfrom=MSDN
@@ -168,6 +164,9 @@ private:
 ///   : public sourcemeta::core::SchemaTransformRule {
 /// public:
 ///   MyRule() : sourcemeta::core::SchemaTransformRule("my_rule") {};
+///
+///   using mutates = std::true_type;
+///   using reframe_after_transform = std::true_type;
 ///
 ///   [[nodiscard]] auto condition(const sourcemeta::core::JSON &schema,
 ///                                const sourcemeta::core::Vocabularies
@@ -203,8 +202,8 @@ private:
 /// })JSON");
 ///
 /// // Apply the transformation bundle to the schema
-/// bundle.apply(schema, sourcemeta::core::schema_official_walker,
-///              sourcemeta::core::schema_official_resolver);
+/// bundle.apply(schema, sourcemeta::core::schema_walker,
+///              sourcemeta::core::schema_resolver);
 ///
 /// // `foo` keywords are gone
 /// assert(!schema.defines("foo"));
@@ -229,17 +228,24 @@ public:
   auto operator=(SchemaTransformer &&) -> SchemaTransformer & = default;
 #endif
 
-  /// Add a rule to the bundle
+  /// Add a rule to the bundle. Rules are evaluated in the order they are added.
+  /// It is the caller's responsibility to not add duplicate rules.
   template <std::derived_from<SchemaTransformRule> T, typename... Args>
-  auto add(Args &&...args) -> void {
-    auto rule{std::make_unique<T>(std::forward<Args>(args)...)};
-    // Rules must only be defined once
-    assert(!this->rules.contains(rule->name()));
-    this->rules.emplace(rule->name(), std::move(rule));
+  auto add(Args &&...args) -> std::string_view {
+    static_assert(requires { typename T::mutates; });
+    static_assert(requires { typename T::reframe_after_transform; });
+    static_assert(
+        std::is_same_v<typename T::mutates, std::true_type> ||
+        std::is_same_v<typename T::reframe_after_transform, std::false_type>);
+    auto &entry{this->rules.emplace_back(
+        std::make_unique<T>(std::forward<Args>(args)...),
+        std::is_same_v<typename T::mutates, std::true_type>,
+        std::is_same_v<typename T::reframe_after_transform, std::true_type>)};
+    return std::get<0>(entry)->name();
   }
 
   /// Remove a rule from the bundle
-  auto remove(const std::string &name) -> bool;
+  auto remove(const std::string_view name) -> bool;
 
   /// The callback that is called whenever the condition of a rule holds true.
   /// The arguments are as follows:
@@ -248,25 +254,25 @@ public:
   /// - The name of the rule
   /// - The message of the rule
   /// - The rule evaluation result
-  using Callback = std::function<void(const Pointer &, const std::string_view,
-                                      const std::string_view,
-                                      const SchemaTransformRule::Result &)>;
+  /// - Whether the rule is mutable (on check) or was mutated (on apply)
+  using Callback = std::function<void(
+      const Pointer &, const std::string_view, const std::string_view,
+      const SchemaTransformRule::Result &, const bool)>;
 
   /// Apply the bundle of rules to a schema
-  auto apply(JSON &schema, const SchemaWalker &walker,
-             const SchemaResolver &resolver, const Callback &callback,
-             const std::optional<JSON::String> &default_dialect = std::nullopt,
-             const std::optional<JSON::String> &default_id = std::nullopt) const
-      -> bool;
+  [[nodiscard]] auto
+  apply(JSON &schema, const SchemaWalker &walker,
+        const SchemaResolver &resolver, const Callback &callback,
+        std::string_view default_dialect = "", std::string_view default_id = "",
+        const JSON::String &exclude_keyword = "") const
+      -> std::pair<bool, std::uint8_t>;
 
   /// Report back the rules from the bundle that need to be applied to a schema
   [[nodiscard]] auto
   check(const JSON &schema, const SchemaWalker &walker,
         const SchemaResolver &resolver, const Callback &callback,
-        const std::optional<JSON::String> &default_dialect = std::nullopt,
-        const std::optional<JSON::String> &default_id = std::nullopt) const
-      // Note that we only calculate a health score on "check", as "apply" would
-      // by definition change the score
+        std::string_view default_dialect = "", std::string_view default_id = "",
+        const JSON::String &exclude_keyword = "") const
       -> std::pair<bool, std::uint8_t>;
 
   [[nodiscard]] auto begin() const -> auto { return this->rules.cbegin(); }
@@ -279,7 +285,8 @@ private:
 #if defined(_MSC_VER)
 #pragma warning(disable : 4251)
 #endif
-  std::map<std::string, std::unique_ptr<SchemaTransformRule>> rules;
+  std::vector<std::tuple<std::unique_ptr<SchemaTransformRule>, bool, bool>>
+      rules;
 #if defined(_MSC_VER)
 #pragma warning(default : 4251)
 #endif

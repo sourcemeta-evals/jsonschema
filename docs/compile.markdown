@@ -5,10 +5,10 @@ Compiling
 > JSON Schema Draft 3 and older are not supported at this point in time.
 
 ```sh
-jsonschema compile <schema.json|.yaml> [--http/-h] [--verbose/-v]
+jsonschema compile <schema.json|.yaml> [--http/-h] [--verbose/-v] [--debug/-g]
   [--resolve/-r <schemas-or-directories> ...] [--extension/-e <extension>]
   [--ignore/-i <schemas-or-directories>] [--fast/-f] [--default-dialect/-d <uri>]
-  [--minify/-m] [--json/-j]
+  [--minify/-m] [--json/-j] [--include/-n <name>] [--entrypoint/-p <pointer|uri>]
 ```
 
 The `validate` command will first compile the schema into an optimised
@@ -47,4 +47,16 @@ jsonschema compile path/to/my/schema.json --fast > template.json
 
 ```sh
 jsonschema compile path/to/my/schema.json --resolve other.json > template.json
+```
+
+### Compile a JSON Schema to a C/C++ header file
+
+```sh
+jsonschema compile path/to/my/schema.json --include MY_SCHEMA > my_schema.h
+```
+
+### Compile a specific subschema by JSON Pointer
+
+```sh
+jsonschema compile path/to/my/schema.json --entrypoint '/$defs/MyType' > template.json
 ```

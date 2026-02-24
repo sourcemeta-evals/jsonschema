@@ -50,7 +50,7 @@ auto print_frame(std::ostream &stream,
     }
 
     stream << "    Root              : "
-           << location.second.root.value_or("<ANONYMOUS>") << "\n";
+           << (frame.root().empty() ? "<ANONYMOUS>" : frame.root()) << "\n";
 
     if (location.second.pointer.empty()) {
       stream << "    Pointer           :\n";
@@ -60,7 +60,8 @@ auto print_frame(std::ostream &stream,
       stream << "\n";
     }
 
-    const auto position{positions.get(location.second.pointer)};
+    const auto position{
+        positions.get(sourcemeta::core::to_pointer(location.second.pointer))};
     if (position.has_value()) {
       stream << "    File Position     : " << std::get<0>(position.value())
              << ":" << std::get<1>(position.value()) << "\n";
@@ -70,17 +71,19 @@ auto print_frame(std::ostream &stream,
 
     stream << "    Base              : " << location.second.base << "\n";
 
-    if (location.second.relative_pointer.empty()) {
+    const auto relative_pointer{
+        location.second.pointer.slice(location.second.relative_pointer)};
+    if (relative_pointer.empty()) {
       stream << "    Relative Pointer  :\n";
     } else {
       stream << "    Relative Pointer  : ";
-      sourcemeta::core::stringify(location.second.relative_pointer, stream);
+      sourcemeta::core::stringify(relative_pointer, stream);
       stream << "\n";
     }
 
     stream << "    Dialect           : " << location.second.dialect << "\n";
-    stream << "    Base Dialect      : " << location.second.base_dialect
-           << "\n";
+    stream << "    Base Dialect      : "
+           << sourcemeta::core::to_string(location.second.base_dialect) << "\n";
 
     if (location.second.parent.has_value()) {
       if (location.second.parent.value().empty()) {
@@ -94,17 +97,16 @@ auto print_frame(std::ostream &stream,
       stream << "    Parent            : <NONE>\n";
     }
 
-    const auto &instance_locations{frame.instance_locations(location.second)};
-    if (!instance_locations.empty()) {
-      for (const auto &instance_location : instance_locations) {
-        if (instance_location.empty()) {
-          stream << "    Instance Location :\n";
-        } else {
-          stream << "    Instance Location : ";
-          sourcemeta::core::stringify(instance_location, stream);
-          stream << "\n";
-        }
-      }
+    if (location.second.property_name) {
+      stream << "    Property Name     : yes\n";
+    } else {
+      stream << "    Property Name     : no\n";
+    }
+
+    if (location.second.orphan) {
+      stream << "    Orphan            : yes\n";
+    } else {
+      stream << "    Orphan            : no\n";
     }
 
     if (std::next(iterator) != frame.locations().cend()) {
@@ -127,7 +129,8 @@ auto print_frame(std::ostream &stream,
       stream << "    Type              : Dynamic\n";
     }
 
-    const auto position{positions.get(reference.first.second)};
+    const auto position{
+        positions.get(sourcemeta::core::to_pointer(reference.first.second))};
     if (position.has_value()) {
       stream << "    File Position     : " << std::get<0>(position.value())
              << ":" << std::get<1>(position.value()) << "\n";
@@ -138,7 +141,8 @@ auto print_frame(std::ostream &stream,
     stream << "    Destination       : " << reference.second.destination
            << "\n";
     stream << "    - (w/o fragment)  : "
-           << reference.second.base.value_or("<NONE>") << "\n";
+           << (reference.second.base.empty() ? "<NONE>" : reference.second.base)
+           << "\n";
     stream << "    - (fragment)      : "
            << reference.second.fragment.value_or("<NONE>") << "\n";
   }
@@ -162,7 +166,7 @@ auto sourcemeta::jsonschema::inspect(const sourcemeta::core::Options &options)
   const auto dialect{default_dialect(options, configuration)};
 
   sourcemeta::core::SchemaFrame frame{
-      sourcemeta::core::SchemaFrame::Mode::Instances};
+      sourcemeta::core::SchemaFrame::Mode::References};
 
   try {
     const auto &custom_resolver{
@@ -171,17 +175,17 @@ auto sourcemeta::jsonschema::inspect(const sourcemeta::core::Options &options)
         sourcemeta::core::identify(schema, custom_resolver, dialect)};
 
     frame.analyse(
-        schema, sourcemeta::core::schema_official_walker, custom_resolver,
-        dialect,
+        schema, sourcemeta::core::schema_walker, custom_resolver, dialect,
 
-        // Only use the file-based URI if the schema has no identifier,
-        // as otherwise we make the output unnecessarily hard when it
-        // comes to debugging schemas
-        identifier.has_value()
-            ? std::optional<sourcemeta::core::JSON::String>(std::nullopt)
-            : sourcemeta::core::URI::from_path(
-                  sourcemeta::core::weakly_canonical(schema_path))
-                  .recompose());
+        // Only use the file-based URI if the schema has no
+        // identifier, as otherwise we make the output unnecessarily
+        // hard when it comes to debugging schemas
+        !identifier.empty() ? ""
+                            : sourcemeta::jsonschema::default_id(schema_path));
+  } catch (const sourcemeta::core::SchemaKeywordError &error) {
+    throw FileError<sourcemeta::core::SchemaKeywordError>(schema_path, error);
+  } catch (const sourcemeta::core::SchemaFrameError &error) {
+    throw FileError<sourcemeta::core::SchemaFrameError>(schema_path, error);
   } catch (
       const sourcemeta::core::SchemaRelativeMetaschemaResolutionError &error) {
     throw FileError<sourcemeta::core::SchemaRelativeMetaschemaResolutionError>(
@@ -192,6 +196,8 @@ auto sourcemeta::jsonschema::inspect(const sourcemeta::core::Options &options)
   } catch (const sourcemeta::core::SchemaUnknownBaseDialectError &) {
     throw FileError<sourcemeta::core::SchemaUnknownBaseDialectError>(
         schema_path);
+  } catch (const sourcemeta::core::SchemaUnknownDialectError &) {
+    throw FileError<sourcemeta::core::SchemaUnknownDialectError>(schema_path);
   } catch (const sourcemeta::core::SchemaError &error) {
     throw FileError<sourcemeta::core::SchemaError>(schema_path, error.what());
   }

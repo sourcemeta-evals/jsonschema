@@ -17,8 +17,7 @@
 #include <sourcemeta/core/json.h>
 #include <sourcemeta/core/jsonschema.h>
 
-#include <optional> // std::optional
-#include <string>   // std::string
+#include <string_view> // std::string_view
 
 namespace sourcemeta::jsonbinpack {
 
@@ -40,8 +39,8 @@ namespace sourcemeta::jsonbinpack {
 /// })JSON")};
 ///
 /// sourcemeta::jsonbinpack::compile(
-///     schema, sourcemeta::core::schema_official_walker,
-///     sourcemeta::core::schema_official_resolver);
+///     schema, sourcemeta::core::schema_walker,
+///     sourcemeta::core::schema_resolver);
 ///
 /// sourcemeta::core::prettify(schema, std::cout);
 /// std::cout << std::endl;
@@ -50,8 +49,7 @@ SOURCEMETA_JSONBINPACK_COMPILER_EXPORT
 auto compile(sourcemeta::core::JSON &schema,
              const sourcemeta::core::SchemaWalker &walker,
              const sourcemeta::core::SchemaResolver &resolver,
-             const std::optional<std::string> &default_dialect = std::nullopt)
-    -> void;
+             std::string_view default_dialect = "") -> void;
 
 /// @ingroup compiler
 ///
@@ -73,18 +71,17 @@ auto compile(sourcemeta::core::JSON &schema,
 /// })JSON")};
 ///
 /// sourcemeta::jsonbinpack::canonicalize(
-///     schema, sourcemeta::core::schema_official_walker,
-///     sourcemeta::core::schema_official_resolver);
+///     schema, sourcemeta::core::schema_walker,
+///     sourcemeta::core::schema_resolver);
 ///
 /// sourcemeta::core::prettify(schema, std::cout);
 /// std::cout << std::endl;
 /// ```
 SOURCEMETA_JSONBINPACK_COMPILER_EXPORT
-auto canonicalize(
-    sourcemeta::core::JSON &schema,
-    const sourcemeta::core::SchemaWalker &walker,
-    const sourcemeta::core::SchemaResolver &resolver,
-    const std::optional<std::string> &default_dialect = std::nullopt) -> void;
+auto canonicalize(sourcemeta::core::JSON &schema,
+                  const sourcemeta::core::SchemaWalker &walker,
+                  const sourcemeta::core::SchemaResolver &resolver,
+                  std::string_view default_dialect = "") -> void;
 
 } // namespace sourcemeta::jsonbinpack
 

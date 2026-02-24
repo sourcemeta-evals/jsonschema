@@ -6,13 +6,13 @@ vendor/blaze
 vendor/core
 vendor/hydra
 vendor/jsonbinpack
+vendor/codegen
 vendor/vendorpull
 .ackrc
 .editorconfig
 action.yml
 Brewfile
 CONTRIBUTING.markdown
-DEPENDENCIES
 Dockerfile
 install
 Makefile
@@ -22,7 +22,9 @@ README.markdown
 cmake/FindBlaze.cmake
 cmake/FindCore.cmake
 cmake/FindHydra.cmake
+cmake/FindCodegen.cmake
 cmake/FindJSONBinPack.cmake
+cmake/fetch-github-releases.cmake
 .pre-commit-hooks.yaml
 snapcraft.yaml
 .npmignore
@@ -30,3 +32,5 @@ cli.js
 eslint.config.mjs
 package.json
 package-lock.json
+npm
+Dockerfile.test.alpine

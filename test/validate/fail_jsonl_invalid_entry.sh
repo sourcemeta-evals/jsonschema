@@ -10,6 +10,8 @@ trap clean EXIT
 cat << 'EOF' > "$TMP/schema.json"
 {
   "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Test",
+  "description": "Test schema",
   "type": "object"
 }
 EOF
@@ -22,7 +24,8 @@ EOF
 
 "$1" validate "$TMP/schema.json" "$TMP/instance.jsonl" 2>"$TMP/stderr.txt" \
   && EXIT_CODE="$?" || EXIT_CODE="$?"
-test "$EXIT_CODE" = "1" || exit 1
+# Other input error
+test "$EXIT_CODE" = "6" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
 error: Failed to parse the JSON document
@@ -36,10 +39,8 @@ diff "$TMP/stderr.txt" "$TMP/expected.txt"
 # JSON error
 "$1" validate "$TMP/schema.json" "$TMP/instance.jsonl" --json >"$TMP/stdout.txt" \
   && EXIT_CODE="$?" || EXIT_CODE="$?"
-test "$EXIT_CODE" = "1" || exit 1
-
-# Extract just the error from JSONL output (skip first 3 lines which is first JSON object)
-tail -n +4 "$TMP/stdout.txt" > "$TMP/error.txt"
+# Other input error
+test "$EXIT_CODE" = "6" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
 {
@@ -50,4 +51,4 @@ cat << EOF > "$TMP/expected.txt"
 }
 EOF
 
-diff "$TMP/error.txt" "$TMP/expected.txt"
+diff "$TMP/stdout.txt" "$TMP/expected.txt"

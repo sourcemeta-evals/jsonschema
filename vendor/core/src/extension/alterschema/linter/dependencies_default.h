@@ -1,5 +1,10 @@
 class DependenciesDefault final : public SchemaTransformRule {
+private:
+  static inline const std::string KEYWORD{"dependencies"};
+
 public:
+  using mutates = std::true_type;
+  using reframe_after_transform = std::true_type;
   DependenciesDefault()
       : SchemaTransformRule{
             "dependencies_default",
@@ -10,24 +15,24 @@ public:
   condition(const sourcemeta::core::JSON &schema,
             const sourcemeta::core::JSON &,
             const sourcemeta::core::Vocabularies &vocabularies,
-            const sourcemeta::core::SchemaFrame &,
-            const sourcemeta::core::SchemaFrame::Location &,
+            const sourcemeta::core::SchemaFrame &frame,
+            const sourcemeta::core::SchemaFrame::Location &location,
             const sourcemeta::core::SchemaWalker &,
             const sourcemeta::core::SchemaResolver &) const
       -> sourcemeta::core::SchemaTransformRule::Result override {
     ONLY_CONTINUE_IF(
-        contains_any(vocabularies,
-                     {"http://json-schema.org/draft-07/schema#",
-                      "http://json-schema.org/draft-06/schema#",
-                      "http://json-schema.org/draft-04/schema#",
-                      "http://json-schema.org/draft-03/schema#"}) &&
-        schema.is_object() && schema.defines("dependencies") &&
-        schema.at("dependencies").is_object() &&
-        schema.at("dependencies").empty());
-    return APPLIES_TO_KEYWORDS("dependencies");
+        vocabularies.contains_any({Vocabularies::Known::JSON_Schema_Draft_7,
+                                   Vocabularies::Known::JSON_Schema_Draft_6,
+                                   Vocabularies::Known::JSON_Schema_Draft_4,
+                                   Vocabularies::Known::JSON_Schema_Draft_3}) &&
+        schema.is_object() && schema.defines(KEYWORD) &&
+        schema.at(KEYWORD).is_object() && schema.at(KEYWORD).empty());
+    ONLY_CONTINUE_IF(!frame.has_references_through(
+        location.pointer, WeakPointer::Token{std::cref(KEYWORD)}));
+    return APPLIES_TO_KEYWORDS(KEYWORD);
   }
 
   auto transform(JSON &schema, const Result &) const -> void override {
-    schema.erase("dependencies");
+    schema.erase(KEYWORD);
   }
 };

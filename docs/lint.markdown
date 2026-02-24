@@ -3,10 +3,12 @@ Linting
 
 ```sh
 jsonschema lint [schemas-or-directories...] [--http/-h] [--fix/-f]
-  [--json/-j] [--verbose/-v] [--resolve/-r <schemas-or-directories> ...]
+  [--format/-m] [--keep-ordering/-k] [--json/-j] [--verbose/-v] [--debug/-g]
+  [--resolve/-r <schemas-or-directories> ...]
   [--extension/-e <extension>] [--ignore/-i <schemas-or-directories>]
   [--exclude/-x <rule-name>] [--only/-o <rule-name>] [--list/-l]
-  [--default-dialect/-d <uri>] [--strict/-s] [--indentation/-n <spaces>]
+  [--rule/-a <rule-schema>]
+  [--default-dialect/-d <uri>] [--indentation/-n <spaces>]
 ```
 
 JSON Schema is a surprisingly expressive schema language. Like with traditional
@@ -29,6 +31,12 @@ automatically fix many of them.
 
 **The `--fix/-f` option is not supported when passing YAML schemas.**
 
+**The `--format/-m` option requires `--fix/-f` to be set and is not supported
+for YAML schemas.** When `--format/-m` is set, the output file is always
+written with proper formatting (equivalent to running `fmt`), even if there
+are no lint issues to fix. Use `--keep-ordering/-k` with `--format/-m` to
+preserve key ordering during formatting.
+
 > [!NOTE]
 > There are linting rules that require compiling and validating instance
 > against the given schema. For example, there is a rule to check that the
@@ -41,8 +49,85 @@ automatically fix many of them.
 Use `--list/-l` to print all the available rules and brief descriptions about
 them.
 
-The `--strict/-s` enables additional opinionated strict rules with a focus on
-preventing mistakes and promoting correctness.
+Disabling Rules
+---------------
+
+While you can disable rules globally using the `--exclude/-x` option, you may
+want to disable specific rules for individual subschemas. To do this, add the
+`x-lint-exclude` keyword to the subschema, set to either a rule name or an
+array of rule names to exclude.
+
+For example, if you intentionally want to use `type` alongside `enum` in a
+specific property, you can disable the `enum_with_type` rule for just that
+subschema:
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [ "active", "inactive" ],
+      "x-lint-exclude": "enum_with_type"
+    }
+  }
+}
+```
+
+To disable multiple rules, use an array:
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [ "active" ],
+      "x-lint-exclude": [ "enum_with_type", "enum_to_const" ]
+    }
+  }
+}
+```
+
+Custom Rules
+------------
+
+You can define custom lint rules as JSON Schemas using the `--rule/-a` option.
+Each rule schema must have a `title` keyword (used as the rule name) and
+optionally a `description` keyword (used as the rule message). The title must
+consist only of lowercase ASCII letters, digits, underscores, or slashes.
+
+When linting, _every subschema in the target schema_ is validated as a JSON
+instance against each custom rule schema (not only the top one). If any
+subschema does not conform, the rule fires and reports the validation errors.
+
+For example, create a rule that requires every subschema to declare a `type`:
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "require_type",
+  "description": "Every subschema must declare the type keyword",
+  "required": [ "type" ]
+}
+```
+
+Then run:
+
+```sh
+jsonschema lint --rule require_type.json path/to/my/schema.json
+```
+
+You can pass multiple custom rules:
+
+```sh
+jsonschema lint --rule rule1.json --rule rule2.json path/to/my/schema.json
+```
+
+Custom rules can also be declared in the
+[`jsonschema.json`](./configuration.markdown) configuration file.
 
 Examples
 --------
@@ -97,12 +182,6 @@ jsonschema lint path/to/my/schema.json --only enum_with_type --only const_with_t
 jsonschema lint path/to/my/schema.json --json
 ```
 
-### Lint with strict mode
-
-```sh
-jsonschema lint path/to/my/schema.json --strict
-```
-
 ### Lint every `.json` file in a given directory (recursively)
 
 ```sh
@@ -139,14 +218,32 @@ jsonschema lint path/to/my/schema.json --fix
 jsonschema lint path/to/my/schema.json --fix --indentation 4
 ```
 
-### Fix lint warnings on a single schema while preserving keyword ordering
+### Fix lint warnings and format the schema
 
 ```sh
-jsonschema lint path/to/my/schema.json --fix --keep-ordering
+jsonschema lint path/to/my/schema.json --fix --format
+```
+
+### Fix lint warnings, format, but preserve keyword ordering
+
+```sh
+jsonschema lint path/to/my/schema.json --fix --format --keep-ordering
 ```
 
 ### Print a summary of all enabled rules
 
 ```sh
 jsonschema lint --list
+```
+
+### Lint with a custom rule
+
+```sh
+jsonschema lint --rule path/to/my/rule.json path/to/my/schema.json
+```
+
+### Lint with multiple custom rules
+
+```sh
+jsonschema lint --rule rule1.json --rule rule2.json path/to/my/schema.json
 ```

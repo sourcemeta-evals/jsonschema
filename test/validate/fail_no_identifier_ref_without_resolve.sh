@@ -10,6 +10,8 @@ trap clean EXIT
 cat << 'EOF' > "$TMP/schema.json"
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Test",
+  "description": "Test schema",
   "$ref": "./schemas/other.json"
 }
 EOF
@@ -20,10 +22,10 @@ EOF
 
 "$1" validate "$TMP/schema.json" "$TMP/instance.json" --verbose > "$TMP/output.txt" 2>&1 \
   && EXIT_CODE="$?" || EXIT_CODE="$?"
-test "$EXIT_CODE" = "1" || exit 1
+# Schema input error
+test "$EXIT_CODE" = "4" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
-Attempting to read file reference from disk: $(realpath "$TMP")/schemas/other.json
 error: Could not resolve the reference to an external schema
   at identifier file://$(realpath "$TMP")/schemas/other.json
   at file path $(realpath "$TMP")/schema.json

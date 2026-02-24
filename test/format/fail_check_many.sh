@@ -11,26 +11,33 @@ mkdir "$TMP/schemas"
 
 cat << 'EOF' > "$TMP/schemas/1.json"
 {
-  "type": 1,
-  "$schema": "http://json-schema.org/draft-04/schema#"
+  "type": "string",
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Test",
+  "description": "Test schema"
 }
 EOF
 
 cat << 'EOF' > "$TMP/schemas/2.json"
 {
-  "type": 1,
-  "$schema": "http://json-schema.org/draft-04/schema#"
+  "type": "string",
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Test",
+  "description": "Test schema"
 }
 EOF
 
 cat << 'EOF' > "$TMP/schemas/3.json"
 {
-  "$schema": "http://json-schema.org/draft-04/schema#"
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Test",
+  "description": "Test schema"
 }
 EOF
 
-"$1" fmt "$TMP/schemas" --check >"$TMP/output.txt" 2>&1 && CODE="$?" || CODE="$?"
-test "$CODE" = "2" || exit 1
+"$1" fmt "$TMP/schemas" --check >"$TMP/output.txt" 2>&1 && EXIT_CODE="$?" || EXIT_CODE="$?"
+# Format check failure
+test "$EXIT_CODE" = "2" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
 fail: $(realpath "$TMP")/schemas/1.json

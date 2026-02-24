@@ -1,33 +1,83 @@
 #ifndef SOURCEMETA_JSONSCHEMA_CLI_UTILS_H_
 #define SOURCEMETA_JSONSCHEMA_CLI_UTILS_H_
 
+#include <sourcemeta/blaze/configuration.h>
+#include <sourcemeta/core/io.h>
 #include <sourcemeta/core/json.h>
 #include <sourcemeta/core/jsonpointer.h>
+#include <sourcemeta/core/jsonschema.h>
 #include <sourcemeta/core/options.h>
-#include <sourcemeta/core/schemaconfig.h>
+#include <sourcemeta/core/uri.h>
 
+#include <sourcemeta/blaze/compiler.h>
 #include <sourcemeta/blaze/output.h>
 
-#include <cassert>  // assert
-#include <iterator> // std::next
-#include <optional> // std::optional
-#include <ostream>  // std::ostream
-#include <string>   // std::string, std::stoull
-#include <tuple>    // std::get
+#include "input.h"
+
+#include <cassert>     // assert
+#include <filesystem>  // std::filesystem::path
+#include <iterator>    // std::next
+#include <optional>    // std::optional
+#include <ostream>     // std::ostream
+#include <string>      // std::string, std::stoull
+#include <string_view> // std::string_view
+#include <tuple>       // std::get
+#include <variant>     // std::visit
 
 namespace sourcemeta::jsonschema {
 
-inline auto default_dialect(
-    const sourcemeta::core::Options &options,
-    const std::optional<sourcemeta::core::SchemaConfig> &configuration)
-    -> std::optional<std::string> {
-  if (options.contains("default-dialect")) {
-    return std::string{options.at("default-dialect").front()};
-  } else if (configuration.has_value()) {
-    return configuration.value().default_dialect;
+inline auto default_id(const std::filesystem::path &schema_path)
+    -> std::string {
+  return sourcemeta::core::URI::from_path(
+             sourcemeta::core::weakly_canonical(schema_path))
+      .recompose();
+}
+
+inline auto default_id(const InputJSON &entry) -> std::string {
+  return default_id(entry.resolution_base);
+}
+
+inline auto resolve_entrypoint(const sourcemeta::core::SchemaFrame &frame,
+                               const std::string &entrypoint) -> std::string {
+  if (entrypoint.empty()) {
+    return std::string{frame.root()};
   }
 
-  return std::nullopt;
+  if (entrypoint.front() == '/' &&
+      (entrypoint.size() < 2 || entrypoint[1] != '/')) {
+    sourcemeta::core::URI result{std::string{frame.root()}};
+    result.fragment(entrypoint);
+    return result.recompose();
+  }
+
+  if (entrypoint.front() == '#') {
+    const std::string pointer_string{entrypoint.substr(1)};
+    sourcemeta::core::URI result{std::string{frame.root()}};
+    result.fragment(pointer_string);
+    return result.recompose();
+  }
+
+  try {
+    const sourcemeta::core::URI uri{entrypoint};
+    return entrypoint;
+  } catch (const sourcemeta::core::URIParseError &) {
+    throw sourcemeta::blaze::CompilerInvalidEntryPoint{
+        entrypoint, "The given entry point is not a valid URI or JSON Pointer"};
+  }
+}
+
+inline auto default_dialect(
+    const sourcemeta::core::Options &options,
+    const std::optional<sourcemeta::blaze::Configuration> &configuration)
+    -> std::string_view {
+  if (options.contains("default-dialect")) {
+    return options.at("default-dialect").front();
+  } else if (configuration.has_value() &&
+             configuration.value().default_dialect.has_value()) {
+    return configuration.value().default_dialect.value();
+  }
+
+  return "";
 }
 
 inline auto parse_indentation(const sourcemeta::core::Options &options)
@@ -152,8 +202,14 @@ inline auto print(const sourcemeta::blaze::TraceOutput &output,
     stream << "   at keyword location \"" << entry.keyword_location << "\"\n";
 
     if (entry.vocabulary.first) {
-      stream << "   at vocabulary \""
-             << entry.vocabulary.second.value_or("<unknown>") << "\"\n";
+      stream << "   at vocabulary \"";
+      if (entry.vocabulary.second.has_value()) {
+        std::visit([&stream](const auto &vocabulary) { stream << vocabulary; },
+                   entry.vocabulary.second.value());
+      } else {
+        stream << "<unknown>";
+      }
+      stream << "\"\n";
     }
 
     // To make it easier to read

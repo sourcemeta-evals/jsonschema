@@ -11,6 +11,8 @@ cat << 'EOF' > "$TMP/schema.json"
 {
   "id": "https://example.com",
   "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Test",
+  "description": "Test schema",
   "type": "string"
 }
 EOF
@@ -44,14 +46,11 @@ cat << 'EOF' > "$TMP/test.json"
 EOF
 
 "$1" test "$TMP/test.json" --resolve "$TMP/schema.json" --verbose 1> "$TMP/output.txt" 2>&1 \
-  && CODE="$?" || CODE="$?"
-test "$CODE" = "2" || exit 1
+  && EXIT_CODE="$?" || EXIT_CODE="$?"
+# Test assertion failure
+test "$EXIT_CODE" = "2" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
-Detecting schema resources from file: $(realpath "$TMP")/schema.json
-Importing schema into the resolution context: file://$(realpath "$TMP")/schema.json
-Importing schema into the resolution context: https://example.com
-Looking for target: https://example.com
 $(realpath "$TMP")/test.json:
   1/4 PASS First test
   2/4 FAIL First failure

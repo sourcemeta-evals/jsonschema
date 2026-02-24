@@ -10,6 +10,8 @@ trap clean EXIT
 cat << 'EOF' > "$TMP/schema.json"
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Test",
+  "description": "Test schema",
   "$id": "https://example.com",
   "$ref": "#/$defs/string",
   "$defs": {
@@ -31,63 +33,73 @@ cat << 'EOF' > "$TMP/expected.txt"
     Dialect           : https://json-schema.org/draft/2020-12/schema
     Base Dialect      : https://json-schema.org/draft/2020-12/schema
     Parent            : <NONE>
-    Instance Location :
+    Property Name     : no
+    Orphan            : no
 
 (POINTER) URI: https://example.com#/$defs
     Type              : Static
     Root              : https://example.com
     Pointer           : /$defs
-    File Position     : 5:3
+    File Position     : 7:3
     Base              : https://example.com
     Relative Pointer  : /$defs
     Dialect           : https://json-schema.org/draft/2020-12/schema
     Base Dialect      : https://json-schema.org/draft/2020-12/schema
     Parent            :
+    Property Name     : no
+    Orphan            : no
 
 (SUBSCHEMA) URI: https://example.com#/$defs/string
     Type              : Static
     Root              : https://example.com
     Pointer           : /$defs/string
-    File Position     : 6:5
+    File Position     : 8:5
     Base              : https://example.com
     Relative Pointer  : /$defs/string
     Dialect           : https://json-schema.org/draft/2020-12/schema
     Base Dialect      : https://json-schema.org/draft/2020-12/schema
     Parent            :
-    Instance Location :
+    Property Name     : no
+    Orphan            : yes
 
 (POINTER) URI: https://example.com#/$defs/string/type
     Type              : Static
     Root              : https://example.com
     Pointer           : /$defs/string/type
-    File Position     : 6:17
+    File Position     : 8:17
     Base              : https://example.com
     Relative Pointer  : /$defs/string/type
     Dialect           : https://json-schema.org/draft/2020-12/schema
     Base Dialect      : https://json-schema.org/draft/2020-12/schema
     Parent            : /$defs/string
+    Property Name     : no
+    Orphan            : yes
 
 (POINTER) URI: https://example.com#/$id
     Type              : Static
     Root              : https://example.com
     Pointer           : /$id
-    File Position     : 3:3
+    File Position     : 5:3
     Base              : https://example.com
     Relative Pointer  : /$id
     Dialect           : https://json-schema.org/draft/2020-12/schema
     Base Dialect      : https://json-schema.org/draft/2020-12/schema
     Parent            :
+    Property Name     : no
+    Orphan            : no
 
 (POINTER) URI: https://example.com#/$ref
     Type              : Static
     Root              : https://example.com
     Pointer           : /$ref
-    File Position     : 4:3
+    File Position     : 6:3
     Base              : https://example.com
     Relative Pointer  : /$ref
     Dialect           : https://json-schema.org/draft/2020-12/schema
     Base Dialect      : https://json-schema.org/draft/2020-12/schema
     Parent            :
+    Property Name     : no
+    Orphan            : no
 
 (POINTER) URI: https://example.com#/$schema
     Type              : Static
@@ -99,10 +111,38 @@ cat << 'EOF' > "$TMP/expected.txt"
     Dialect           : https://json-schema.org/draft/2020-12/schema
     Base Dialect      : https://json-schema.org/draft/2020-12/schema
     Parent            :
+    Property Name     : no
+    Orphan            : no
+
+(POINTER) URI: https://example.com#/description
+    Type              : Static
+    Root              : https://example.com
+    Pointer           : /description
+    File Position     : 4:3
+    Base              : https://example.com
+    Relative Pointer  : /description
+    Dialect           : https://json-schema.org/draft/2020-12/schema
+    Base Dialect      : https://json-schema.org/draft/2020-12/schema
+    Parent            :
+    Property Name     : no
+    Orphan            : no
+
+(POINTER) URI: https://example.com#/title
+    Type              : Static
+    Root              : https://example.com
+    Pointer           : /title
+    File Position     : 3:3
+    Base              : https://example.com
+    Relative Pointer  : /title
+    Dialect           : https://json-schema.org/draft/2020-12/schema
+    Base Dialect      : https://json-schema.org/draft/2020-12/schema
+    Parent            :
+    Property Name     : no
+    Orphan            : no
 
 (REFERENCE) ORIGIN: /$ref
     Type              : Static
-    File Position     : 4:3
+    File Position     : 6:3
     Destination       : https://example.com#/$defs/string
     - (w/o fragment)  : https://example.com
     - (fragment)      : /$defs/string

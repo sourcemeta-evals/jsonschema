@@ -1,5 +1,7 @@
 class MaxContainsCoveredByMaxItems final : public SchemaTransformRule {
 public:
+  using mutates = std::true_type;
+  using reframe_after_transform = std::false_type;
   MaxContainsCoveredByMaxItems()
       : SchemaTransformRule{
             "max_contains_covered_by_max_items",
@@ -17,10 +19,9 @@ public:
             const sourcemeta::core::SchemaResolver &) const
       -> sourcemeta::core::SchemaTransformRule::Result override {
     ONLY_CONTINUE_IF(
-        contains_any(
-            vocabularies,
-            {"https://json-schema.org/draft/2020-12/vocab/validation",
-             "https://json-schema.org/draft/2019-09/vocab/validation"}) &&
+        vocabularies.contains_any(
+            {Vocabularies::Known::JSON_Schema_2020_12_Validation,
+             Vocabularies::Known::JSON_Schema_2019_09_Validation}) &&
         schema.is_object() && schema.defines("maxContains") &&
         schema.at("maxContains").is_integer() && schema.defines("maxItems") &&
         schema.at("maxItems").is_integer() &&

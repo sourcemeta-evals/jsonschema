@@ -10,6 +10,8 @@ trap clean EXIT
 cat << 'EOF' > "$TMP/schema.json"
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Test",
+  "description": "Test schema",
   "properties": {
     "foo": {
       "type": "string"
@@ -24,9 +26,22 @@ EOF
 
 "$1" validate "$TMP/schema.json" "$TMP/instance.json" --trace > "$TMP/output.txt" \
   && EXIT_CODE="$?" || EXIT_CODE="$?"
+# Validation failure
 test "$EXIT_CODE" = "2" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
+@- (annotation) "/description" (AnnotationEmit)
+   value "Test schema"
+   at instance location "" (line 1, column 1)
+   at keyword location "file://$(realpath "$TMP")/schema.json#/description"
+   at vocabulary "https://json-schema.org/draft/2020-12/vocab/meta-data"
+
+@- (annotation) "/title" (AnnotationEmit)
+   value "Test"
+   at instance location "" (line 1, column 1)
+   at keyword location "file://$(realpath "$TMP")/schema.json#/title"
+   at vocabulary "https://json-schema.org/draft/2020-12/vocab/meta-data"
+
 -> (push) "/properties" (LogicalWhenType)
    at instance location "" (line 1, column 1)
    at keyword location "file://$(realpath "$TMP")/schema.json#/properties"

@@ -11,6 +11,8 @@ cat << 'EOF' > "$TMP/schema.json"
 {
   "id": "https://example.com",
   "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Test",
+  "description": "Test schema",
   "allOf": [
     {
       "anyOf": [
@@ -38,8 +40,9 @@ cat << 'EOF' > "$TMP/test.json"
 EOF
 
 "$1" test "$TMP/test.json" --resolve "$TMP/schema.json" 1> "$TMP/output.txt" 2>&1 \
-  && CODE="$?" || CODE="$?"
-test "$CODE" = "2" || exit 1
+  && EXIT_CODE="$?" || EXIT_CODE="$?"
+# Test assertion failure
+test "$EXIT_CODE" = "2" || exit 1
 
 cat "$TMP/output.txt"
 
@@ -51,6 +54,9 @@ error: Schema validation failure
   The value was expected to be of type integer but it was of type object
     at instance location ""
     at evaluate path "/allOf/1/type"
+  The object value was expected to validate against the 2 given subschemas
+    at instance location ""
+    at evaluate path "/allOf"
 EOF
 
 diff "$TMP/output.txt" "$TMP/expected.txt"

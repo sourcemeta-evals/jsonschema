@@ -3,20 +3,24 @@
 
 #include <sourcemeta/core/jsonschema.h>
 
-#include <algorithm> // std::move, std::sort, std::unique
-#include <cassert>   // assert
-#include <iterator>  // std::back_inserter
-#include <tuple>     // std::tuple, std::get
-#include <utility>   // std::move, std::pair
+#include <algorithm>     // std::move, std::sort, std::unique
+#include <cassert>       // assert
+#include <map>           // std::map
+#include <set>           // std::set
+#include <string_view>   // std::string_view
+#include <unordered_map> // std::unordered_map
+#include <utility>       // std::move, std::pair
+#include <vector>        // std::vector
 
 #include "compile_helpers.h"
+#include "postprocess.h"
 
 namespace {
 
 auto compile_subschema(const sourcemeta::blaze::Context &context,
                        const sourcemeta::blaze::SchemaContext &schema_context,
                        const sourcemeta::blaze::DynamicContext &dynamic_context,
-                       const std::optional<std::string> &default_dialect)
+                       const std::string_view default_dialect)
     -> sourcemeta::blaze::Instructions {
   using namespace sourcemeta::blaze;
   assert(is_schema(schema_context.schema));
@@ -27,8 +31,13 @@ auto compile_subschema(const sourcemeta::blaze::Context &context,
     if (schema_context.schema.to_boolean()) {
       return {};
     } else {
-      return {make(sourcemeta::blaze::InstructionIndex::AssertionFail, context,
-                   schema_context, dynamic_context, ValueNone{})};
+      return {make(
+          sourcemeta::blaze::InstructionIndex::AssertionFail, context,
+          schema_context,
+          {.keyword = KEYWORD_EMPTY,
+           .base_schema_location = dynamic_context.base_schema_location,
+           .base_instance_location = dynamic_context.base_instance_location},
+          ValueNone{})};
     }
   }
 
@@ -42,18 +51,15 @@ auto compile_subschema(const sourcemeta::blaze::Context &context,
     assert(!schema_context.base.fragment().has_value());
     for (auto &&step : context.compiler(
              context,
-             {.relative_pointer =
-                  schema_context.relative_pointer.concat({keyword}),
+             {.relative_pointer = schema_context.relative_pointer.concat(
+                  make_weak_pointer(keyword)),
               .schema = schema_context.schema,
               .vocabularies = entry.vocabularies,
               .base = schema_context.base,
-              // TODO: This represents a copy
-              .labels = schema_context.labels,
               .is_property_name = schema_context.is_property_name},
              {.keyword = keyword,
               .base_schema_location = dynamic_context.base_schema_location,
-              .base_instance_location = dynamic_context.base_instance_location,
-              .property_as_target = dynamic_context.property_as_target},
+              .base_instance_location = dynamic_context.base_instance_location},
              steps)) {
       // Just a sanity check to ensure every keyword location is indeed valid
       assert(context.frame.locations().contains(
@@ -66,41 +72,78 @@ auto compile_subschema(const sourcemeta::blaze::Context &context,
   return steps;
 }
 
-auto precompile(
-    const sourcemeta::blaze::Context &context,
-    sourcemeta::blaze::SchemaContext &schema_context,
-    const sourcemeta::blaze::DynamicContext &dynamic_context,
-    const sourcemeta::core::SchemaFrame::Locations::value_type &entry)
-    -> sourcemeta::blaze::Instructions {
-  const sourcemeta::core::URI anchor_uri{entry.first.second};
-  const auto label{sourcemeta::blaze::Evaluator{}.hash(
-      sourcemeta::blaze::schema_resource_id(
-          context.resources,
-          anchor_uri.recompose_without_fragment().value_or("")),
-      std::string{anchor_uri.fragment().value_or("")})};
-  schema_context.labels.insert(label);
+// TODO: Somehow move this logic up to `SchemaFrame`
+auto schema_frame_populate_target_types(
+    const sourcemeta::core::SchemaFrame &frame,
+    std::unordered_map<std::string_view, std::pair<bool, bool>> &target_types)
+    -> void {
+  for (const auto &reference : frame.references()) {
+    if (!reference.first.second.empty() &&
+        reference.first.second.back().is_property() &&
+        reference.first.second.back().to_property() == "$schema") {
+      continue;
+    }
 
-  // Configure a schema context that corresponds to the
-  // schema resource that we are precompiling
-  auto subschema{sourcemeta::core::get(context.root, entry.second.pointer)};
-  auto nested_vocabularies{sourcemeta::core::vocabularies(
-      subschema, context.resolver, entry.second.dialect)};
-  const sourcemeta::blaze::SchemaContext nested_schema_context{
-      .relative_pointer = entry.second.relative_pointer,
-      .schema = std::move(subschema),
-      .vocabularies = std::move(nested_vocabularies),
-      .base = entry.second.base,
-      .labels = {},
-      .is_property_name = schema_context.is_property_name};
+    const auto reference_location{frame.traverse(reference.first.second)};
+    assert(reference_location.has_value());
+    auto &context{target_types[reference.second.destination]};
+    if (reference_location->get().property_name) {
+      context.first = true;
+    } else {
+      context.second = true;
+    }
+  }
 
-  return {make(sourcemeta::blaze::InstructionIndex::ControlMark, context,
-               nested_schema_context, dynamic_context,
-               sourcemeta::blaze::ValueUnsignedInteger{label},
-               sourcemeta::blaze::compile(
-                   context, nested_schema_context,
-                   sourcemeta::blaze::relative_dynamic_context(),
-                   sourcemeta::core::empty_pointer,
-                   sourcemeta::core::empty_pointer, entry.first.second))};
+  std::unordered_map<std::string_view, const sourcemeta::core::WeakPointer *>
+      destination_pointers;
+  for (const auto &[destination, _] : target_types) {
+    const auto destination_location{frame.traverse(destination)};
+    if (destination_location.has_value()) {
+      destination_pointers.emplace(destination,
+                                   &destination_location->get().pointer);
+    }
+  }
+
+  std::unordered_map<std::string_view, std::vector<std::string_view>>
+      references_within;
+  for (const auto &reference : frame.references()) {
+    if (!reference.first.second.empty() &&
+        reference.first.second.back().is_property() &&
+        reference.first.second.back().to_property() == "$schema") {
+      continue;
+    }
+
+    for (const auto &[destination, destination_pointer] :
+         destination_pointers) {
+      if (reference.first.second.starts_with(*destination_pointer) &&
+          reference.first.second.size() > destination_pointer->size()) {
+        references_within[destination].push_back(reference.second.destination);
+      }
+    }
+  }
+
+  bool changed{true};
+  while (changed) {
+    changed = false;
+    for (const auto &[current_destination, context] : target_types) {
+      if (!context.first) {
+        continue;
+      }
+
+      const auto iterator{references_within.find(current_destination)};
+      if (iterator == references_within.end()) {
+        continue;
+      }
+
+      for (const auto &referenced_destination : iterator->second) {
+        auto &next_context{target_types[referenced_destination]};
+        if (!next_context.first) {
+          next_context.first = true;
+          changed = true;
+        }
+      }
+    }
+  }
 }
 
 } // namespace
@@ -111,32 +154,27 @@ auto compile(const sourcemeta::core::JSON &schema,
              const sourcemeta::core::SchemaWalker &walker,
              const sourcemeta::core::SchemaResolver &resolver,
              const Compiler &compiler,
-             const sourcemeta::core::SchemaFrame &frame, const Mode mode,
-             const std::optional<std::string> &default_dialect,
-             const std::optional<std::string> &default_id,
+             const sourcemeta::core::SchemaFrame &frame,
+             const std::string_view entrypoint, const Mode mode,
              const std::optional<Tweaks> &tweaks) -> Template {
   assert(is_schema(schema));
   const auto effective_tweaks{tweaks.value_or(Tweaks{})};
 
-  ///////////////////////////////////////////////////////////////////
-  // (1) Determine the root frame entry
-  ///////////////////////////////////////////////////////////////////
+  const auto maybe_entrypoint_location{frame.traverse(entrypoint)};
+  if (!maybe_entrypoint_location.has_value()) {
+    throw CompilerInvalidEntryPoint{
+        entrypoint, "The given entry point URI does not exist in the schema"};
+  }
 
-  const auto base_dialect{
-      sourcemeta::core::base_dialect(schema, resolver, default_dialect)};
-  const auto identifier{
-      base_dialect.has_value()
-          ? sourcemeta::core::identify(schema, base_dialect.value(), default_id)
-          : std::optional<std::string>{std::nullopt}};
-  const std::string base{
-      sourcemeta::core::URI::canonicalize(identifier.value_or(""))};
-  assert(frame.locations().contains(
-      {sourcemeta::core::SchemaReferenceType::Static, base}));
-  const auto root_frame_entry{frame.locations().at(
-      {sourcemeta::core::SchemaReferenceType::Static, base})};
+  const auto &entrypoint_location{maybe_entrypoint_location->get()};
+  if (entrypoint_location.type ==
+      sourcemeta::core::SchemaFrame::LocationType::Pointer) {
+    throw CompilerInvalidEntryPoint{
+        entrypoint, "The given entry point URI is not a valid subschema"};
+  }
 
   ///////////////////////////////////////////////////////////////////
-  // (2) Determine all the schema resources in the schema
+  // (1) Determine all the schema resources in the schema
   ///////////////////////////////////////////////////////////////////
 
   std::vector<std::string> resources;
@@ -156,7 +194,7 @@ auto compile(const sourcemeta::core::JSON &schema,
          std::set<std::string>(resources.cbegin(), resources.cend()).size());
 
   ///////////////////////////////////////////////////////////////////
-  // (3) Check if the schema relies on dynamic scopes
+  // (2) Check if the schema relies on dynamic scopes
   ///////////////////////////////////////////////////////////////////
 
   bool uses_dynamic_scopes{false};
@@ -171,88 +209,89 @@ auto compile(const sourcemeta::core::JSON &schema,
   }
 
   ///////////////////////////////////////////////////////////////////
-  // (4) Plan which static references we will precompile
+  // (3) Plan which static references we will precompile
   ///////////////////////////////////////////////////////////////////
 
-  // Use string views to avoid copying the actual strings, as we know
-  // that the frame survives the entire compilation process
-  std::vector<std::tuple<std::string_view, std::size_t, std::size_t>>
-      sorted_precompile_references;
+  std::unordered_map<std::string_view, std::pair<bool, bool>> target_types;
+  schema_frame_populate_target_types(frame, target_types);
 
-  if (effective_tweaks.precompile_static_references_maximum_schemas > 0) {
-    std::unordered_map<std::string_view, std::pair<std::size_t, std::size_t>>
-        static_reference_destinations;
-    for (const auto &reference : frame.references()) {
-      if (reference.first.first ==
-              sourcemeta::core::SchemaReferenceType::Static &&
-          frame.locations().contains(
-              {sourcemeta::core::SchemaReferenceType::Static,
-               reference.second.destination})) {
-        std::unordered_set<std::string> visited;
-        if (!effective_tweaks.precompile_static_references_non_circular &&
-            !is_circular(frame, reference.first.second, reference.second,
-                         visited)) {
-          continue;
-        }
+  std::map<
+      std::tuple<sourcemeta::core::SchemaReferenceType, std::string_view, bool>,
+      std::pair<std::size_t, const sourcemeta::core::WeakPointer *>>
+      targets_map;
+  targets_map.emplace(
+      std::make_tuple(sourcemeta::core::SchemaReferenceType::Static, entrypoint,
+                      false),
+      std::make_pair(0, nullptr));
 
-        const auto label{Evaluator{}.hash(
-            schema_resource_id(resources, reference.second.base.value_or("")),
-            reference.second.fragment.value_or(""))};
-        auto [iterator, inserted] = static_reference_destinations.try_emplace(
-            reference.second.destination, std::make_pair(label, 0));
-        iterator->second.second++;
-      }
+  for (const auto &reference : frame.references()) {
+    // Ignore meta-schema references
+    if (!reference.first.second.empty() &&
+        reference.first.second.back().is_property() &&
+        reference.first.second.back().to_property() == "$schema") {
+      continue;
     }
 
-    sorted_precompile_references.reserve(static_reference_destinations.size());
-    for (const auto &reference : static_reference_destinations) {
-      if (reference.second.second >=
-          effective_tweaks
-              .precompile_static_references_minimum_reference_count) {
-        sorted_precompile_references.emplace_back(
-            reference.first, reference.second.first, reference.second.second);
-      }
+    auto reference_origin{frame.traverse(reference.first.second)};
+    assert(reference_origin.has_value());
+    while (reference_origin->get().type ==
+               sourcemeta::core::SchemaFrame::LocationType::Pointer &&
+           reference_origin->get().parent.has_value()) {
+      reference_origin = frame.traverse(reference_origin->get().parent.value());
+      assert(reference_origin.has_value());
     }
-    std::ranges::sort(sorted_precompile_references,
-                      [](const auto &left, const auto &right) {
-                        return std::get<2>(left) > std::get<2>(right);
-                      });
 
-    if (sorted_precompile_references.size() >
-        effective_tweaks.precompile_static_references_maximum_schemas) {
-      sorted_precompile_references.erase(
-          sorted_precompile_references.begin() +
-              static_cast<std::ptrdiff_t>(
-                  effective_tweaks
-                      .precompile_static_references_maximum_schemas),
-          sorted_precompile_references.end());
+    // Skip unreachable targets
+    if (reference_origin->get().type !=
+            sourcemeta::core::SchemaFrame::LocationType::Pointer &&
+        !frame.is_reachable(entrypoint_location, reference_origin->get(),
+                            walker, resolver)) {
+      continue;
+    }
+
+    assert(target_types.contains(reference.second.destination));
+    const auto &[needs_name,
+                 needs_instance]{target_types.at(reference.second.destination)};
+
+    if (needs_name) {
+      targets_map.emplace(
+          std::make_tuple(reference.first.first,
+                          std::string_view{reference.second.destination}, true),
+          std::make_pair(targets_map.size(), &reference.first.second));
+    }
+
+    if (needs_instance) {
+      targets_map.emplace(
+          std::make_tuple(reference.first.first,
+                          std::string_view{reference.second.destination},
+                          false),
+          std::make_pair(targets_map.size(), &reference.first.second));
     }
   }
 
-  assert(sorted_precompile_references.size() <=
-         effective_tweaks.precompile_static_references_maximum_schemas);
-  std::unordered_set<std::size_t> precompiled_labels;
-  for (const auto &reference : sorted_precompile_references) {
-    assert(
-        std::get<2>(reference) >=
-        effective_tweaks.precompile_static_references_minimum_reference_count);
-    precompiled_labels.emplace(std::get<1>(reference));
+  // Also add dynamic anchors that may not be directly referenced
+  // but could be used as override targets during dynamic resolution
+  for (const auto &entry : frame.locations()) {
+    if (entry.second.type !=
+            sourcemeta::core::SchemaFrame::LocationType::Anchor ||
+        entry.first.first != sourcemeta::core::SchemaReferenceType::Dynamic) {
+      continue;
+    }
+
+    // Skip unreachable dynamic anchors
+    if (!frame.is_reachable(entrypoint_location, entry.second, walker,
+                            resolver)) {
+      continue;
+    }
+
+    targets_map.emplace(std::make_tuple(entry.first.first,
+                                        std::string_view{entry.first.second},
+                                        false),
+                        std::make_pair(targets_map.size(), nullptr));
   }
 
   ///////////////////////////////////////////////////////////////////
-  // (5) Build the starting schema context
-  ///////////////////////////////////////////////////////////////////
-
-  SchemaContext schema_context{
-      .relative_pointer = sourcemeta::core::empty_pointer,
-      .schema = schema,
-      .vocabularies = vocabularies(schema, resolver, root_frame_entry.dialect),
-      .base = sourcemeta::core::URI::canonicalize(root_frame_entry.base),
-      .labels = {},
-      .is_property_name = false};
-
-  ///////////////////////////////////////////////////////////////////
-  // (6) Build the gloal compilation context
+  // (4) Build the global compilation context
   ///////////////////////////////////////////////////////////////////
 
   auto unevaluated{
@@ -267,25 +306,15 @@ auto compile(const sourcemeta::core::JSON &schema,
                         .mode = mode,
                         .uses_dynamic_scopes = uses_dynamic_scopes,
                         .unevaluated = std::move(unevaluated),
-                        .precompiled_labels = std::move(precompiled_labels),
-                        .tweaks = effective_tweaks};
+                        .tweaks = effective_tweaks,
+                        .targets = std::move(targets_map)};
 
   ///////////////////////////////////////////////////////////////////
-  // (7) Build the initial dynamic context
+  // (5) Build labels map for dynamic anchors
   ///////////////////////////////////////////////////////////////////
 
-  const DynamicContext dynamic_context{relative_dynamic_context()};
-
-  ///////////////////////////////////////////////////////////////////
-  // (8) Pre compile dynamic reference locations
-  ///////////////////////////////////////////////////////////////////
-
-  Instructions compiler_template;
-  if (uses_dynamic_scopes &&
-      (schema_context.vocabularies.contains(
-           "https://json-schema.org/draft/2019-09/vocab/core") ||
-       schema_context.vocabularies.contains(
-           "https://json-schema.org/draft/2020-12/vocab/core"))) {
+  std::vector<std::pair<std::size_t, std::size_t>> labels_map;
+  if (uses_dynamic_scopes) {
     for (const auto &entry : context.frame.locations()) {
       // We are only trying to find dynamic anchors
       if (entry.second.type !=
@@ -294,93 +323,110 @@ auto compile(const sourcemeta::core::JSON &schema,
         continue;
       }
 
-      for (auto &&substep :
-           precompile(context, schema_context, dynamic_context, entry)) {
-        compiler_template.push_back(std::move(substep));
+      // Skip unreachable dynamic anchors
+      if (!context.frame.is_reachable(entrypoint_location, entry.second,
+                                      context.walker, context.resolver)) {
+        continue;
       }
+
+      // Compute the hash for this dynamic anchor
+      const sourcemeta::core::URI anchor_uri{entry.first.second};
+      const auto label{Evaluator::hash(
+          schema_resource_id(
+              context.resources,
+              anchor_uri.recompose_without_fragment().value_or("")),
+          anchor_uri.fragment().value_or(""))};
+
+      // Find the index in targets for this dynamic anchor
+      const auto key{
+          std::make_tuple(sourcemeta::core::SchemaReferenceType::Dynamic,
+                          std::string_view{entry.first.second}, false)};
+      assert(context.targets.contains(key));
+      const auto index{context.targets.at(key).first};
+      assert(index < context.targets.size());
+
+      labels_map.emplace_back(label, index);
     }
   }
 
   ///////////////////////////////////////////////////////////////////
-  // (9) Pre compile static reference locations
+  // (6) Compile targets for static references
   ///////////////////////////////////////////////////////////////////
 
-  // Attempt to precompile static destinations to avoid explosive compilation
-  Instructions static_reference_template;
-  for (const auto &reference : sorted_precompile_references) {
-    const auto entry{context.frame.locations().find(
-        {sourcemeta::core::SchemaReferenceType::Static,
-         std::string{std::get<0>(reference)}})};
-    assert(entry != context.frame.locations().cend());
-    auto subschema{sourcemeta::core::get(context.root, entry->second.pointer)};
-    if (!sourcemeta::core::is_schema(subschema)) {
-      continue;
+  std::vector<Instructions> compiled_targets;
+  compiled_targets.resize(context.targets.size());
+  for (const auto &[destination, target_info] : context.targets) {
+    const auto &[reference_type, destination_uri, is_property_name] =
+        destination;
+    const auto &[index, reference_pointer] = target_info;
+    const auto location{context.frame.traverse(destination_uri)};
+    assert(location.has_value());
+    const auto &entry{location->get()};
+
+    if (entry.type != sourcemeta::core::SchemaFrame::LocationType::Subschema &&
+        entry.type != sourcemeta::core::SchemaFrame::LocationType::Resource &&
+        entry.type != sourcemeta::core::SchemaFrame::LocationType::Anchor) {
+      assert(reference_pointer != nullptr);
+      const auto parent_size{entry.parent ? entry.parent->size() : 0};
+      throw CompilerReferenceTargetNotSchemaError(
+          destination_uri,
+          to_pointer(entry.pointer.slice(
+              0, std::min(parent_size + 1, entry.pointer.size()))));
     }
 
+    auto subschema{sourcemeta::core::get(context.root, entry.pointer)};
     auto nested_vocabularies{sourcemeta::core::vocabularies(
-        subschema, context.resolver, entry->second.dialect)};
-    const sourcemeta::blaze::SchemaContext nested_schema_context{
-        .relative_pointer = entry->second.relative_pointer,
+        subschema, context.resolver, entry.dialect)};
+    const auto nested_relative_pointer{
+        entry.pointer.slice(entry.relative_pointer)};
+    const sourcemeta::core::URI nested_base{entry.base};
+
+    const SchemaContext schema_context{
+        .relative_pointer = nested_relative_pointer,
         .schema = std::move(subschema),
         .vocabularies = std::move(nested_vocabularies),
-        // TODO: I think this is hiding a framing bug that we should later
-        // investigate
-        .base = entry->second.base.starts_with('#') ? "" : entry->second.base,
-        .labels = {},
-        .is_property_name = schema_context.is_property_name};
-    static_reference_template.push_back(
-        make(sourcemeta::blaze::InstructionIndex::ControlMark, context,
-             nested_schema_context, dynamic_context,
-             sourcemeta::blaze::ValueUnsignedInteger{std::get<1>(reference)},
-             sourcemeta::blaze::compile(
-                 context, nested_schema_context,
-                 sourcemeta::blaze::relative_dynamic_context(),
-                 sourcemeta::core::empty_pointer,
-                 sourcemeta::core::empty_pointer, entry->first.second)));
-  }
+        .base = nested_base,
+        .is_property_name = is_property_name};
 
-  for (auto &&substep : static_reference_template) {
-    compiler_template.push_back(std::move(substep));
+    compiled_targets[index] =
+        compile(context, schema_context, relative_dynamic_context(),
+                sourcemeta::core::empty_weak_pointer,
+                sourcemeta::core::empty_weak_pointer, destination_uri);
   }
 
   ///////////////////////////////////////////////////////////////////
-  // (10) Compile the actual schema
+  // (7) Postprocess compiled targets
   ///////////////////////////////////////////////////////////////////
 
-  auto children{compile_subschema(context, schema_context, dynamic_context,
-                                  root_frame_entry.dialect)};
+  if (mode == Mode::FastValidation) {
+    postprocess(compiled_targets, effective_tweaks, uses_dynamic_scopes);
+  }
 
   ///////////////////////////////////////////////////////////////////
-  // (11) Return final template
+  // (8) Return final template
   ///////////////////////////////////////////////////////////////////
 
   const bool track{
       context.mode != Mode::FastValidation ||
-      requires_evaluation(context, schema_context) ||
+      requires_evaluation(context, entrypoint_location.pointer) ||
       // TODO: This expression should go away if we start properly compiling
       // `unevaluatedItems` like we compile `unevaluatedProperties`
       std::ranges::any_of(context.unevaluated, [](const auto &dependency) {
         return dependency.first.ends_with("unevaluatedItems");
       })};
-  if (compiler_template.empty()) {
-    return {.instructions = std::move(children),
-            .dynamic = uses_dynamic_scopes,
-            .track = track};
-  } else {
-    compiler_template.reserve(compiler_template.size() + children.size());
-    std::ranges::move(children, std::back_inserter(compiler_template));
-    return {.instructions = std::move(compiler_template),
-            .dynamic = uses_dynamic_scopes,
-            .track = track};
-  }
+  return {.dynamic = uses_dynamic_scopes,
+          .track = track,
+          .targets = std::move(compiled_targets),
+          .labels = std::move(labels_map)};
 }
 
 auto compile(const sourcemeta::core::JSON &schema,
              const sourcemeta::core::SchemaWalker &walker,
              const sourcemeta::core::SchemaResolver &resolver,
              const Compiler &compiler, const Mode mode,
-             const std::optional<std::string> &default_dialect,
-             const std::optional<std::string> &default_id,
+             const std::string_view default_dialect,
+             const std::string_view default_id,
+             const std::string_view entrypoint,
              const std::optional<Tweaks> &tweaks) -> Template {
   assert(is_schema(schema));
 
@@ -389,20 +435,18 @@ auto compile(const sourcemeta::core::JSON &schema,
   const sourcemeta::core::JSON result{sourcemeta::core::bundle(
       schema, walker, resolver, default_dialect, default_id)};
 
-  // Perform framing to resolve references later on
   sourcemeta::core::SchemaFrame frame{
       sourcemeta::core::SchemaFrame::Mode::References};
   frame.analyse(result, walker, resolver, default_dialect, default_id);
-
-  return compile(result, walker, resolver, compiler, frame, mode,
-                 default_dialect, default_id, tweaks);
+  return compile(result, walker, resolver, compiler, frame,
+                 entrypoint.empty() ? frame.root() : entrypoint, mode, tweaks);
 }
 
 auto compile(const Context &context, const SchemaContext &schema_context,
              const DynamicContext &dynamic_context,
-             const sourcemeta::core::Pointer &schema_suffix,
-             const sourcemeta::core::Pointer &instance_suffix,
-             const std::optional<std::string> &uri) -> Instructions {
+             const sourcemeta::core::WeakPointer &schema_suffix,
+             const sourcemeta::core::WeakPointer &instance_suffix,
+             const std::optional<std::string_view> uri) -> Instructions {
   // Determine URI of the destination after recursion
   const std::string destination{
       uri.has_value()
@@ -416,44 +460,39 @@ auto compile(const Context &context, const SchemaContext &schema_context,
   if (!context.frame.locations().contains(
           {sourcemeta::core::SchemaReferenceType::Static, destination})) {
     throw sourcemeta::core::SchemaReferenceError(
-        destination, schema_context.relative_pointer,
+        destination, to_pointer(schema_context.relative_pointer),
         "The target of the reference does not exist in the schema");
   }
 
   const auto &entry{context.frame.locations().at(
       {sourcemeta::core::SchemaReferenceType::Static, destination})};
   const auto &new_schema{get(context.root, entry.pointer)};
+  assert(is_schema(new_schema));
 
-  if (!is_schema(new_schema)) {
-    throw sourcemeta::core::SchemaReferenceError(
-        destination, schema_context.relative_pointer,
-        "The target of the reference is not a valid schema");
-  }
-
-  const sourcemeta::core::Pointer destination_pointer{
+  const sourcemeta::core::WeakPointer destination_pointer{
       dynamic_context.keyword.empty()
           ? dynamic_context.base_schema_location.concat(schema_suffix)
           : dynamic_context.base_schema_location
-                .concat({dynamic_context.keyword})
+                .concat(make_weak_pointer(dynamic_context.keyword))
                 .concat(schema_suffix)};
+
+  const auto new_relative_pointer{entry.pointer.slice(entry.relative_pointer)};
+  const sourcemeta::core::URI new_base{
+      sourcemeta::core::URI{entry.base}.recompose_without_fragment().value_or(
+          "")};
 
   return compile_subschema(
       context,
-      {.relative_pointer = entry.relative_pointer,
+      {.relative_pointer = new_relative_pointer,
        .schema = new_schema,
        .vocabularies =
            vocabularies(new_schema, context.resolver, entry.dialect),
-       .base = sourcemeta::core::URI{entry.base}
-                   .recompose_without_fragment()
-                   .value_or(""),
-       // TODO: This represents a copy
-       .labels = schema_context.labels,
+       .base = new_base,
        .is_property_name = schema_context.is_property_name},
       {.keyword = dynamic_context.keyword,
        .base_schema_location = destination_pointer,
        .base_instance_location =
-           dynamic_context.base_instance_location.concat(instance_suffix),
-       .property_as_target = dynamic_context.property_as_target},
+           dynamic_context.base_instance_location.concat(instance_suffix)},
       entry.dialect);
 }
 

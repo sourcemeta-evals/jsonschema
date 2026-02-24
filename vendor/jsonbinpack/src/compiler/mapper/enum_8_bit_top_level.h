@@ -1,5 +1,7 @@
 class Enum8BitTopLevel final : public sourcemeta::core::SchemaTransformRule {
 public:
+  using mutates = std::true_type;
+  using reframe_after_transform = std::true_type;
   Enum8BitTopLevel()
       : sourcemeta::core::SchemaTransformRule{"enum_8_bit_top_level", ""} {};
 
@@ -13,10 +15,11 @@ public:
             const sourcemeta::core::SchemaResolver &) const
       -> sourcemeta::core::SchemaTransformRule::Result override {
     return location.dialect == "https://json-schema.org/draft/2020-12/schema" &&
-           vocabularies.contains(
-               "https://json-schema.org/draft/2020-12/vocab/validation") &&
-           schema.defines("enum") && schema.at("enum").is_array() &&
-           location.pointer.empty() && schema.at("enum").size() > 1 &&
+           vocabularies.contains(sourcemeta::core::Vocabularies::Known::
+                                     JSON_Schema_2020_12_Validation) &&
+           schema.is_object() && schema.defines("enum") &&
+           schema.at("enum").is_array() && location.pointer.empty() &&
+           schema.at("enum").size() > 1 &&
            is_byte(schema.at("enum").size() - 1);
   }
 

@@ -1,39 +1,40 @@
 const os = require('os');
 const path = require('path');
-const fs = require('fs');
+const fs = require('fs/promises');
 const child_process = require('child_process');
 
 const PLATFORM = os.platform() === 'win32' ? 'windows' : os.platform();
 const ARCH = os.arch() === 'x64' ? 'x86_64' : os.arch();
 const EXTENSION = PLATFORM === 'windows' ? '.exe' : '';
+
+function isMusl() {
+  if (PLATFORM !== 'linux') {
+    return false;
+  }
+
+  // process.report requires Node.js 12+
+  if (typeof process.report?.getReport !== 'function') {
+    return false;
+  }
+
+  const report = process.report.getReport();
+  return report.header.glibcVersionRuntime === undefined;
+}
+
+function getExecutableName() {
+  if (PLATFORM === 'linux' && ARCH === 'x86_64' && isMusl()) {
+    return `jsonschema-${PLATFORM}-${ARCH}-musl`;
+  }
+
+  return `jsonschema-${PLATFORM}-${ARCH}${EXTENSION}`;
+}
+
 const EXECUTABLE = path.join(__dirname, '..', 'build', 'github-releases',
-  `jsonschema-${PLATFORM}-${ARCH}${EXTENSION}`);
+  getExecutableName());
 
-function spawn(args, options = {}) {
-  const json = options.json === true;
-  const spawnArgs = json ? [...args, '--json'] : args;
-
+function spawnProcess(executable, args, options) {
   return new Promise((resolve, reject) => {
-    if (!fs.existsSync(EXECUTABLE)) {
-      reject(new Error(
-        `The JSON Schema CLI NPM package does not support ${os.platform()} for ${os.arch()} yet. ` +
-        'Please open a GitHub issue at https://github.com/sourcemeta/jsonschema'
-      ));
-      return;
-    }
-
-    if (PLATFORM === 'darwin') {
-      child_process.spawnSync('/usr/bin/xattr', ['-c', EXECUTABLE], { stdio: 'inherit' });
-    }
-
-    const spawnOptions = {
-      windowsHide: true,
-      ...options
-    };
-
-    delete spawnOptions.json;
-
-    const process = child_process.spawn(EXECUTABLE, spawnArgs, spawnOptions);
+    const process = child_process.spawn(executable, args, options);
 
     let stdout = '';
     let stderr = '';
@@ -55,13 +56,42 @@ function spawn(args, options = {}) {
     });
 
     process.on('close', (code) => {
-      resolve({
-        code: code,
-        stdout: json ? JSON.parse(stdout) : stdout,
-        stderr: stderr
-      });
+      resolve({ code, stdout, stderr });
     });
   });
+}
+
+async function spawn(args, options = {}) {
+  const json = options.json === true;
+  const spawnArgs = json ? [...args, '--json'] : args;
+
+  try {
+    await fs.access(EXECUTABLE);
+  } catch {
+    throw new Error(
+      `The JSON Schema CLI NPM package does not support ${os.platform()} for ${os.arch()} yet. ` +
+      'Please open a GitHub issue at https://github.com/sourcemeta/jsonschema'
+    );
+  }
+
+  if (PLATFORM === 'darwin') {
+    await spawnProcess('/usr/bin/xattr', ['-c', EXECUTABLE], { stdio: 'inherit' });
+  }
+
+  const spawnOptions = {
+    windowsHide: true,
+    ...options
+  };
+
+  delete spawnOptions.json;
+
+  const result = await spawnProcess(EXECUTABLE, spawnArgs, spawnOptions);
+
+  return {
+    code: result.code,
+    stdout: json ? JSON.parse(result.stdout) : result.stdout,
+    stderr: result.stderr
+  };
 }
 
 module.exports = { spawn };

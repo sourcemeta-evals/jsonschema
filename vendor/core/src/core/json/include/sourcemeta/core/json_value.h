@@ -12,6 +12,7 @@
 #include <sourcemeta/core/numeric.h>
 
 #include <algorithm>        // std::any_of
+#include <bitset>           // std::bitset
 #include <cassert>          // assert
 #include <cstddef>          // std::size_t
 #include <cstdint>          // std::int64_t, std::uint8_t
@@ -42,12 +43,15 @@ public:
   template <typename T> using Allocator = std::allocator<T>;
   /// The string type used by the JSON document.
   using String = std::basic_string<Char, CharTraits, Allocator<Char>>;
+  /// The string view type used by the JSON document.
+  using StringView = std::basic_string_view<Char, CharTraits>;
   /// The array type used by the JSON document.
   using Array = JSONArray<JSON>;
   /// The object type used by the JSON document.
   using Object = JSONObject<String, JSON, PropertyHashJSON<JSON::String>>;
   /// The parsing phase of a JSON document.
   enum class ParsePhase : std::uint8_t { Pre, Post };
+
   // The enumeration indexes must stay in sync with the internal variant
   /// The different types of a JSON instance.
   enum class Type : std::uint8_t {
@@ -61,13 +65,19 @@ public:
     Decimal = 7
   };
 
+  /// A set of types
+  using TypeSet = std::bitset<8>;
+
+  /// The context type for parse callbacks
+  enum class ParseContext : std::uint8_t { Root, Property, Index };
+
   /// An optional callback that can be passed to parsing functions to obtain
-  /// metadata during the parsing process. Each subdocument will emit 2 events:
-  /// a "pre" and a "post". When parsing object and arrays, during the "pre"
-  /// event, the value corresponds to the property name or index, respectively.
+  /// metadata during the parsing process
   using ParseCallback = std::function<void(
       const ParsePhase phase, const Type type, const std::uint64_t line,
-      const std::uint64_t column, const JSON &value)>;
+      const std::uint64_t column, const ParseContext context,
+      const std::size_t index, const StringView property)>;
+
   /// A comparison function between object property keys.
   /// See https://en.cppreference.com/w/cpp/named_req/Compare
   using KeyComparison = std::function<bool(const String &, const String &)>;
@@ -1166,7 +1176,7 @@ public:
   [[nodiscard]] auto defines_any(std::initializer_list<String> keys) const
       -> bool;
 
-  /// This method checks if an JSON array contains a given JSON instance. For
+  /// This method checks if a JSON array contains a given JSON instance. For
   /// example:
   ///
   /// ```cpp
@@ -1180,7 +1190,21 @@ public:
   /// ```
   [[nodiscard]] auto contains(const JSON &element) const -> bool;
 
-  /// This method checks if an JSON string contains a given string. For
+  /// This method checks if a JSON array contains a given string. For
+  /// example:
+  ///
+  /// ```cpp
+  /// #include <sourcemeta/core/json.h>
+  /// #include <cassert>
+  ///
+  /// const sourcemeta::core::JSON document =
+  ///   sourcemeta::core::parse_json(R"JSON([ "foo", "bar", "baz" ])JSON");
+  /// assert(document.contains("bar"));
+  /// assert(!document.contains("qux"));
+  /// ```
+  [[nodiscard]] auto contains(const StringView element) const -> bool;
+
+  /// This method checks if a JSON string includes a given substring. For
   /// example:
   ///
   /// ```cpp
@@ -1188,12 +1212,12 @@ public:
   /// #include <cassert>
   ///
   /// const sourcemeta::core::JSON document{"foo bar baz"};
-  /// assert(document.contains("bar"));
-  /// assert(!document.contains("baz"));
+  /// assert(document.includes("bar"));
+  /// assert(!document.includes("qux"));
   /// ```
-  [[nodiscard]] auto contains(const String &input) const -> bool;
+  [[nodiscard]] auto includes(const String &input) const -> bool;
 
-  /// This method checks if an JSON string contains a given character. For
+  /// This method checks if a JSON string includes a given character. For
   /// example:
   ///
   /// ```cpp
@@ -1201,10 +1225,10 @@ public:
   /// #include <cassert>
   ///
   /// const sourcemeta::core::JSON document{"foo"};
-  /// assert(document.contains('f'));
-  /// assert(!document.contains('b'));
+  /// assert(document.includes('f'));
+  /// assert(!document.includes('b'));
   /// ```
-  [[nodiscard]] auto contains(const String::value_type input) const -> bool;
+  [[nodiscard]] auto includes(const String::value_type input) const -> bool;
 
   /// This method checks if an JSON array does not contain duplicated items. For
   /// example:
@@ -1380,6 +1404,43 @@ public:
   /// assert(document.at("bar").is_integer());
   /// ```
   auto assign_if_missing(const String &key, JSON &&value) -> void;
+
+  /// This method sets an object key, assuming the key does not already exist.
+  /// If the key already exists, behavior is undefined. This variant is faster
+  /// than `assign` when building objects with keys known to be unique. For
+  /// example:
+  ///
+  /// ```cpp
+  /// #include <sourcemeta/core/json.h>
+  /// #include <cassert>
+  ///
+  /// sourcemeta::core::JSON document = sourcemeta::core::JSON::make_object();
+  /// document.assign_assume_new("foo", sourcemeta::core::JSON{1});
+  /// assert(document.defines("foo"));
+  /// assert(document.at("foo").to_integer() == 1);
+  /// ```
+  auto assign_assume_new(const String &key, JSON &&value) -> void;
+
+  /// This method sets an object key, assuming the key does not already exist.
+  /// If the key already exists, behavior is undefined. This variant is faster
+  /// than `assign` when building objects with keys known to be unique, and
+  /// allows moving the key. For example:
+  ///
+  /// ```cpp
+  /// #include <sourcemeta/core/json.h>
+  /// #include <cassert>
+  ///
+  /// sourcemeta::core::JSON document = sourcemeta::core::JSON::make_object();
+  /// std::string key{"foo"};
+  /// document.assign_assume_new(std::move(key), sourcemeta::core::JSON{1});
+  /// assert(document.defines("foo"));
+  /// assert(document.at("foo").to_integer() == 1);
+  /// ```
+  auto assign_assume_new(String &&key, JSON &&value) -> void;
+
+  /// This method sets an object key with a pre-computed hash
+  auto assign_assume_new(String &&key, JSON &&value, Object::hash_type hash)
+      -> void;
 
   /// This method deletes an object key. For example:
   ///
@@ -1622,6 +1683,20 @@ public:
   /// assert(document.to_string() == "Hello World");
   /// ```
   auto trim() -> const JSON::String &;
+
+  /// Check if the string has no leading or trailing whitespace. For example:
+  ///
+  /// ```cpp
+  /// #include <sourcemeta/core/json.h>
+  /// #include <cassert>
+  ///
+  /// const sourcemeta::core::JSON trimmed{"Hello World"};
+  /// assert(trimmed.is_trimmed());
+  ///
+  /// const sourcemeta::core::JSON untrimmed{" Hello World "};
+  /// assert(!untrimmed.is_trimmed());
+  /// ```
+  [[nodiscard]] auto is_trimmed() const noexcept -> bool;
 
   /// Reorder the properties of an object by sorting keys according to a
   /// comparator function. The object is modified in-place. For example:

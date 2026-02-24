@@ -10,17 +10,26 @@ trap clean EXIT
 "$1" lint -l > "$TMP/output.txt"
 
 cat << 'EOF' > "$TMP/expected.txt"
-additional_items_with_schema_items
-  The `additionalItems` keyword is ignored when the `items` keyword is set to a schema
+allof_false_simplify
+  When `allOf` contains a `false` branch, the schema is unsatisfiable
 
-additional_properties_default
-  Setting the `additionalProperties` keyword to the true schema does not add any further constraint
+anyof_false_simplify
+  An `anyOf` of a single `false` branch is unsatisfiable
+
+anyof_remove_false_schemas
+  The boolean schema `false` is guaranteed to never match in `anyOf`, as it is sufficient for any other branch to match
+
+anyof_true_simplify
+  An `anyOf` with a `true` or `{}` branch always succeeds
 
 blaze/valid_default
   Only set a `default` value that validates against the schema
 
 blaze/valid_examples
   Only include instances in the `examples` array that validate against the schema
+
+comment_trim
+  Comments should not contain leading or trailing whitespace
 
 const_with_type
   Setting `type` alongside `const` is considered an anti-pattern, as the constant already implies its respective type
@@ -49,11 +58,20 @@ dependent_required_default
 dependent_required_tautology
   Defining requirements for a property using `dependentRequired` that is already marked as required is an unnecessarily complex use of `dependentRequired`
 
+description_trailing_period
+  Descriptions should not end with a period to give user interfaces flexibility in presenting the text
+
+description_trim
+  Descriptions should not contain leading or trailing whitespace
+
 draft_official_dialect_without_empty_fragment
   The official dialect URI of Draft 7 and older versions must contain the empty fragment
 
 draft_ref_siblings
   In Draft 7 and older dialects, keywords sibling to `$ref` are never evaluated
+
+drop_allof_empty_schemas
+  Empty schemas in `allOf` are redundant and can be removed
 
 duplicate_allof_branches
   Setting duplicate subschemas in `allOf` is redundant, as it produces unnecessary additional validation that is guaranteed to not affect the validation result
@@ -64,6 +82,9 @@ duplicate_anyof_branches
 duplicate_enum_values
   Setting duplicate values in `enum` is considered an anti-pattern
 
+duplicate_examples
+  Setting duplicate values in `examples` is redundant
+
 duplicate_required_values
   Setting duplicate values in `required` is considered an anti-pattern
 
@@ -72,6 +93,9 @@ else_empty
 
 else_without_if
   The `else` keyword is meaningless without the presence of the `if` keyword
+
+empty_object_as_true
+  The empty schema `{}` accepts all values and is equivalent to the boolean schema `true`
 
 enum_to_const
   An `enum` of a single value can be expressed as `const`
@@ -121,6 +145,9 @@ modern_official_dialect_with_empty_fragment
 multiple_of_default
   Setting `multipleOf` to 1 does not add any further constraint
 
+non_applicable_additional_items
+  The `additionalItems` keyword is ignored when the `items` keyword is either not present or set to a schema
+
 non_applicable_enum_validation_keywords
   Setting validation keywords that do not apply to any item in `enum` is considered an anti-pattern
 
@@ -129,6 +156,15 @@ non_applicable_type_specific_keywords
 
 not_false
   Setting the `not` keyword to `false` imposes no constraints. Negating `false` yields the always-true schema
+
+oneof_false_simplify
+  A `oneOf` of a single `false` branch is unsatisfiable
+
+oneof_to_anyof_disjoint_types
+  A `oneOf` where all branches have disjoint types can be safely converted to `anyOf`
+
+orphan_definitions
+  Schema definitions in `$defs` or `definitions` that are never internally referenced can be removed
 
 pattern_properties_default
   Setting the `patternProperties` keyword to the empty object does not add any further constraint
@@ -142,6 +178,12 @@ property_names_default
 property_names_type_default
   Setting the `type` keyword to `string` inside `propertyNames` does not add any further constraint
 
+required_properties_in_properties
+  Every property listed in the `required` keyword must be explicitly defined using the `properties` keyword
+
+simple_properties_identifiers
+  Set `properties` to identifier names that can be easily mapped to programming languages (matching [A-Za-z_][A-Za-z0-9_]*)
+
 single_type_array
   Setting `type` to an array of a single type is the same as directly declaring such type
 
@@ -150,6 +192,24 @@ then_empty
 
 then_without_if
   The `then` keyword is meaningless without the presence of the `if` keyword
+
+title_description_equal
+  The title and description metadata keywords should not be set to the same value
+
+title_trailing_period
+  Titles should not end with a period to give user interfaces flexibility in presenting the text
+
+title_trim
+  Titles should not contain leading or trailing whitespace
+
+top_level_description
+  Set a non-empty description at the top level of the schema to explain what the definition is about in detail
+
+top_level_examples
+  Set a non-empty examples array at the top level of the schema to illustrate the expected data
+
+top_level_title
+  Set a concise non-empty title at the top level of the schema to explain what the definition is about
 
 unevaluated_items_default
   Setting the `unevaluatedItems` keyword to the true schema does not add any further constraint
@@ -169,13 +229,22 @@ unnecessary_allof_ref_wrapper_draft
 unnecessary_allof_ref_wrapper_modern
   Wrapping `$ref` in `allOf` was only necessary in JSON Schema Draft 7 and older
 
+unnecessary_allof_wrapper
+  Keywords inside `allOf` that do not conflict with the parent schema can be elevated
+
+unsatisfiable_drop_validation
+  Do not place assertions or applicators next to an unsatisfiable negation
+
+unsatisfiable_in_place_applicator_type
+  An in-place applicator branch that defines a `type` with no overlap with the parent `type` can never be satisfied
+
 unsatisfiable_max_contains
   Setting the `maxContains` keyword to a number greater than or equal to the array upper bound does not add any further constraint
 
 unsatisfiable_min_properties
   Setting `minProperties` to a number less than `required` does not add any further constraint
 
-Number of rules: 55
+Number of rules: 78
 EOF
 
 diff "$TMP/output.txt" "$TMP/expected.txt"

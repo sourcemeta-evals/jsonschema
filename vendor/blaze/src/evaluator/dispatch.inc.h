@@ -273,6 +273,7 @@ INSTRUCTION_HANDLER(AssertionTypeAny) {
   // In non-strict mode, we consider a real number that represents an
   // integer to be an integer
   const auto type_index{static_cast<std::uint8_t>(target.type())};
+  // NOLINTNEXTLINE(bugprone-branch-clone)
   if (value.test(type_index)) {
     result = true;
   } else if (value.test(static_cast<std::uint8_t>(JSON::Type::Integer)) &&
@@ -1190,42 +1191,6 @@ INSTRUCTION_HANDLER(ControlGroupWhenType) {
   EVALUATE_END_PASS_THROUGH(ControlGroupWhenType);
 }
 
-INSTRUCTION_HANDLER(ControlLabel) {
-  SOURCEMETA_MAYBE_UNUSED(depth);
-  SOURCEMETA_MAYBE_UNUSED(schema);
-  SOURCEMETA_MAYBE_UNUSED(callback);
-  SOURCEMETA_MAYBE_UNUSED(instance);
-  SOURCEMETA_MAYBE_UNUSED(property_target);
-  SOURCEMETA_MAYBE_UNUSED(evaluator);
-  EVALUATE_BEGIN_NO_PRECONDITION(ControlLabel);
-  assert(!instruction.children.empty());
-  const auto value{*std::get_if<ValueUnsignedInteger>(&instruction.value)};
-  evaluator.labels.try_emplace(value, instruction.children);
-  const auto &target{get(instance, instruction.relative_instance_location)};
-  result = true;
-  for (const auto &child : instruction.children) {
-    if (!EVALUATE_RECURSE(child, target)) {
-      result = false;
-      break;
-    }
-  }
-
-  EVALUATE_END(ControlLabel);
-}
-
-INSTRUCTION_HANDLER(ControlMark) {
-  SOURCEMETA_MAYBE_UNUSED(depth);
-  SOURCEMETA_MAYBE_UNUSED(schema);
-  SOURCEMETA_MAYBE_UNUSED(callback);
-  SOURCEMETA_MAYBE_UNUSED(instance);
-  SOURCEMETA_MAYBE_UNUSED(property_target);
-  SOURCEMETA_MAYBE_UNUSED(evaluator);
-  EVALUATE_BEGIN_NO_PRECONDITION_AND_NO_PUSH(ControlMark);
-  const auto value{*std::get_if<ValueUnsignedInteger>(&instruction.value)};
-  evaluator.labels.try_emplace(value, instruction.children);
-  EVALUATE_END_NO_POP(ControlMark);
-}
-
 INSTRUCTION_HANDLER(ControlEvaluate) {
   SOURCEMETA_MAYBE_UNUSED(depth);
   SOURCEMETA_MAYBE_UNUSED(schema);
@@ -1238,31 +1203,8 @@ INSTRUCTION_HANDLER(ControlEvaluate) {
   EVALUATE_END_PASS_THROUGH(ControlEvaluate);
 }
 
-INSTRUCTION_HANDLER(ControlJump) {
-  SOURCEMETA_MAYBE_UNUSED(depth);
-  SOURCEMETA_MAYBE_UNUSED(schema);
-  SOURCEMETA_MAYBE_UNUSED(callback);
-  SOURCEMETA_MAYBE_UNUSED(instance);
-  SOURCEMETA_MAYBE_UNUSED(property_target);
-  SOURCEMETA_MAYBE_UNUSED(evaluator);
-  EVALUATE_BEGIN_NO_PRECONDITION(ControlJump);
-  result = true;
-  const auto value{*std::get_if<ValueUnsignedInteger>(&instruction.value)};
-  assert(evaluator.labels.contains(value));
-  const auto &target{get(instance, instruction.relative_instance_location)};
-  for (const auto &child : evaluator.labels.at(value).get()) {
-    if (!EVALUATE_RECURSE(child, target)) {
-      result = false;
-      break;
-    }
-  }
-
-  EVALUATE_END(ControlJump);
-}
-
 INSTRUCTION_HANDLER(ControlDynamicAnchorJump) {
   SOURCEMETA_MAYBE_UNUSED(depth);
-  SOURCEMETA_MAYBE_UNUSED(schema);
   SOURCEMETA_MAYBE_UNUSED(callback);
   SOURCEMETA_MAYBE_UNUSED(instance);
   SOURCEMETA_MAYBE_UNUSED(property_target);
@@ -1272,11 +1214,15 @@ INSTRUCTION_HANDLER(ControlDynamicAnchorJump) {
   const auto &target{get(instance, instruction.relative_instance_location)};
   const auto &value{*std::get_if<ValueString>(&instruction.value)};
   for (const auto &resource : evaluator.resources) {
-    const auto label{evaluator.hash(resource, value)};
-    const auto match{evaluator.labels.find(label)};
-    if (match != evaluator.labels.cend()) {
+    const auto label{Evaluator::hash(resource, value)};
+    const auto match{
+        std::ranges::find_if(schema.labels, [&label](const auto &entry) {
+          return entry.first == label;
+        })};
+    if (match != schema.labels.cend()) {
       result = true;
-      for (const auto &child : match->second.get()) {
+      assert(match->second < schema.targets.size());
+      for (const auto &child : schema.targets[match->second]) {
         if (!EVALUATE_RECURSE(child, target)) {
           result = false;
           EVALUATE_END(ControlDynamicAnchorJump);
@@ -1288,6 +1234,28 @@ INSTRUCTION_HANDLER(ControlDynamicAnchorJump) {
   }
 
   EVALUATE_END(ControlDynamicAnchorJump);
+}
+
+INSTRUCTION_HANDLER(ControlJump) {
+  SOURCEMETA_MAYBE_UNUSED(depth);
+  SOURCEMETA_MAYBE_UNUSED(schema);
+  SOURCEMETA_MAYBE_UNUSED(callback);
+  SOURCEMETA_MAYBE_UNUSED(instance);
+  SOURCEMETA_MAYBE_UNUSED(evaluator);
+  EVALUATE_BEGIN_NO_PRECONDITION(ControlJump);
+  result = true;
+  const auto value{*std::get_if<ValueUnsignedInteger>(&instruction.value)};
+  assert(schema.targets.size() > value);
+  const auto &target{resolve_target(
+      property_target, get(instance, instruction.relative_instance_location))};
+  for (const auto &child : schema.targets[value]) {
+    if (!EVALUATE_RECURSE(child, target)) {
+      result = false;
+      break;
+    }
+  }
+
+  EVALUATE_END(ControlJump);
 }
 
 INSTRUCTION_HANDLER(AnnotationEmit) {
@@ -1848,34 +1816,6 @@ INSTRUCTION_HANDLER(LoopPropertiesExcept) {
   EVALUATE_END(LoopPropertiesExcept);
 }
 
-INSTRUCTION_HANDLER(LoopPropertiesWhitelist) {
-  SOURCEMETA_MAYBE_UNUSED(depth);
-  SOURCEMETA_MAYBE_UNUSED(schema);
-  SOURCEMETA_MAYBE_UNUSED(callback);
-  SOURCEMETA_MAYBE_UNUSED(instance);
-  SOURCEMETA_MAYBE_UNUSED(property_target);
-  SOURCEMETA_MAYBE_UNUSED(evaluator);
-  EVALUATE_BEGIN_NON_STRING(LoopPropertiesWhitelist, target.is_object());
-  const auto &value{*std::get_if<ValueStringSet>(&instruction.value)};
-  // Otherwise why emit this instruction?
-  assert(!value.empty());
-
-  // Otherwise if the number of properties in the instance
-  // is larger than the whitelist, then it already violated
-  // the whitelist?
-  if (target.object_size() <= value.size()) {
-    result = true;
-    for (const auto &entry : target.as_object()) {
-      if (!value.contains(entry.first, entry.hash)) {
-        result = false;
-        break;
-      }
-    }
-  }
-
-  EVALUATE_END(LoopPropertiesWhitelist);
-}
-
 INSTRUCTION_HANDLER(LoopPropertiesType) {
   SOURCEMETA_MAYBE_UNUSED(depth);
   SOURCEMETA_MAYBE_UNUSED(schema);
@@ -1998,6 +1938,7 @@ INSTRUCTION_HANDLER(LoopPropertiesExactlyTypeStrictHash) {
       // Continue where we left
       std::advance(iterator, index);
       for (; iterator != object.cend(); ++iterator) {
+        // NOLINTNEXTLINE(modernize-use-ranges)
         if (std::none_of(value.second.first.cbegin(), value.second.first.cend(),
                          [&iterator](const auto hash) {
                            return hash == iterator->hash;
@@ -2389,6 +2330,7 @@ INSTRUCTION_HANDLER(LoopItemsPropertiesExactlyTypeStrictHash) {
     // Unroll, for performance reasons, for small collections
     if (hashes_size == 3) {
       for (const auto &entry : object) {
+        // NOLINTNEXTLINE(bugprone-branch-clone)
         if (effective_type_strict_real(entry.second) != value.first) {
           result = false;
           EVALUATE_END(LoopItemsPropertiesExactlyTypeStrictHash);
@@ -2401,6 +2343,7 @@ INSTRUCTION_HANDLER(LoopItemsPropertiesExactlyTypeStrictHash) {
       }
     } else if (hashes_size == 2) {
       for (const auto &entry : object) {
+        // NOLINTNEXTLINE(bugprone-branch-clone)
         if (effective_type_strict_real(entry.second) != value.first) {
           result = false;
           EVALUATE_END(LoopItemsPropertiesExactlyTypeStrictHash);
@@ -2420,12 +2363,14 @@ INSTRUCTION_HANDLER(LoopItemsPropertiesExactlyTypeStrictHash) {
     } else {
       std::size_t index{0};
       for (const auto &entry : object) {
+        // NOLINTNEXTLINE(bugprone-branch-clone)
         if (effective_type_strict_real(entry.second) != value.first) {
           result = false;
           EVALUATE_END(LoopItemsPropertiesExactlyTypeStrictHash);
         } else if (entry.hash == value.second.first[index]) {
           index += 1;
           continue;
+          // NOLINTNEXTLINE(modernize-use-ranges)
         } else if (std::find(value.second.first.cbegin(),
                              value.second.first.cend(),
                              entry.hash) == value.second.first.cend()) {
@@ -2586,6 +2531,7 @@ using DispatchHandler = bool (*)(const sourcemeta::blaze::Instruction &,
                                  sourcemeta::blaze::Evaluator &);
 
 // Must have same order as InstructionIndex
+// NOLINTNEXTLINE(modernize-avoid-c-arrays)
 static constexpr DispatchHandler handlers[95] = {
     AssertionFail,
     AssertionDefines,
@@ -2654,7 +2600,6 @@ static constexpr DispatchHandler handlers[95] = {
     LoopPropertiesRegexClosed,
     LoopPropertiesStartsWith,
     LoopPropertiesExcept,
-    LoopPropertiesWhitelist,
     LoopPropertiesType,
     LoopPropertiesTypeEvaluate,
     LoopPropertiesExactlyTypeStrict,
@@ -2677,11 +2622,9 @@ static constexpr DispatchHandler handlers[95] = {
     ControlGroupWhenDefines,
     ControlGroupWhenDefinesDirect,
     ControlGroupWhenType,
-    ControlLabel,
-    ControlMark,
     ControlEvaluate,
-    ControlJump,
-    ControlDynamicAnchorJump};
+    ControlDynamicAnchorJump,
+    ControlJump};
 
 inline auto
 evaluate_instruction(const sourcemeta::blaze::Instruction &instruction,

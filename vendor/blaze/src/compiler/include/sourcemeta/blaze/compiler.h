@@ -15,11 +15,15 @@
 #include <sourcemeta/core/jsonschema.h>
 #include <sourcemeta/core/uri.h>
 
+#include <cstddef>       // std::size_t
 #include <cstdint>       // std::uint8_t
 #include <functional>    // std::function
+#include <map>           // std::map
 #include <optional>      // std::optional, std::nullopt
 #include <string>        // std::string
-#include <unordered_set> // std::unordered_set
+#include <string_view>   // std::string_view
+#include <tuple>         // std::tuple
+#include <unordered_map> // std::unordered_map
 #include <vector>        // std::vector
 
 /// @defgroup compiler Compiler
@@ -32,16 +36,16 @@ namespace sourcemeta::blaze {
 /// The schema compiler context is the current subschema information you have at
 /// your disposal to implement a keyword
 struct SchemaContext {
+  // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
   /// The schema location relative to the base URI
-  const sourcemeta::core::Pointer &relative_pointer;
+  const sourcemeta::core::WeakPointer &relative_pointer;
   /// The current subschema
   const sourcemeta::core::JSON &schema;
   /// The schema vocabularies in use
   const sourcemeta::core::Vocabularies &vocabularies;
   /// The schema base URI
   const sourcemeta::core::URI &base;
-  /// The set of labels registered so far
-  std::unordered_set<std::size_t> labels;
+  // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
   /// Whether the current schema targets a property name
   bool is_property_name;
 };
@@ -50,14 +54,14 @@ struct SchemaContext {
 /// The dynamic compiler context is the read-write information you have at your
 /// disposal to implement a keyword
 struct DynamicContext {
+  // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
   /// The schema keyword
-  const std::string keyword;
+  const sourcemeta::core::JSON::String &keyword;
   /// The schema base keyword path
-  const sourcemeta::core::Pointer &base_schema_location;
+  const sourcemeta::core::WeakPointer &base_schema_location;
   /// The base instance location that the keyword must be evaluated to
-  const sourcemeta::core::Pointer &base_instance_location;
-  /// Whether the instance location property acts as the target
-  const bool property_as_target;
+  const sourcemeta::core::WeakPointer &base_instance_location;
+  // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 };
 
 #if !defined(DOXYGEN)
@@ -84,18 +88,12 @@ enum class Mode : std::uint8_t {
 /// @ingroup compiler
 /// Advanced knobs that you can tweak for higher control and optimisations
 struct Tweaks {
-  /// Consider static references that are not circular when precompiling static
-  /// references
-  bool precompile_static_references_non_circular{false};
-  /// The maximum amount of static references to precompile
-  std::size_t precompile_static_references_maximum_schemas{10};
-  /// The minimum amount of references to a destination before considering it
-  /// for precompilation
-  std::size_t precompile_static_references_minimum_reference_count{10};
   /// Always unroll `properties` in a logical AND operation
   bool properties_always_unroll{false};
   /// Attempt to re-order `properties` subschemas to evaluate cheaper ones first
   bool properties_reorder{true};
+  /// Inline jump targets with fewer instructions than this threshold
+  std::size_t target_inline_threshold{50};
 };
 
 /// @ingroup compiler
@@ -103,6 +101,7 @@ struct Tweaks {
 /// disposal to implement a keyword that will never change throughout
 /// the compilation process
 struct Context {
+  // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
   /// The root schema resource
   const sourcemeta::core::JSON &root;
   /// The reference frame of the entire schema
@@ -121,10 +120,14 @@ struct Context {
   const bool uses_dynamic_scopes;
   /// The list of unevaluated entries and their dependencies
   const SchemaUnevaluatedEntries unevaluated;
-  /// The set of global labels identifier during precompilation
-  std::unordered_set<std::size_t> precompiled_labels;
-  /// The set of global labels identifier during precompilation
+  /// The set of tweaks for the compiler
   const Tweaks tweaks;
+  /// All possible reference targets (key includes is_property_name context)
+  const std::map<
+      std::tuple<sourcemeta::core::SchemaReferenceType, std::string_view, bool>,
+      std::pair<std::size_t, const sourcemeta::core::WeakPointer *>>
+      targets;
+  // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 };
 
 /// @ingroup compiler
@@ -152,8 +155,8 @@ auto SOURCEMETA_BLAZE_COMPILER_EXPORT default_schema_compiler(
 /// })JSON");
 ///
 /// const auto schema_template{sourcemeta::blaze::compile(
-///     schema, sourcemeta::core::schema_official_walker,
-///     sourcemeta::core::schema_official_resolver,
+///     schema, sourcemeta::core::schema_walker,
+///     sourcemeta::core::schema_resolver,
 ///     sourcemeta::core::default_schema_compiler)};
 ///
 /// // Evaluate or encode
@@ -163,8 +166,9 @@ compile(const sourcemeta::core::JSON &schema,
         const sourcemeta::core::SchemaWalker &walker,
         const sourcemeta::core::SchemaResolver &resolver,
         const Compiler &compiler, const Mode mode = Mode::FastValidation,
-        const std::optional<std::string> &default_dialect = std::nullopt,
-        const std::optional<std::string> &default_id = std::nullopt,
+        const std::string_view default_dialect = "",
+        const std::string_view default_id = "",
+        const std::string_view entrypoint = "",
         const std::optional<Tweaks> &tweaks = std::nullopt) -> Template;
 
 /// @ingroup compiler
@@ -176,15 +180,13 @@ compile(const sourcemeta::core::JSON &schema,
 /// behavior.
 ///
 /// Don't use this function unless you know what you are doing.
-auto SOURCEMETA_BLAZE_COMPILER_EXPORT
-compile(const sourcemeta::core::JSON &schema,
-        const sourcemeta::core::SchemaWalker &walker,
-        const sourcemeta::core::SchemaResolver &resolver,
-        const Compiler &compiler, const sourcemeta::core::SchemaFrame &frame,
-        const Mode mode = Mode::FastValidation,
-        const std::optional<std::string> &default_dialect = std::nullopt,
-        const std::optional<std::string> &default_id = std::nullopt,
-        const std::optional<Tweaks> &tweaks = std::nullopt) -> Template;
+auto SOURCEMETA_BLAZE_COMPILER_EXPORT compile(
+    const sourcemeta::core::JSON &schema,
+    const sourcemeta::core::SchemaWalker &walker,
+    const sourcemeta::core::SchemaResolver &resolver, const Compiler &compiler,
+    const sourcemeta::core::SchemaFrame &frame,
+    const std::string_view entrypoint, const Mode mode = Mode::FastValidation,
+    const std::optional<Tweaks> &tweaks = std::nullopt) -> Template;
 
 /// @ingroup compiler
 ///
@@ -197,10 +199,10 @@ compile(const sourcemeta::core::JSON &schema,
 auto SOURCEMETA_BLAZE_COMPILER_EXPORT
 compile(const Context &context, const SchemaContext &schema_context,
         const DynamicContext &dynamic_context,
-        const sourcemeta::core::Pointer &schema_suffix,
-        const sourcemeta::core::Pointer &instance_suffix =
-            sourcemeta::core::empty_pointer,
-        const std::optional<std::string> &uri = std::nullopt) -> Instructions;
+        const sourcemeta::core::WeakPointer &schema_suffix,
+        const sourcemeta::core::WeakPointer &instance_suffix =
+            sourcemeta::core::empty_weak_pointer,
+        std::optional<std::string_view> uri = std::nullopt) -> Instructions;
 
 /// @ingroup compiler
 /// Serialise a template as JSON

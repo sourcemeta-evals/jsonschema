@@ -8,14 +8,15 @@
 #include <cstdint>  // std::uint64_t
 #include <optional> // std::optional
 #include <string>   // std::string, std::stoul
+#include <string_view> // std::string_view
 
 namespace {
 
 using namespace sourcemeta::core;
 
-auto validate_percent_encoded_utf8(const std::string &input,
-                                   std::string::size_type position)
-    -> std::string::size_type {
+auto validate_percent_encoded_utf8(const std::string_view input,
+                                   std::string_view::size_type position)
+    -> std::string_view::size_type {
   if (input[position] != URI_PERCENT) {
     return 3;
   }
@@ -85,7 +86,8 @@ auto validate_percent_encoded_utf8(const std::string &input,
   return 3 * (1 + continuation_count);
 }
 
-auto parse_scheme(const std::string &input, std::string::size_type &position)
+auto parse_scheme(const std::string_view input,
+                  std::string_view::size_type &position)
     -> std::optional<std::string> {
   if (position >= input.size() ||
       !std::isalpha(static_cast<unsigned char>(input[position]))) {
@@ -100,7 +102,7 @@ auto parse_scheme(const std::string &input, std::string::size_type &position)
   }
 
   if (position < input.size() && input[position] == URI_COLON) {
-    auto scheme = input.substr(start, position - start);
+    std::string scheme{input.substr(start, position - start)};
     position += 1;
     return scheme;
   }
@@ -109,7 +111,8 @@ auto parse_scheme(const std::string &input, std::string::size_type &position)
   return std::nullopt;
 }
 
-auto parse_port(const std::string &input, std::string::size_type &position)
+auto parse_port(const std::string_view input,
+                std::string_view::size_type &position)
     -> std::optional<unsigned long> {
   if (position >= input.size() ||
       !std::isdigit(static_cast<unsigned char>(input[position]))) {
@@ -122,19 +125,66 @@ auto parse_port(const std::string &input, std::string::size_type &position)
     position += 1;
   }
 
-  const auto port_string = input.substr(start, position - start);
+  const std::string port_string{input.substr(start, position - start)};
   return std::stoul(port_string);
 }
 
-auto parse_ipv6(const std::string &input, std::string::size_type &position)
-    -> std::string {
+auto parse_ipv6(const std::string_view input,
+                std::string_view::size_type &position) -> std::string {
   assert(input[position] == URI_OPEN_BRACKET);
 
   const auto start = position;
   position += 1;
 
-  while (position < input.size() && input[position] != URI_CLOSE_BRACKET) {
+  // RFC 3986: IP-literal = "[" ( IPv6address / IPvFuture ) "]"
+  if (position < input.size() &&
+      (input[position] == 'v' || input[position] == 'V')) {
+    // IPvFuture = "v" 1*HEXDIG "." 1*( unreserved / sub-delims / ":" )
     position += 1;
+
+    // Require 1*HEXDIG for the version
+    if (position >= input.size() || input[position] == URI_CLOSE_BRACKET ||
+        !std::isxdigit(static_cast<unsigned char>(input[position]))) {
+      throw sourcemeta::core::URIParseError{
+          static_cast<std::uint64_t>(position + 1)};
+    }
+    while (position < input.size() && input[position] != URI_CLOSE_BRACKET &&
+           std::isxdigit(static_cast<unsigned char>(input[position]))) {
+      position += 1;
+    }
+
+    // Require "." separator
+    if (position >= input.size() || input[position] != URI_DOT) {
+      throw sourcemeta::core::URIParseError{
+          static_cast<std::uint64_t>(position + 1)};
+    }
+    position += 1;
+
+    // Require 1*( unreserved / sub-delims / ":" )
+    if (position >= input.size() || input[position] == URI_CLOSE_BRACKET) {
+      throw sourcemeta::core::URIParseError{
+          static_cast<std::uint64_t>(position + 1)};
+    }
+    while (position < input.size() && input[position] != URI_CLOSE_BRACKET) {
+      const auto current = input[position];
+      if (!uri_is_unreserved(current) && !uri_is_sub_delim(current) &&
+          current != URI_COLON) {
+        throw sourcemeta::core::URIParseError{
+            static_cast<std::uint64_t>(position + 1)};
+      }
+      position += 1;
+    }
+  } else {
+    // IPv6address: only HEXDIG, ":", and "." are valid
+    while (position < input.size() && input[position] != URI_CLOSE_BRACKET) {
+      const auto current = input[position];
+      if (!std::isxdigit(static_cast<unsigned char>(current)) &&
+          current != URI_COLON && current != URI_DOT) {
+        throw sourcemeta::core::URIParseError{
+            static_cast<std::uint64_t>(position + 1)};
+      }
+      position += 1;
+    }
   }
 
   if (position >= input.size()) {
@@ -142,13 +192,13 @@ auto parse_ipv6(const std::string &input, std::string::size_type &position)
         static_cast<std::uint64_t>(start + 1)};
   }
 
-  auto ipv6 = input.substr(start + 1, position - start - 1);
+  std::string ipv6{input.substr(start + 1, position - start - 1)};
   position += 1;
   return ipv6;
 }
 
-auto parse_host(const std::string &input, std::string::size_type &position)
-    -> std::string {
+auto parse_host(const std::string_view input,
+                std::string_view::size_type &position) -> std::string {
   if (position >= input.size()) {
     return std::string{};
   }
@@ -180,16 +230,17 @@ auto parse_host(const std::string &input, std::string::size_type &position)
     return std::string{};
   }
 
-  return input.substr(start, position - start);
+  return std::string{input.substr(start, position - start)};
 }
 
-auto parse_userinfo(const std::string &input, std::string::size_type &position)
+auto parse_userinfo(const std::string_view input,
+                    std::string_view::size_type &position)
     -> std::optional<std::string> {
   const auto start = position;
   while (position < input.size()) {
     const auto current = input[position];
     if (current == URI_AT) {
-      auto userinfo = input.substr(start, position - start);
+      std::string userinfo{input.substr(start, position - start)};
       position += 1;
       return userinfo;
     }
@@ -209,7 +260,8 @@ auto parse_userinfo(const std::string &input, std::string::size_type &position)
   return std::nullopt;
 }
 
-auto parse_path(const std::string &input, std::string::size_type &position)
+auto parse_path(const std::string_view input,
+                std::string_view::size_type &position)
     -> std::optional<std::string> {
   if (position >= input.size()) {
     return std::nullopt;
@@ -238,10 +290,11 @@ auto parse_path(const std::string &input, std::string::size_type &position)
     }
   }
 
-  return input.substr(start, position - start);
+  return std::string{input.substr(start, position - start)};
 }
 
-auto parse_query(const std::string &input, std::string::size_type &position)
+auto parse_query(const std::string_view input,
+                 std::string_view::size_type &position)
     -> std::optional<std::string> {
   if (position >= input.size() || input[position] != URI_QUESTION) {
     return std::nullopt;
@@ -268,10 +321,11 @@ auto parse_query(const std::string &input, std::string::size_type &position)
     }
   }
 
-  return input.substr(start, position - start);
+  return std::string{input.substr(start, position - start)};
 }
 
-auto parse_fragment(const std::string &input, std::string::size_type &position)
+auto parse_fragment(const std::string_view input,
+                    std::string_view::size_type &position)
     -> std::optional<std::string> {
   if (position >= input.size() || input[position] != URI_HASH) {
     return std::nullopt;
@@ -295,14 +349,15 @@ auto parse_fragment(const std::string &input, std::string::size_type &position)
     }
   }
 
-  return input.substr(start, position - start);
+  return std::string{input.substr(start, position - start)};
 }
 
 } // namespace
 
 namespace sourcemeta::core {
 
-auto parse_authority(const std::string &input, std::string::size_type &position,
+auto parse_authority(const std::string_view input,
+                     std::string_view::size_type &position,
                      std::optional<std::string> &userinfo,
                      std::optional<std::string> &host,
                      std::optional<std::uint32_t> &port) -> void {
@@ -316,14 +371,13 @@ auto parse_authority(const std::string &input, std::string::size_type &position,
   uri_unescape_selective_inplace(host_raw);
   host = std::move(host_raw);
 
+  // RFC 3986: authority = [ userinfo "@" ] host [ ":" port ]
+  // port = *DIGIT (empty port after colon is valid)
   if (position < input.size() && input[position] == URI_COLON) {
-    const auto colon_position = position;
     position += 1;
     const auto port_value = parse_port(input, position);
     if (port_value.has_value()) {
       port = port_value.value();
-    } else {
-      position = colon_position;
     }
   }
 
@@ -332,7 +386,7 @@ auto parse_authority(const std::string &input, std::string::size_type &position,
   }
 }
 
-auto URI::parse(const std::string &input) -> void {
+auto URI::parse(const std::string_view input) -> void {
   assert(!this->scheme_.has_value());
   assert(!this->userinfo_.has_value());
   assert(!this->host_.has_value());
@@ -345,7 +399,7 @@ auto URI::parse(const std::string &input) -> void {
     return;
   }
 
-  auto position = std::string::size_type{0};
+  std::string_view::size_type position{0};
 
   this->scheme_ = parse_scheme(input, position);
 
@@ -356,11 +410,33 @@ auto URI::parse(const std::string &input) -> void {
   if (has_authority) {
     position += 2;
     parse_authority(input, position, this->userinfo_, this->host_, this->port_);
+
+    // RFC 3986: hier-part = "//" authority path-abempty
+    // path-abempty = *( "/" segment ), so after authority the next character
+    // must be "/", "?", "#", or end-of-input
+    if (position < input.size() && input[position] != URI_SLASH &&
+        input[position] != URI_QUESTION && input[position] != URI_HASH) {
+      throw URIParseError{static_cast<std::uint64_t>(position + 1)};
+    }
   }
 
   auto path = parse_path(input, position);
 
   if (path.has_value()) {
+    // RFC 3986: relative-ref without authority uses path-noscheme,
+    // where the first segment must not contain a colon
+    if (!this->scheme_.has_value() && !has_authority) {
+      const auto &path_value = path.value();
+      if (!path_value.empty() && path_value[0] != URI_SLASH) {
+        const auto first_slash = path_value.find(URI_SLASH);
+        const auto colon_pos = path_value.find(URI_COLON);
+        if (colon_pos != std::string::npos &&
+            (first_slash == std::string::npos || colon_pos < first_slash)) {
+          throw URIParseError{static_cast<std::uint64_t>(colon_pos + 1)};
+        }
+      }
+    }
+
     uri_unescape_selective_inplace(path.value());
     this->path_ = std::move(path.value());
   } else if (has_authority || this->scheme_.has_value()) {

@@ -89,8 +89,9 @@
 #define EVALUATE_RECURSE(child, target)                                        \
   evaluate_instruction(child, schema, callback, target, property_target,       \
                        depth + 1, evaluator)
+// NOLINTNEXTLINE(bugprone-macro-parentheses)
 #define EVALUATE_RECURSE_ON_PROPERTY_NAME(child, target, name)                 \
-  evaluate_instruction(child, schema, callback, target, &name, depth + 1,      \
+  evaluate_instruction(child, schema, callback, target, &(name), depth + 1,    \
                        evaluator)
 
 #define SOURCEMETA_EVALUATOR_TRACK
@@ -102,7 +103,8 @@ namespace sourcemeta::blaze::track {
 inline auto evaluate(const sourcemeta::core::JSON &instance,
                      sourcemeta::blaze::Evaluator &evaluator,
                      const sourcemeta::blaze::Template &schema) -> bool {
-  for (const auto &instruction : schema.instructions) {
+  assert(!schema.targets.empty());
+  for (const auto &instruction : schema.targets[0]) {
     if (!evaluate_instruction(instruction, schema, nullptr, instance, nullptr,
                               0, evaluator)) {
       assert(evaluator.evaluate_path.empty());
