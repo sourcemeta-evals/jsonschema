@@ -19,6 +19,10 @@ inline auto LOG_VERBOSE(const sourcemeta::core::Options &options)
   return null_stream;
 }
 
+/// @brief Log a warning message to stderr with automatic "warning: " prefix.
+/// @details Warnings are always printed to stderr, independently of the
+/// --verbose flag. Use this helper for all warning messages throughout
+/// the codebase.
 inline auto LOG_WARNING() -> std::ostream & {
   std::cerr << "warning: ";
   return std::cerr;
