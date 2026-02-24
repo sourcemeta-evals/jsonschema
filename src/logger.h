@@ -19,6 +19,9 @@ inline auto LOG_VERBOSE(const sourcemeta::core::Options &options)
   return null_stream;
 }
 
+// Log a warning message to standard error. Warnings are always printed
+// (independent of --verbose) with the "warning: " prefix automatically
+// included.
 inline auto LOG_WARNING() -> std::ostream & {
   std::cerr << "warning: ";
   return std::cerr;
