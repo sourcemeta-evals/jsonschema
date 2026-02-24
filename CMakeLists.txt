@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
-project(jsonschema VERSION 11.11.1 LANGUAGES C CXX)
+file(READ "${CMAKE_CURRENT_LIST_DIR}/VERSION" JSONSCHEMA_VERSION)
+string(STRIP "${JSONSCHEMA_VERSION}" JSONSCHEMA_VERSION)
+project(jsonschema VERSION "${JSONSCHEMA_VERSION}" LANGUAGES C CXX)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 # Options
@@ -29,7 +31,7 @@ if(JSONSCHEMA_DEVELOPMENT)
   sourcemeta_target_clang_format(SOURCES
     src/*.h src/*.cc)
   sourcemeta_target_shellcheck(SOURCES
-    test/*.sh install *.sh)
+    test/*.sh install *.sh completion/*)
 endif()
 
 # Testing

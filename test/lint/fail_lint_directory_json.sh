@@ -24,7 +24,7 @@ cat << 'EOF' > "$TMP/schemas/bar.json"
 EOF
 
 "$1" lint "$TMP/schemas" --json >"$TMP/output.json" 2>&1 && CODE="$?" || CODE="$?"
-test "$CODE" = "1" || exit 1
+test "$CODE" = "2" || exit 1
 
 cat << EOF > "$TMP/expected.json"
 {
@@ -38,6 +38,14 @@ cat << EOF > "$TMP/expected.json"
       "description": null,
       "schemaLocation": "/enum",
       "position": [ 4, 3, 4, 33 ]
+    },
+    {
+      "path": "$(realpath "$TMP")/schemas/foo.json",
+      "id": "enum_with_type",
+      "message": "Setting \`type\` alongside \`enum\` is considered an anti-pattern, as the enumeration choices already imply their respective types",
+      "description": null,
+      "schemaLocation": "/type",
+      "position": [ 3, 3, 3, 18 ]
     }
   ]
 }

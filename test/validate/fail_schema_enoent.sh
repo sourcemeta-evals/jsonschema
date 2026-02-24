@@ -12,8 +12,8 @@ cat << 'EOF' > "$TMP/instance.json"
 EOF
 
 "$1" validate "$TMP/foo.json" "$TMP/instance.json" 2>"$TMP/stderr.txt" \
-  && CODE="$?" || CODE="$?"
-test "$CODE" = "1" || exit 1
+  && EXIT_CODE="$?" || EXIT_CODE="$?"
+test "$EXIT_CODE" = "1" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
 error: No such file or directory
@@ -21,3 +21,17 @@ error: No such file or directory
 EOF
 
 diff "$TMP/stderr.txt" "$TMP/expected.txt"
+
+# JSON error
+"$1" validate "$TMP/foo.json" "$TMP/instance.json" --json >"$TMP/stdout.txt" \
+  && EXIT_CODE="$?" || EXIT_CODE="$?"
+test "$EXIT_CODE" = "1" || exit 1
+
+cat << EOF > "$TMP/expected.txt"
+{
+  "error": "No such file or directory",
+  "filePath": "$(realpath "$TMP")/foo.json"
+}
+EOF
+
+diff "$TMP/stdout.txt" "$TMP/expected.txt"

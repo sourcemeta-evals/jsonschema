@@ -13,7 +13,7 @@ configure schema resolution, default dialects, and project metadata for your
 JSON Schema workflows.
 
 It is meant to be used not only by this CLI but by other JSON Schema tooling
-such as the [Sourcemeta Registry](https://registry.sourcemeta.com).
+such as [Sourcemeta One](https://one.sourcemeta.com).
 
 Example
 -------
@@ -48,6 +48,7 @@ describes the available configuration options:
 | `baseUri` | String | The base URI for your schemas (**not used in this CLI yet**) | - |
 | `path` | String | Relative path to the directory containing your schemas | Directory containing `jsonschema.json` |
 | `defaultDialect` | String | The default JSON Schema dialect to use when a schema doesn't specify `$schema` | - |
+| `extension` | String / String[] | The schema extension/s used by the project | `.json` / `.yaml` / `.yml` |
 | `resolve` | Object | A mapping of URIs to local file paths or other URIs for schema resolution remapping | `{}` |
 
 Lookup Algorithm

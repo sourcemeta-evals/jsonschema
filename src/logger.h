@@ -3,8 +3,9 @@
 
 #include <sourcemeta/core/options.h>
 
-#include <fstream> // std::ofstream
-#include <ostream> // std::ostream
+#include <fstream>  // std::ofstream
+#include <iostream> // std::cerr
+#include <ostream>  // std::ostream
 
 namespace sourcemeta::jsonschema {
 
@@ -18,6 +19,9 @@ inline auto LOG_VERBOSE(const sourcemeta::core::Options &options)
   return null_stream;
 }
 
+// Log a warning message to standard error. Warnings are always printed
+// (independent of --verbose) with the "warning: " prefix automatically
+// included.
 inline auto LOG_WARNING() -> std::ostream & {
   std::cerr << "warning: ";
   return std::cerr;

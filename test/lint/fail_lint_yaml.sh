@@ -15,12 +15,15 @@ EOF
 
 cd "$TMP"
 "$1" lint "$TMP/schema.yaml" >"$TMP/stderr.txt" 2>&1 && CODE="$?" || CODE="$?"
-test "$CODE" = "1" || exit 1
+test "$CODE" = "2" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
-schema.yaml:<unknown>:<unknown>:
+schema.yaml:3:1:
   Setting \`type\` alongside \`enum\` is considered an anti-pattern, as the enumeration choices already imply their respective types (enum_with_type)
     at location "/enum"
+schema.yaml:2:1:
+  Setting \`type\` alongside \`enum\` is considered an anti-pattern, as the enumeration choices already imply their respective types (enum_with_type)
+    at location "/type"
 EOF
 
 diff "$TMP/stderr.txt" "$TMP/expected.txt"
