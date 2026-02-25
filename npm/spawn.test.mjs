@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { spawn } from './main.js';
 import packageJson from '../package.json' with { type: 'json' };
 
@@ -25,4 +28,63 @@ test('spawn captures stderr on error', async () => {
   const result = await spawn(['validate']);
   assert.strictEqual(result.code, 1);
   assert.ok(result.stderr.length > 0);
+});
+
+test('spawn with json option parses stdout as JSON object', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'jsonschema-test-'));
+  const schemaPath = path.join(tmp, 'schema.json');
+  fs.writeFileSync(schemaPath, JSON.stringify({
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com",
+    "type": "string"
+  }));
+
+  try {
+    const result = await spawn(['inspect', schemaPath], { json: true });
+    assert.strictEqual(result.code, 0);
+    assert.strictEqual(typeof result.stdout, 'object');
+    assert.ok(result.stdout !== null);
+    assert.ok('locations' in result.stdout);
+  } finally {
+    fs.rmSync(tmp, { recursive: true });
+  }
+});
+
+test('spawn without json option returns stdout as string', async () => {
+  const result = await spawn(['--version']);
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(typeof result.stdout, 'string');
+});
+
+test('spawn with json option passes --json flag to CLI', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'jsonschema-test-'));
+  const schemaPath = path.join(tmp, 'schema.json');
+  fs.writeFileSync(schemaPath, JSON.stringify({
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com",
+    "type": "string"
+  }));
+
+  try {
+    const result = await spawn(['inspect', schemaPath], { json: true });
+    assert.strictEqual(result.code, 0);
+    assert.ok('references' in result.stdout);
+  } finally {
+    fs.rmSync(tmp, { recursive: true });
+  }
+});
+
+test('spawn with json option on error still parses JSON', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'jsonschema-test-'));
+  const badPath = path.join(tmp, 'nonexistent.json');
+
+  try {
+    const result = await spawn(['inspect', badPath], { json: true });
+    assert.strictEqual(result.code, 1);
+    assert.strictEqual(typeof result.stdout, 'object');
+    assert.ok(result.stdout !== null);
+    assert.ok('error' in result.stdout);
+  } finally {
+    fs.rmSync(tmp, { recursive: true });
+  }
 });
