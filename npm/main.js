@@ -19,16 +19,19 @@ function spawn(args, options = {}) {
       return;
     }
 
+    const { json = false, ...spawnOverrides } = options;
+
     if (PLATFORM === 'darwin') {
       child_process.spawnSync('/usr/bin/xattr', ['-c', EXECUTABLE], { stdio: 'inherit' });
     }
 
     const spawnOptions = {
       windowsHide: true,
-      ...options
+      ...spawnOverrides
     };
+    const spawnArguments = json && !args.includes('--json') ? [...args, '--json'] : args;
 
-    const process = child_process.spawn(EXECUTABLE, args, spawnOptions);
+    const process = child_process.spawn(EXECUTABLE, spawnArguments, spawnOptions);
 
     let stdout = '';
     let stderr = '';
@@ -50,6 +53,20 @@ function spawn(args, options = {}) {
     });
 
     process.on('close', (code) => {
+      if (json) {
+        try {
+          resolve({
+            code: code,
+            stdout: JSON.parse(stdout),
+            stderr: stderr
+          });
+          return;
+        } catch (error) {
+          reject(error);
+          return;
+        }
+      }
+
       resolve({
         code: code,
         stdout: stdout,
