@@ -11,6 +11,7 @@ const EXECUTABLE = path.join(__dirname, '..', 'build', 'github-releases',
 
 function spawn(args, options = {}) {
   return new Promise((resolve, reject) => {
+    const processArgs = options.json ? [...args, '--json'] : args;
     if (!fs.existsSync(EXECUTABLE)) {
       reject(new Error(
         `The JSON Schema CLI NPM package does not support ${os.platform()} for ${os.arch()} yet. ` +
@@ -23,12 +24,13 @@ function spawn(args, options = {}) {
       child_process.spawnSync('/usr/bin/xattr', ['-c', EXECUTABLE], { stdio: 'inherit' });
     }
 
+    const { json, ...childProcessOptions } = options;
     const spawnOptions = {
       windowsHide: true,
-      ...options
+      ...childProcessOptions
     };
 
-    const process = child_process.spawn(EXECUTABLE, args, spawnOptions);
+    const process = child_process.spawn(EXECUTABLE, processArgs, spawnOptions);
 
     let stdout = '';
     let stderr = '';
@@ -50,6 +52,15 @@ function spawn(args, options = {}) {
     });
 
     process.on('close', (code) => {
+      if (options.json) {
+        try {
+          stdout = JSON.parse(stdout);
+        } catch (error) {
+          reject(error);
+          return;
+        }
+      }
+
       resolve({
         code: code,
         stdout: stdout,
