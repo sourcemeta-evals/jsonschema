@@ -26,7 +26,7 @@ cmake/FindJSONBinPack.cmake
 .pre-commit-hooks.yaml
 snapcraft.yaml
 .npmignore
-cli.js
+npm
 eslint.config.mjs
 package.json
 package-lock.json
