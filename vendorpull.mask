@@ -17,6 +17,7 @@ Dockerfile
 install
 Makefile
 npm-pack.sh
+npm
 pip-deploy.sh
 README.markdown
 cmake/FindBlaze.cmake
@@ -26,7 +27,6 @@ cmake/FindJSONBinPack.cmake
 .pre-commit-hooks.yaml
 snapcraft.yaml
 .npmignore
-cli.js
 eslint.config.mjs
 package.json
 package-lock.json
