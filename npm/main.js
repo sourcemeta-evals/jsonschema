@@ -55,11 +55,23 @@ function spawn(args, options = {}) {
     });
 
     process.on('close', (code) => {
-      resolve({
-        code: code,
-        stdout: json ? JSON.parse(stdout) : stdout,
-        stderr: stderr
-      });
+      if (json) {
+        try {
+          resolve({
+            code: code,
+            stdout: JSON.parse(stdout),
+            stderr: stderr
+          });
+        } catch (error) {
+          reject(error);
+        }
+      } else {
+        resolve({
+          code: code,
+          stdout: stdout,
+          stderr: stderr
+        });
+      }
     });
   });
 }
