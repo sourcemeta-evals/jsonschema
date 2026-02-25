@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { spawn } from './main.js';
 import packageJson from '../package.json' with { type: 'json' };
 
@@ -25,4 +28,45 @@ test('spawn captures stderr on error', async () => {
   const result = await spawn(['validate']);
   assert.strictEqual(result.code, 1);
   assert.ok(result.stderr.length > 0);
+});
+
+test('spawn without json option returns string stdout', async () => {
+  const result = await spawn(['--version']);
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(typeof result.stdout, 'string');
+});
+
+test('spawn with json option parses stdout as object', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'jsonschema-test-'));
+  try {
+    const schemaPath = path.join(tmp, 'schema.json');
+    fs.writeFileSync(schemaPath, JSON.stringify({
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "type": "string"
+    }, null, 2));
+
+    const result = await spawn(['fmt', schemaPath, '--check'], { json: true });
+    assert.strictEqual(result.code, 0);
+    assert.strictEqual(typeof result.stdout, 'object');
+    assert.strictEqual(result.stdout.valid, true);
+  } finally {
+    fs.rmSync(tmp, { recursive: true });
+  }
+});
+
+test('spawn with json false returns string stdout', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'jsonschema-test-'));
+  try {
+    const schemaPath = path.join(tmp, 'schema.json');
+    fs.writeFileSync(schemaPath, JSON.stringify({
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "type": "string"
+    }, null, 2));
+
+    const result = await spawn(['fmt', schemaPath, '--check', '--json']);
+    assert.strictEqual(result.code, 0);
+    assert.strictEqual(typeof result.stdout, 'string');
+  } finally {
+    fs.rmSync(tmp, { recursive: true });
+  }
 });
