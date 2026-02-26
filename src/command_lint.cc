@@ -530,8 +530,19 @@ auto sourcemeta::jsonschema::lint(const sourcemeta::core::Options &options)
     std::sort(errors_array.as_array().begin(), errors_array.as_array().end(),
               [](const sourcemeta::core::JSON &left,
                  const sourcemeta::core::JSON &right) {
-                return left.at("position").front() <
-                       right.at("position").front();
+                const auto &left_position = left.at("position");
+                const auto &right_position = right.at("position");
+                // Handle null positions - null sorts before non-null
+                if (left_position.is_null() && right_position.is_null()) {
+                  return false;
+                }
+                if (left_position.is_null()) {
+                  return true;
+                }
+                if (right_position.is_null()) {
+                  return false;
+                }
+                return left_position.front() < right_position.front();
               });
 
     auto output_json_object = sourcemeta::core::JSON::make_object();
