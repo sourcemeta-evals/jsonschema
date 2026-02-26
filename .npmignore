@@ -3,6 +3,7 @@
 !README.markdown
 !package.json
 !package-lock.json
-!*.js
-!*.mjs
+!npm/
+!npm/*.js
+!npm/*.mjs
 !build/github-releases/*
