@@ -26,3 +26,11 @@ test('spawn captures stderr on error', async () => {
   assert.strictEqual(result.code, 1);
   assert.ok(result.stderr.length > 0);
 });
+
+test('spawn with json option appends --json and parses JSON output', async () => {
+  const result = await spawn(['validate'], { json: true });
+  assert.strictEqual(result.code, 1);
+  assert.deepStrictEqual(result.stdout, {
+    error: 'This command expects a path to a schema and a path to an\ninstance to validate against the schema'
+  });
+});

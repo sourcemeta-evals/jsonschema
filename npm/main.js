@@ -23,12 +23,16 @@ function spawn(args, options = {}) {
       child_process.spawnSync('/usr/bin/xattr', ['-c', EXECUTABLE], { stdio: 'inherit' });
     }
 
+    const { json = false, ...childProcessOptions } = options;
     const spawnOptions = {
       windowsHide: true,
-      ...options
+      ...childProcessOptions
     };
+    const spawnArguments = json && !args.includes('--json')
+      ? [...args, '--json']
+      : args;
 
-    const process = child_process.spawn(EXECUTABLE, args, spawnOptions);
+    const process = child_process.spawn(EXECUTABLE, spawnArguments, spawnOptions);
 
     let stdout = '';
     let stderr = '';
@@ -50,6 +54,15 @@ function spawn(args, options = {}) {
     });
 
     process.on('close', (code) => {
+      if (json) {
+        try {
+          stdout = JSON.parse(stdout);
+        } catch {
+          reject(new Error('The JSON Schema CLI returned invalid JSON output'));
+          return;
+        }
+      }
+
       resolve({
         code: code,
         stdout: stdout,
