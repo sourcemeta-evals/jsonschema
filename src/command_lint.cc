@@ -164,9 +164,20 @@ auto sourcemeta::jsonschema::cli::lint(
             entry.first);
       }
 
+      std::ostringstream input_stream;
+      sourcemeta::core::prettify(entry.second, input_stream);
+      input_stream << "\n";
+
+      std::ostringstream output_stream;
+      sourcemeta::core::prettify(copy, output_stream);
+      output_stream << "\n";
+
+      if (input_stream.str() == output_stream.str()) {
+        continue;
+      }
+
       std::ofstream output{entry.first};
-      sourcemeta::core::prettify(copy, output);
-      output << "\n";
+      output << output_stream.str();
     }
   } else {
     for (const auto &entry :
