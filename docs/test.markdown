@@ -6,7 +6,8 @@ Testing
 
 ```sh
 jsonschema test [schemas-or-directories...]
-  [--http/-h] [--verbose/-v] [--resolve/-r <schemas-or-directories> ...]
+  [--http/-h] [--verbose/-v] [--debug/-g]
+  [--resolve/-r <schemas-or-directories> ...]
   [--extension/-e <extension>] [--ignore/-i <schemas-or-directories>]
   [--default-dialect/-d <uri>] [--json/-j]
 ```
@@ -20,6 +21,10 @@ suite](https://github.com/json-schema-org/JSON-Schema-Test-Suite).
 
 **If you want to validate that a schema adheres to its metaschema, use the
 [`metaschema`](./metaschema.markdown) command instead.**
+
+Pass `--json` to output results in [CTRF (Common Test Report
+Format)](https://ctrf.io), a standardized JSON format for test results that
+integrates with CI/CD tools and test result dashboards.
 
 Writing tests
 -------------

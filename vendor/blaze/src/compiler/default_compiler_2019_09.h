@@ -31,7 +31,7 @@ auto compiler_2019_09_applicator_dependentschemas(
        schema_context.schema.at(dynamic_context.keyword).as_object()) {
     dependents.push_back(entry.first);
   }
-  std::sort(dependents.begin(), dependents.end());
+  std::ranges::sort(dependents);
 
   for (const auto &dependent : dependents) {
     const auto &dependency{
@@ -41,13 +41,11 @@ auto compiler_2019_09_applicator_dependentschemas(
     }
 
     if (!dependency.is_boolean() || !dependency.to_boolean()) {
-      children.push_back(
-          make(sourcemeta::blaze::InstructionIndex::LogicalWhenDefines, context,
-               schema_context, relative_dynamic_context(dynamic_context),
-               make_property(dependent),
-               compile(context, schema_context,
-                       relative_dynamic_context(dynamic_context), {dependent},
-                       sourcemeta::core::empty_pointer)));
+      children.push_back(make(
+          sourcemeta::blaze::InstructionIndex::LogicalWhenDefines, context,
+          schema_context, relative_dynamic_context(), make_property(dependent),
+          compile(context, schema_context, relative_dynamic_context(),
+                  sourcemeta::blaze::make_weak_pointer(dependent))));
     }
   }
 
@@ -85,7 +83,7 @@ auto compiler_2019_09_validation_dependentrequired(
     }
 
     if (!properties.empty()) {
-      dependencies.emplace(entry.first, std::move(properties));
+      dependencies.emplace(entry.first, properties);
     }
   }
 
@@ -155,15 +153,15 @@ auto compiler_2019_09_applicator_contains_with_options(
     return {};
   }
 
-  Instructions children{compile(
-      context, schema_context, relative_dynamic_context(dynamic_context),
-      sourcemeta::core::empty_pointer, sourcemeta::core::empty_pointer)};
+  Instructions children{compile(context, schema_context,
+                                relative_dynamic_context(),
+                                sourcemeta::core::empty_weak_pointer,
+                                sourcemeta::core::empty_weak_pointer)};
 
   if (annotate) {
     children.push_back(
         make(sourcemeta::blaze::InstructionIndex::AnnotationBasenameToParent,
-             context, schema_context, relative_dynamic_context(dynamic_context),
-             ValueNone{}));
+             context, schema_context, relative_dynamic_context(), ValueNone{}));
 
     // TODO: If after emitting the above annotation, the number of annotations
     // for the current schema location + instance location is equal to the
@@ -174,8 +172,7 @@ auto compiler_2019_09_applicator_contains_with_options(
   if (track_evaluation) {
     children.push_back(
         make(sourcemeta::blaze::InstructionIndex::ControlEvaluate, context,
-             schema_context, relative_dynamic_context(dynamic_context),
-             ValuePointer{}));
+             schema_context, relative_dynamic_context(), ValuePointer{}));
   }
 
   if (children.empty()) {
@@ -218,10 +215,9 @@ auto compiler_2019_09_applicator_items(const Context &context,
   // TODO: Be smarter about how we treat `unevaluatedItems` like how we do for
   // `unevaluatedProperties`
   const bool track{
-      std::any_of(context.unevaluated.cbegin(), context.unevaluated.cend(),
-                  [](const auto &dependency) {
-                    return dependency.first.ends_with("unevaluatedItems");
-                  })};
+      std::ranges::any_of(context.unevaluated, [](const auto &dependency) {
+        return dependency.first.ends_with("unevaluatedItems");
+      })};
 
   if (schema_context.schema.at(dynamic_context.keyword).is_array()) {
     return compiler_draft4_applicator_items_with_options(
@@ -242,10 +238,9 @@ auto compiler_2019_09_applicator_additionalitems(
   // TODO: Be smarter about how we treat `unevaluatedItems` like how we do for
   // `unevaluatedProperties`
   const bool track{
-      std::any_of(context.unevaluated.cbegin(), context.unevaluated.cend(),
-                  [](const auto &dependency) {
-                    return dependency.first.ends_with("unevaluatedItems");
-                  })};
+      std::ranges::any_of(context.unevaluated, [](const auto &dependency) {
+        return dependency.first.ends_with("unevaluatedItems");
+      })};
 
   return compiler_draft4_applicator_additionalitems_with_options(
       context, schema_context, dynamic_context,
@@ -273,21 +268,24 @@ auto compiler_2019_09_applicator_unevaluateditems(
     assert(dependency.back().is_property());
     const auto &keyword{dependency.back().to_property()};
     const auto &subschema{sourcemeta::core::get(context.root, dependency)};
+    // NOLINTBEGIN(bugprone-branch-clone)
     if (keyword == "items" && sourcemeta::core::is_schema(subschema)) {
       return {};
     } else if (keyword == "additionalItems" || keyword == "unevaluatedItems") {
       return {};
     }
+    // NOLINTEND(bugprone-branch-clone)
   }
 
-  Instructions children{compile(
-      context, schema_context, relative_dynamic_context(dynamic_context),
-      sourcemeta::core::empty_pointer, sourcemeta::core::empty_pointer)};
+  Instructions children{compile(context, schema_context,
+                                relative_dynamic_context(),
+                                sourcemeta::core::empty_weak_pointer,
+                                sourcemeta::core::empty_weak_pointer)};
 
   if (context.mode == Mode::Exhaustive) {
     children.push_back(
         make(sourcemeta::blaze::InstructionIndex::AnnotationToParent, context,
-             schema_context, relative_dynamic_context(dynamic_context),
+             schema_context, relative_dynamic_context(),
              sourcemeta::core::JSON{true}));
   }
 
@@ -319,15 +317,15 @@ auto compiler_2019_09_applicator_unevaluatedproperties(
     return {};
   }
 
-  Instructions children{compile(
-      context, schema_context, relative_dynamic_context(dynamic_context),
-      sourcemeta::core::empty_pointer, sourcemeta::core::empty_pointer)};
+  Instructions children{compile(context, schema_context,
+                                relative_dynamic_context(),
+                                sourcemeta::core::empty_weak_pointer,
+                                sourcemeta::core::empty_weak_pointer)};
 
   if (context.mode == Mode::Exhaustive) {
     children.push_back(
         make(sourcemeta::blaze::InstructionIndex::AnnotationBasenameToParent,
-             context, schema_context, relative_dynamic_context(dynamic_context),
-             ValueNone{}));
+             context, schema_context, relative_dynamic_context(), ValueNone{}));
   }
 
   ValueStringSet filter_strings;
@@ -357,10 +355,13 @@ auto compiler_2019_09_applicator_unevaluatedproperties(
           if (maybe_prefix.has_value()) {
             filter_prefixes.push_back(maybe_prefix.value());
           } else {
+            static const std::string pattern_properties_keyword{
+                "patternProperties"};
             filter_regexes.push_back(
                 {parse_regex(property.first, schema_context.base,
                              schema_context.relative_pointer.initial().concat(
-                                 {"patternProperties"})),
+                                 sourcemeta::blaze::make_weak_pointer(
+                                     pattern_properties_keyword))),
                  property.first});
           }
         }
@@ -461,9 +462,8 @@ auto compiler_2019_09_content_contentencoding(
                schema_context.schema.at(dynamic_context.keyword)})};
 
   return {make(sourcemeta::blaze::InstructionIndex::ControlGroupWhenType,
-               context, schema_context,
-               relative_dynamic_context(dynamic_context), ValueType::String,
-               std::move(children))};
+               context, schema_context, relative_dynamic_context(),
+               ValueType::String, std::move(children))};
 }
 
 auto compiler_2019_09_content_contentmediatype(
@@ -481,9 +481,8 @@ auto compiler_2019_09_content_contentmediatype(
                schema_context.schema.at(dynamic_context.keyword)})};
 
   return {make(sourcemeta::blaze::InstructionIndex::ControlGroupWhenType,
-               context, schema_context,
-               relative_dynamic_context(dynamic_context), ValueType::String,
-               std::move(children))};
+               context, schema_context, relative_dynamic_context(),
+               ValueType::String, std::move(children))};
 }
 
 auto compiler_2019_09_content_contentschema(
@@ -506,9 +505,8 @@ auto compiler_2019_09_content_contentschema(
                schema_context.schema.at(dynamic_context.keyword)})};
 
   return {make(sourcemeta::blaze::InstructionIndex::ControlGroupWhenType,
-               context, schema_context,
-               relative_dynamic_context(dynamic_context), ValueType::String,
-               std::move(children))};
+               context, schema_context, relative_dynamic_context(),
+               ValueType::String, std::move(children))};
 }
 
 auto compiler_2019_09_format_format(const Context &context,
@@ -526,9 +524,8 @@ auto compiler_2019_09_format_format(const Context &context,
                schema_context.schema.at(dynamic_context.keyword)})};
 
   return {make(sourcemeta::blaze::InstructionIndex::ControlGroupWhenType,
-               context, schema_context,
-               relative_dynamic_context(dynamic_context), ValueType::String,
-               std::move(children))};
+               context, schema_context, relative_dynamic_context(),
+               ValueType::String, std::move(children))};
 }
 
 } // namespace internal

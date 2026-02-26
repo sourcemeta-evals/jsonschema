@@ -1,6 +1,8 @@
 class IntegerLowerBoundMultiplier final
     : public sourcemeta::core::SchemaTransformRule {
 public:
+  using mutates = std::true_type;
+  using reframe_after_transform = std::true_type;
   IntegerLowerBoundMultiplier()
       : sourcemeta::core::SchemaTransformRule{"integer_lower_bound_multiplier",
                                               ""} {};
@@ -15,9 +17,9 @@ public:
             const sourcemeta::core::SchemaResolver &) const
       -> sourcemeta::core::SchemaTransformRule::Result override {
     return location.dialect == "https://json-schema.org/draft/2020-12/schema" &&
-           vocabularies.contains(
-               "https://json-schema.org/draft/2020-12/vocab/validation") &&
-           schema.defines("type") &&
+           vocabularies.contains(sourcemeta::core::Vocabularies::Known::
+                                     JSON_Schema_2020_12_Validation) &&
+           schema.is_object() && schema.defines("type") &&
            schema.at("type").to_string() == "integer" &&
            schema.defines("minimum") && !schema.defines("maximum") &&
            schema.defines("multipleOf") && schema.at("multipleOf").is_integer();

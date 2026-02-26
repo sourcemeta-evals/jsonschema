@@ -4,6 +4,7 @@ CTEST = ctest
 CPACK = cpack
 NPM = npm
 NODE = node
+DOCKER = docker
 
 # Options
 PRESET = Debug
@@ -41,6 +42,7 @@ node_modules: package.json package-lock.json
 	$(NPM) ci
 
 npm-pack: node_modules .always
+	$(NPM) --version
 	$(CMAKE) -P cmake/fetch-github-releases.cmake
 	$(NODE) npm/cli.js
 	$(NODE) node_modules/eslint/bin/eslint.js npm/*.js npm/*.mjs
@@ -50,6 +52,9 @@ npm-pack: node_modules .always
 
 npm-publish: npm-pack
 	$(NPM) publish
+
+alpine: .always
+	$(DOCKER) build --progress plain --file Dockerfile.test.alpine .
 
 # For NMake, which doesn't support .PHONY
 .always:

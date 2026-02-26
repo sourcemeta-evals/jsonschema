@@ -9,6 +9,8 @@ option(BLAZE_COMPILER "Build the Blaze compiler library" ON)
 option(BLAZE_EVALUATOR "Build the Blaze evaluator library" ON)
 option(BLAZE_OUTPUT "Build the Blaze output formats library" ON)
 option(BLAZE_LINTER "Build the Blaze linter rule library" ON)
+option(BLAZE_TEST "Build the Blaze test runner library" ON)
+option(BLAZE_CONFIGURATION "Build the Blaze configuration file library" ON)
 option(BLAZE_TESTS "Build the Blaze tests" OFF)
 option(BLAZE_BENCHMARK "Build the Blaze benchmarks" OFF)
 option(BLAZE_CONTRIB "Build the Blaze contrib programs" OFF)
@@ -57,6 +59,14 @@ if(BLAZE_LINTER)
   add_subdirectory(src/linter)
 endif()
 
+if(BLAZE_TEST)
+  add_subdirectory(src/test)
+endif()
+
+if(BLAZE_CONFIGURATION)
+  add_subdirectory(src/configuration)
+endif()
+
 if(BLAZE_CONTRIB)
   add_subdirectory(contrib)
 endif()
@@ -74,7 +84,7 @@ endif()
 
 if(PROJECT_IS_TOP_LEVEL)
   sourcemeta_target_clang_format(SOURCES
-    bindings/*.cc contrib/*.cc
+    contrib/*.cc
     src/*.h src/*.cc
     benchmark/*.h benchmark/*.cc
     test/*.h test/*.cc)
@@ -98,6 +108,14 @@ if(BLAZE_TESTS)
 
   if(BLAZE_LINTER)
     add_subdirectory(test/linter)
+  endif()
+
+  if(BLAZE_TEST)
+    add_subdirectory(test/test)
+  endif()
+
+  if(BLAZE_CONFIGURATION)
+    add_subdirectory(test/configuration)
   endif()
 
   if(PROJECT_IS_TOP_LEVEL)

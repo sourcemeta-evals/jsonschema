@@ -18,6 +18,8 @@
 
 namespace sourcemeta::core {
 
+static constexpr auto TRIM_WHITESPACE = " \t\n\r\v\f";
+
 JSON::JSON(const std::int64_t value) : current_type{Type::Integer} {
   this->data_integer = value;
 }
@@ -63,20 +65,19 @@ JSON::JSON(const Char *const value) : current_type{Type::String} {
 }
 
 JSON::JSON(std::initializer_list<JSON> values) : current_type{Type::Array} {
-  new (&this->data_array) Array{values};
-
-// For some reason, if we construct a JSON by passing a single
-// JSON as argument, GCC and MSVC, in some circumstances will
-// prefer this initializer list constructor over the default copy constructor,
-// effectively creating an array of a single element. We couldn't find a nicer
-// way to force them to pick the correct constructor. This is a hacky (and
-// potentially inefficient?) way to "fix it up" to get consistent behavior
-// across compilers.
+// For direct-list-initialization (e.g. JSON x{other_json}), the C++ standard
+// mandates that initializer_list constructors are preferred over copy/move
+// constructors. GCC and MSVC follow this strictly, so a single-element brace
+// init ends up here instead of the copy constructor. Handle this case before
+// constructing the array to avoid an unnecessary heap allocation.
 #if defined(__GNUC__) || defined(_MSC_VER)
   if (values.size() == 1) {
+    this->current_type = Type::Null;
     this->operator=(*values.begin());
+    return;
   }
 #endif
+  new (&this->data_array) Array{values};
 }
 
 JSON::JSON(const Array &value) : current_type{Type::Array} {
@@ -731,6 +732,8 @@ auto JSON::operator-=(const JSON &substractive) -> JSON & {
                                return accumulator + 1 + pair.first.size() +
                                       pair.second.fast_hash();
                              });
+    case Type::Decimal:
+      return 8;
     default:
       assert(false);
       return 0;
@@ -843,12 +846,24 @@ JSON::defines_any(std::initializer_list<JSON::String> keys) const -> bool {
                    element) != this->as_array().cend();
 }
 
-[[nodiscard]] auto JSON::contains(const JSON::String &input) const -> bool {
+[[nodiscard]] auto JSON::contains(const JSON::StringView element) const
+    -> bool {
+  assert(this->is_array());
+  for (const auto &item : this->as_array()) {
+    if (item.is_string() && item.to_string() == element) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+[[nodiscard]] auto JSON::includes(const JSON::String &input) const -> bool {
   assert(this->is_string());
   return this->to_string().find(input) != JSON::String::npos;
 }
 
-[[nodiscard]] auto JSON::contains(const JSON::String::value_type input) const
+[[nodiscard]] auto JSON::includes(const JSON::String::value_type input) const
     -> bool {
   assert(this->is_string());
   return this->to_string().find(input) != JSON::String::npos;
@@ -951,6 +966,22 @@ auto JSON::assign_if_missing(const JSON::String &key, JSON &&value) -> void {
   }
 }
 
+auto JSON::assign_assume_new(const JSON::String &key, JSON &&value) -> void {
+  assert(this->is_object());
+  this->data_object.emplace_assume_new(key, std::move(value));
+}
+
+auto JSON::assign_assume_new(JSON::String &&key, JSON &&value) -> void {
+  assert(this->is_object());
+  this->data_object.emplace_assume_new(std::move(key), std::move(value));
+}
+
+auto JSON::assign_assume_new(JSON::String &&key, JSON &&value,
+                             Object::hash_type hash) -> void {
+  assert(this->is_object());
+  this->data_object.emplace_assume_new(std::move(key), std::move(value), hash);
+}
+
 auto JSON::erase(const JSON::String &key) -> typename Object::size_type {
   assert(this->is_object());
   return this->data_object.erase(key);
@@ -1012,10 +1043,19 @@ auto JSON::merge(const JSON::Object &other) -> void {
 
 auto JSON::trim() -> const JSON::String & {
   assert(this->is_string());
-  constexpr auto WHITESPACE = " \t\n\r\v\f";
-  this->data_string.erase(this->data_string.find_last_not_of(WHITESPACE) + 1);
-  this->data_string.erase(0, this->data_string.find_first_not_of(WHITESPACE));
+  this->data_string.erase(this->data_string.find_last_not_of(TRIM_WHITESPACE) +
+                          1);
+  this->data_string.erase(0,
+                          this->data_string.find_first_not_of(TRIM_WHITESPACE));
   return this->to_string();
+}
+
+[[nodiscard]] auto JSON::is_trimmed() const noexcept -> bool {
+  assert(this->is_string());
+  const auto &value{this->data_string};
+  return value.empty() ||
+         (value.find_first_of(TRIM_WHITESPACE) != 0 &&
+          value.find_last_of(TRIM_WHITESPACE) != value.size() - 1);
 }
 
 auto JSON::reorder(const KeyComparison &compare) -> void {

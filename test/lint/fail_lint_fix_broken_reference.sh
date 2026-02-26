@@ -10,6 +10,8 @@ trap clean EXIT
 cat << 'EOF' > "$TMP/schema.json"
 {
   "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Test",
+  "description": "Test schema",
   "properties": {
     "foo": {
       "$ref": "#/definitions/object",
@@ -32,10 +34,12 @@ EOF
 cp "$TMP/schema.json" "$TMP/original.json"
 
 cd "$TMP"
-"$1" lint "$TMP/schema.json" --fix >"$TMP/output.txt" 2>&1 && CODE="$?" || CODE="$?"
-test "$CODE" = "1" || exit 1
+"$1" lint "$TMP/schema.json" --fix >"$TMP/output.txt" 2>&1 && EXIT_CODE="$?" || EXIT_CODE="$?"
+# Unexpected error
+test "$EXIT_CODE" = "1" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
+.
 error: Could not autofix the schema without breaking its internal references
   at file path $(realpath "$TMP")/schema.json
   at location "/properties/bar/\$ref"

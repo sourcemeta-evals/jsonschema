@@ -5,12 +5,12 @@
 #include <sourcemeta/core/jsonpointer.h>
 #include <sourcemeta/core/jsonschema_vocabularies.h>
 
-#include <cstdint>     // std::uint8_t
-#include <functional>  // std::function, std::reference_wrapper
-#include <optional>    // std::optional
-#include <set>         // std::set
-#include <string>      // std::string
-#include <string_view> // std::string_view
+#include <cstdint>       // std::uint8_t
+#include <functional>    // std::function, std::reference_wrapper
+#include <optional>      // std::optional
+#include <string>        // std::string
+#include <string_view>   // std::string_view
+#include <unordered_set> // std::unordered_set
 
 namespace sourcemeta::core {
 
@@ -23,7 +23,7 @@ namespace sourcemeta::core {
 ///
 /// For convenience, we provide the following default resolvers:
 ///
-/// - sourcemeta::core::schema_official_resolver
+/// - sourcemeta::core::schema_resolver
 ///
 /// You can implement resolvers to read from a local storage, to send HTTP
 /// requests, or anything your application might require. Unless your resolver
@@ -34,6 +34,26 @@ using SchemaResolver = std::function<std::optional<JSON>(std::string_view)>;
 /// @ingroup jsonschema
 /// The reference type
 enum class SchemaReferenceType : std::uint8_t { Static, Dynamic };
+
+/// @ingroup jsonschema
+/// All the known JSON Schema base dialects
+enum class SchemaBaseDialect : std::uint8_t {
+  JSON_Schema_2020_12,
+  JSON_Schema_2020_12_Hyper,
+  JSON_Schema_2019_09,
+  JSON_Schema_2019_09_Hyper,
+  JSON_Schema_Draft_7,
+  JSON_Schema_Draft_7_Hyper,
+  JSON_Schema_Draft_6,
+  JSON_Schema_Draft_6_Hyper,
+  JSON_Schema_Draft_4,
+  JSON_Schema_Draft_4_Hyper,
+  JSON_Schema_Draft_3,
+  JSON_Schema_Draft_3_Hyper,
+  JSON_Schema_Draft_2_Hyper,
+  JSON_Schema_Draft_1_Hyper,
+  JSON_Schema_Draft_0_Hyper
+};
 
 #if defined(__GNUC__)
 #pragma GCC diagnostic push
@@ -157,12 +177,33 @@ struct SchemaWalkerResult {
   /// The walker strategy to continue traversing across the schema
   SchemaKeywordType type;
   /// The vocabulary associated with the keyword, if any
-  std::optional<std::string> vocabulary;
+  std::optional<Vocabularies::URI> vocabulary;
   /// The keywords a given keyword depends on (if any) during the evaluation
   /// process
-  std::set<std::string> dependencies;
-  /// The JSON instance types that this keyword applies to (or to all of them)
-  std::set<JSON::Type> instances;
+  std::unordered_set<std::string_view> dependencies;
+  /// The keywords a given keyword depends on for evaluation ordering purposes
+  /// only (not semantic dependencies)
+  std::unordered_set<std::string_view> order_dependencies;
+  /// The JSON instance types that this keyword applies to (empty means all)
+  JSON::TypeSet instances;
+
+  // Prevent accidental copies, as walker results are always returned by
+  // reference
+  SchemaWalkerResult(const SchemaWalkerResult &) = delete;
+  auto operator=(const SchemaWalkerResult &) -> SchemaWalkerResult & = delete;
+  SchemaWalkerResult(SchemaWalkerResult &&) = default;
+  auto operator=(SchemaWalkerResult &&) -> SchemaWalkerResult & = default;
+  ~SchemaWalkerResult() = default;
+
+  SchemaWalkerResult(SchemaKeywordType type_,
+                     std::optional<Vocabularies::URI> vocabulary_,
+                     std::unordered_set<std::string_view> dependencies_,
+                     std::unordered_set<std::string_view> order_dependencies_,
+                     JSON::TypeSet instances_)
+      : type{type_}, vocabulary{std::move(vocabulary_)},
+        dependencies{std::move(dependencies_)},
+        order_dependencies{std::move(order_dependencies_)},
+        instances{instances_} {}
 };
 
 /// @ingroup jsonschema
@@ -170,35 +211,22 @@ struct SchemaWalkerResult {
 /// For walking purposes, some functions need to understand which JSON Schema
 /// keywords declare other JSON Schema definitions. To accomplish this in a
 /// generic and flexible way that does not assume the use any vocabulary other
-/// than `core`, these functions take a walker function as argument, of the type
-/// sourcemeta::core::SchemaWalker.
-///
-/// For convenience, we provide the following default walkers:
-///
-/// - sourcemeta::core::schema_official_walker
-/// - sourcemeta::core::schema_walker_none
-using SchemaWalker =
-    std::function<SchemaWalkerResult(std::string_view, const Vocabularies &)>;
+/// than `core`, these functions take a walker function as argument.
+using SchemaWalker = std::function<const SchemaWalkerResult &(
+    std::string_view, const Vocabularies &)>;
 
 /// @ingroup jsonschema
 /// An entry of a schema iterator.
 struct SchemaIteratorEntry {
-  // TODO: Turn this into a weak pointer
-  std::optional<Pointer> parent;
-  // TODO: Turn this into a weak pointer
-  Pointer pointer;
-  std::optional<std::string> dialect;
+  std::optional<WeakPointer> parent;
+  WeakPointer pointer;
+  // TODO: Use "known" enum classes + strings for dialects
+  std::string_view dialect;
   Vocabularies vocabularies;
-  std::optional<std::string> base_dialect;
+  std::optional<SchemaBaseDialect> base_dialect;
   std::reference_wrapper<const JSON> subschema;
-
-  // TODO: These two pointer templates contain some overlap.
-  // Instead, have a `base_instance_location` and a `relative_instance_location`
-  // that when concatenated, represent the full `instance_location`
-  PointerTemplate instance_location;
-  PointerTemplate relative_instance_location;
-
   bool orphan;
+  bool property_name;
 };
 
 } // namespace sourcemeta::core

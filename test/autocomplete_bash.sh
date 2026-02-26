@@ -71,8 +71,11 @@ test_completion "jsonschema " "fmt" "Command completion includes fmt"
 test_completion "jsonschema " "lint" "Command completion includes lint"
 test_completion "jsonschema " "bundle" "Command completion includes bundle"
 test_completion "jsonschema " "inspect" "Command completion includes inspect"
+test_completion "jsonschema " "canonicalize" "Command completion includes canonicalize"
 test_completion "jsonschema " "encode" "Command completion includes encode"
 test_completion "jsonschema " "decode" "Command completion includes decode"
+test_completion "jsonschema " "codegen" "Command completion includes codegen"
+test_completion "jsonschema " "install" "Command completion includes install"
 test_completion "jsonschema " "version" "Command completion includes version"
 test_completion "jsonschema " "help" "Command completion includes help"
 
@@ -82,7 +85,6 @@ test_completion "jsonschema validate --" "--trace" "Validate includes --trace"
 test_completion "jsonschema validate --" "--fast" "Validate includes --fast"
 
 test_completion "jsonschema lint --" "--fix" "Lint includes --fix"
-test_completion "jsonschema lint --" "--strict" "Lint includes --strict"
 test_completion "jsonschema lint --" "--list" "Lint includes --list"
 
 test_completion "jsonschema bundle --" "--without-id" "Bundle includes --without-id"
@@ -91,5 +93,17 @@ test_completion "jsonschema compile --" "--minify" "Compile includes --minify"
 
 test_completion "jsonschema fmt --" "--check" "Fmt includes --check"
 test_completion "jsonschema fmt --" "--keep-ordering" "Fmt includes --keep-ordering"
+
+test_completion "jsonschema canonicalize --" "--http" "Canonicalize includes --http"
+test_completion "jsonschema canonicalize --" "--verbose" "Canonicalize includes global option --verbose"
+
+test_completion "jsonschema codegen --" "--name" "Codegen includes --name"
+test_completion "jsonschema codegen --" "--target" "Codegen includes --target"
+test_completion "jsonschema codegen --" "--verbose" "Codegen includes global option --verbose"
+
+test_completion "jsonschema install --" "--force" "Install includes --force"
+test_completion "jsonschema install --" "--frozen" "Install includes --frozen"
+test_completion "jsonschema install --" "--verbose" "Install includes global option --verbose"
+test_completion "jsonschema install --" "--debug" "Install includes global option --debug"
 
 echo "PASS" 1>&2

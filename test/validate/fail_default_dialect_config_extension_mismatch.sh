@@ -17,18 +17,17 @@ EOF
 
 cat << 'EOF' > "$TMP/jsonschema.json"
 {
-  "extension": [".schema.json"],
+  "extension": [ ".schema.json" ],
   "defaultDialect": "https://json-schema.org/draft/2020-12/schema"
 }
 EOF
 
 "$1" validate "$TMP/document.json" "$TMP/instance.json" --verbose 2>"$TMP/stderr.txt" \
-  && CODE="$?" || CODE="$?"
-test "$CODE" = "1" || exit 1
+  && EXIT_CODE="$?" || EXIT_CODE="$?"
+# Schema input error
+test "$EXIT_CODE" = "4" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
-Using configuration file: $(realpath "$TMP")/jsonschema.json
-Ignoring configuration file given extensions mismatch: $(realpath "$TMP")/jsonschema.json
 error: Could not determine the base dialect of the schema
   at file path $(realpath "$TMP")/document.json
 
@@ -41,8 +40,9 @@ diff "$TMP/stderr.txt" "$TMP/expected.txt"
 
 # JSON error
 "$1" validate "$TMP/document.json" "$TMP/instance.json" --json >"$TMP/stdout.txt" \
-  && CODE="$?" || CODE="$?"
-test "$CODE" = "1" || exit 1
+  && EXIT_CODE="$?" || EXIT_CODE="$?"
+# Schema input error
+test "$EXIT_CODE" = "4" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
 {

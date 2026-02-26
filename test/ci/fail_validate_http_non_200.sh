@@ -10,7 +10,9 @@ trap clean EXIT
 cat << 'EOF' > "$TMP/schema.json"
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "allOf": [ { "$ref": "https://example.com" } ]
+  "title": "Test",
+  "description": "Test schema",
+  "allOf": [ { "$ref": "https://one.sourcemeta.com" } ]
 }
 EOF
 
@@ -19,12 +21,13 @@ cat << 'EOF' > "$TMP/instance.json"
 EOF
 
 "$1" validate "$TMP/schema.json" "$TMP/instance.json" --http 2> "$TMP/stderr.txt" \
-  && CODE="$?" || CODE="$?"
-test "$CODE" = "1" || exit 1
+  && EXIT_CODE="$?" || EXIT_CODE="$?"
+# Other input error
+test "$EXIT_CODE" = "6" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
 error: Failed to parse the JSON document
-  at line 1
+  at line 2
   at column 1
 EOF
 

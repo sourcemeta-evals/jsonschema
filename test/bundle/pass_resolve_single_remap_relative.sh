@@ -10,6 +10,8 @@ trap clean EXIT
 cat << 'EOF' > "$TMP/schema.json"
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Test",
+  "description": "Test schema",
   "$id": "https://example.com",
   "$ref": "other"
 }
@@ -40,11 +42,13 @@ cat << 'EOF' > "$TMP/expected.json"
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com",
-  "$ref": "other",
+  "title": "Test",
+  "description": "Test schema",
+  "$ref": "https://example.com/nested",
   "$defs": {
-    "https://example.com/other": {
+    "https://example.com/nested": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "$id": "https://example.com/other",
+      "$id": "https://example.com/nested",
       "type": "string"
     }
   }
@@ -53,13 +57,7 @@ EOF
 
 diff "$TMP/result.json" "$TMP/expected.json"
 
-cat << EOF > "$TMP/expected.txt"
-Using configuration file: $(realpath "$TMP")/jsonschema.json
-Detecting schema resources from file: $(realpath "$TMP")/remote.json
-Importing schema into the resolution context: file://$(realpath "$TMP")/remote.json
-Importing schema into the resolution context: https://example.com/nested
-Resolving https://example.com/other as https://example.com/middle given the configuration file
-Resolving https://example.com/middle as https://example.com/nested given the configuration file
+cat << 'EOF' > "$TMP/expected.txt"
 EOF
 
 diff "$TMP/output.txt" "$TMP/expected.txt"

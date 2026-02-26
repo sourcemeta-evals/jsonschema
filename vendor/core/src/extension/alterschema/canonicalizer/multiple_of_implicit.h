@@ -1,5 +1,7 @@
 class MultipleOfImplicit final : public SchemaTransformRule {
 public:
+  using mutates = std::true_type;
+  using reframe_after_transform = std::true_type;
   MultipleOfImplicit()
       : SchemaTransformRule{"multiple_of_implicit",
                             "The unit of `multipleOf` is the integer 1"} {};
@@ -13,18 +15,17 @@ public:
             const sourcemeta::core::SchemaWalker &,
             const sourcemeta::core::SchemaResolver &) const
       -> sourcemeta::core::SchemaTransformRule::Result override {
-    ONLY_CONTINUE_IF(
-        contains_any(vocabularies,
-                     {"https://json-schema.org/draft/2020-12/vocab/validation",
-                      "https://json-schema.org/draft/2019-09/vocab/validation",
-                      "http://json-schema.org/draft-07/schema#",
-                      "http://json-schema.org/draft-06/schema#",
-                      "http://json-schema.org/draft-04/schema#"}) &&
-        schema.is_object() && schema.defines("type") &&
-        schema.at("type").is_string() &&
-        (schema.at("type").to_string() == "integer" ||
-         schema.at("type").to_string() == "number") &&
-        !schema.defines("multipleOf"));
+    ONLY_CONTINUE_IF(vocabularies.contains_any(
+                         {Vocabularies::Known::JSON_Schema_2020_12_Validation,
+                          Vocabularies::Known::JSON_Schema_2019_09_Validation,
+                          Vocabularies::Known::JSON_Schema_Draft_7,
+                          Vocabularies::Known::JSON_Schema_Draft_6,
+                          Vocabularies::Known::JSON_Schema_Draft_4}) &&
+                     schema.is_object() && schema.defines("type") &&
+                     schema.at("type").is_string() &&
+                     // Applying this to numbers would be a semantic problem
+                     schema.at("type").to_string() == "integer" &&
+                     !schema.defines("multipleOf"));
     return true;
   }
 

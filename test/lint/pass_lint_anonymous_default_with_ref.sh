@@ -10,6 +10,9 @@ trap clean EXIT
 cat << 'EOF' > "$TMP/schema.json"
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Test",
+  "description": "Test schema",
+  "examples": [ [ "foo" ] ],
   "default": [ "foo", "bar", "baz" ],
   "items": {
     "$ref": "./other.json"

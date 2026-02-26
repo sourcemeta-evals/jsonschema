@@ -1,7 +1,14 @@
 #include <sourcemeta/blaze/compiler.h>
 
+#include "compile_helpers.h"
+
 namespace {
 using namespace sourcemeta::core;
+using namespace sourcemeta::blaze;
+using Known = Vocabularies::Known;
+
+static const std::string UNEVALUATED_PROPERTIES{"unevaluatedProperties"};
+static const std::string UNEVALUATED_ITEMS{"unevaluatedItems"};
 
 auto find_adjacent_dependencies(
     const JSON::String &current, const JSON &schema, const SchemaFrame &frame,
@@ -23,12 +30,12 @@ auto find_adjacent_dependencies(
     } else if (keywords.contains(property.first)) {
       // In 2019-09, `additionalItems` takes no effect without `items`
       if (subschema_vocabularies.contains(
-              "https://json-schema.org/draft/2019-09/vocab/applicator") &&
+              Known::JSON_Schema_2019_09_Applicator) &&
           property.first == "additionalItems" && !subschema.defines("items")) {
         continue;
       }
 
-      auto pointer{entry.pointer.concat({property.first})};
+      auto pointer{entry.pointer.concat(make_weak_pointer(property.first))};
       if (is_static) {
         result.static_dependencies.emplace(std::move(pointer));
       } else {
@@ -41,7 +48,8 @@ auto find_adjacent_dependencies(
     switch (walker(property.first, subschema_vocabularies).type) {
       // References
       case SchemaKeywordType::Reference: {
-        const auto reference{frame.dereference(entry, {property.first})};
+        const auto reference{
+            frame.dereference(entry, make_weak_pointer(property.first))};
         if (reference.first == SchemaReferenceType::Static &&
             reference.second.has_value()) {
           find_adjacent_dependencies(
@@ -59,8 +67,8 @@ auto find_adjacent_dependencies(
         for (std::size_t index = 0; index < property.second.size(); index++) {
           find_adjacent_dependencies(
               current, schema, frame, walker, resolver, keywords, root,
-              frame.traverse(entry, {property.first, index}), is_static,
-              result);
+              frame.traverse(entry, make_weak_pointer(property.first, index)),
+              is_static, result);
         }
 
         break;
@@ -71,7 +79,8 @@ auto find_adjacent_dependencies(
           for (std::size_t index = 0; index < property.second.size(); index++) {
             find_adjacent_dependencies(
                 current, schema, frame, walker, resolver, keywords, root,
-                frame.traverse(entry, {property.first, index}), false, result);
+                frame.traverse(entry, make_weak_pointer(property.first, index)),
+                false, result);
           }
         }
 
@@ -84,7 +93,8 @@ auto find_adjacent_dependencies(
         if (is_schema(property.second)) {
           find_adjacent_dependencies(
               current, schema, frame, walker, resolver, keywords, root,
-              frame.traverse(entry, {property.first}), false, result);
+              frame.traverse(entry, make_weak_pointer(property.first)), false,
+              result);
         }
 
         break;
@@ -93,12 +103,14 @@ auto find_adjacent_dependencies(
           for (std::size_t index = 0; index < property.second.size(); index++) {
             find_adjacent_dependencies(
                 current, schema, frame, walker, resolver, keywords, root,
-                frame.traverse(entry, {property.first, index}), false, result);
+                frame.traverse(entry, make_weak_pointer(property.first, index)),
+                false, result);
           }
         } else if (is_schema(property.second)) {
           find_adjacent_dependencies(
               current, schema, frame, walker, resolver, keywords, root,
-              frame.traverse(entry, {property.first}), false, result);
+              frame.traverse(entry, make_weak_pointer(property.first)), false,
+              result);
         }
 
         break;
@@ -107,8 +119,9 @@ auto find_adjacent_dependencies(
           for (const auto &pair : property.second.as_object()) {
             find_adjacent_dependencies(
                 current, schema, frame, walker, resolver, keywords, root,
-                frame.traverse(entry, {property.first, pair.first}), false,
-                result);
+                frame.traverse(entry,
+                               make_weak_pointer(property.first, pair.first)),
+                false, result);
           }
         }
 
@@ -148,54 +161,57 @@ auto unevaluated(const JSON &schema, const SchemaFrame &frame,
       continue;
     }
 
+    const bool has_unevaluated_properties{
+        subschema.defines("unevaluatedProperties")};
+    const bool has_unevaluated_items{subschema.defines("unevaluatedItems")};
+    if (!has_unevaluated_properties && !has_unevaluated_items) {
+      continue;
+    }
+
     const auto subschema_vocabularies{
         frame.vocabularies(entry.second, resolver)};
-    for (const auto &pair : subschema.as_object()) {
-      const auto keyword_uri{frame.uri(entry.second, {pair.first})};
-      SchemaUnevaluatedEntry unevaluated;
 
+    if (has_unevaluated_properties) {
       if ((subschema_vocabularies.contains(
-               "https://json-schema.org/draft/2020-12/vocab/unevaluated") &&
+               Known::JSON_Schema_2020_12_Unevaluated) &&
            subschema_vocabularies.contains(
-               "https://json-schema.org/draft/2020-12/vocab/applicator")) &&
-          // NOLINTNEXTLINE(bugprone-branch-clone)
-          pair.first == "unevaluatedProperties") {
+               Known::JSON_Schema_2020_12_Applicator)) ||
+          subschema_vocabularies.contains(
+              Known::JSON_Schema_2019_09_Applicator)) {
+        SchemaUnevaluatedEntry unevaluated;
         find_adjacent_dependencies(
-            pair.first, schema, frame, walker, resolver,
+            "unevaluatedProperties", schema, frame, walker, resolver,
             {"properties", "patternProperties", "additionalProperties",
              "unevaluatedProperties"},
             entry.second, entry.second, true, unevaluated);
-        result.emplace(keyword_uri, std::move(unevaluated));
-      } else if (
-          (subschema_vocabularies.contains(
-               "https://json-schema.org/draft/2020-12/vocab/unevaluated") &&
-           subschema_vocabularies.contains(
-               "https://json-schema.org/draft/2020-12/vocab/applicator")) &&
-          pair.first == "unevaluatedItems") {
+        result.emplace(
+            frame.uri(entry.second, make_weak_pointer(UNEVALUATED_PROPERTIES)),
+            std::move(unevaluated));
+      }
+    }
+
+    if (has_unevaluated_items) {
+      SchemaUnevaluatedEntry unevaluated;
+      if (subschema_vocabularies.contains(
+              Known::JSON_Schema_2020_12_Unevaluated) &&
+          subschema_vocabularies.contains(
+              Known::JSON_Schema_2020_12_Applicator)) {
         find_adjacent_dependencies(
-            pair.first, schema, frame, walker, resolver,
+            "unevaluatedItems", schema, frame, walker, resolver,
             {"prefixItems", "items", "contains", "unevaluatedItems"},
             entry.second, entry.second, true, unevaluated);
-        result.emplace(keyword_uri, std::move(unevaluated));
+        result.emplace(
+            frame.uri(entry.second, make_weak_pointer(UNEVALUATED_ITEMS)),
+            std::move(unevaluated));
       } else if (subschema_vocabularies.contains(
-                     "https://json-schema.org/draft/2019-09/vocab/"
-                     "applicator") &&
-                 pair.first == "unevaluatedProperties") {
+                     Known::JSON_Schema_2019_09_Applicator)) {
         find_adjacent_dependencies(
-            pair.first, schema, frame, walker, resolver,
-            {"properties", "patternProperties", "additionalProperties",
-             "unevaluatedProperties"},
-            entry.second, entry.second, true, unevaluated);
-        result.emplace(keyword_uri, std::move(unevaluated));
-      } else if (subschema_vocabularies.contains(
-                     "https://json-schema.org/draft/2019-09/vocab/"
-                     "applicator") &&
-                 pair.first == "unevaluatedItems") {
-        find_adjacent_dependencies(
-            pair.first, schema, frame, walker, resolver,
+            "unevaluatedItems", schema, frame, walker, resolver,
             {"items", "additionalItems", "unevaluatedItems"}, entry.second,
             entry.second, true, unevaluated);
-        result.emplace(keyword_uri, std::move(unevaluated));
+        result.emplace(
+            frame.uri(entry.second, make_weak_pointer(UNEVALUATED_ITEMS)),
+            std::move(unevaluated));
       }
     }
   }

@@ -87,7 +87,6 @@ enum class InstructionIndex : std::uint8_t {
   LoopPropertiesRegexClosed,
   LoopPropertiesStartsWith,
   LoopPropertiesExcept,
-  LoopPropertiesWhitelist,
   LoopPropertiesType,
   LoopPropertiesTypeEvaluate,
   LoopPropertiesExactlyTypeStrict,
@@ -110,14 +109,13 @@ enum class InstructionIndex : std::uint8_t {
   ControlGroupWhenDefines,
   ControlGroupWhenDefinesDirect,
   ControlGroupWhenType,
-  ControlLabel,
-  ControlMark,
   ControlEvaluate,
-  ControlJump,
-  ControlDynamicAnchorJump
+  ControlDynamicAnchorJump,
+  ControlJump
 };
 
 /// @ingroup evaluator
+// NOLINTNEXTLINE(modernize-avoid-c-arrays)
 constexpr std::string_view InstructionNames[] = {
     "AssertionFail",
     "AssertionDefines",
@@ -186,7 +184,6 @@ constexpr std::string_view InstructionNames[] = {
     "LoopPropertiesRegexClosed",
     "LoopPropertiesStartsWith",
     "LoopPropertiesExcept",
-    "LoopPropertiesWhitelist",
     "LoopPropertiesType",
     "LoopPropertiesTypeEvaluate",
     "LoopPropertiesExactlyTypeStrict",
@@ -209,16 +206,15 @@ constexpr std::string_view InstructionNames[] = {
     "ControlGroupWhenDefines",
     "ControlGroupWhenDefinesDirect",
     "ControlGroupWhenType",
-    "ControlLabel",
-    "ControlMark",
     "ControlEvaluate",
-    "ControlJump",
-    "ControlDynamicAnchorJump"};
+    "ControlDynamicAnchorJump",
+    "ControlJump"};
 
 /// @ingroup evaluator
 /// Check if a given instruction type corresponds to an annotation
 inline auto is_annotation(const InstructionIndex type) noexcept -> bool {
   switch (type) {
+    // NOLINTNEXTLINE(bugprone-branch-clone)
     case InstructionIndex::AnnotationBasenameToParent:
       return true;
     case InstructionIndex::AnnotationToParent:
@@ -241,14 +237,15 @@ using Instructions = std::vector<Instruction>;
 
 /// @ingroup evaluator
 /// Represents a single instruction to be evaluated
+// NOLINTNEXTLINE(bugprone-exception-escape)
 struct Instruction {
-  const InstructionIndex type;
-  const sourcemeta::core::Pointer relative_schema_location;
-  const sourcemeta::core::Pointer relative_instance_location;
-  const std::string keyword_location;
-  const std::size_t schema_resource;
-  const Value value;
-  const Instructions children;
+  InstructionIndex type;
+  sourcemeta::core::Pointer relative_schema_location;
+  sourcemeta::core::Pointer relative_instance_location;
+  std::string keyword_location;
+  std::size_t schema_resource;
+  Value value;
+  Instructions children;
 };
 
 /// @ingroup evaluator

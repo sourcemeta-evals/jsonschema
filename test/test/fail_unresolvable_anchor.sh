@@ -11,6 +11,8 @@ cat << 'EOF' > "$TMP/schema.json"
 {
   "$id": "https://example.com",
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Test",
+  "description": "Test schema",
   "definitions": {
     "foo": { "type": "string" },
     "bar": { "type": "integer" }
@@ -35,14 +37,11 @@ cat << 'EOF' > "$TMP/test.json"
 EOF
 
 "$1" test "$TMP/test.json" --resolve "$TMP/schema.json" --verbose 1> "$TMP/output.txt" 2>&1 \
-  && CODE="$?" || CODE="$?"
-test "$CODE" = "1" || exit 1
+  && EXIT_CODE="$?" || EXIT_CODE="$?"
+# Schema input error
+test "$EXIT_CODE" = "4" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
-Detecting schema resources from file: $(realpath "$TMP")/schema.json
-Importing schema into the resolution context: file://$(realpath "$TMP")/schema.json
-Importing schema into the resolution context: https://example.com
-Looking for target: https://example.com#foo
 $(realpath "$TMP")/test.json:
 error: Could not resolve schema under test
   at identifier https://example.com#foo

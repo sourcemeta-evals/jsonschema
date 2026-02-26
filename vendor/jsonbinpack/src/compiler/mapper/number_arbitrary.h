@@ -1,5 +1,7 @@
 class NumberArbitrary final : public sourcemeta::core::SchemaTransformRule {
 public:
+  using mutates = std::true_type;
+  using reframe_after_transform = std::true_type;
   NumberArbitrary()
       : sourcemeta::core::SchemaTransformRule{"number_arbitrary", ""} {};
 
@@ -13,9 +15,10 @@ public:
             const sourcemeta::core::SchemaResolver &) const
       -> sourcemeta::core::SchemaTransformRule::Result override {
     return location.dialect == "https://json-schema.org/draft/2020-12/schema" &&
-           vocabularies.contains(
-               "https://json-schema.org/draft/2020-12/vocab/validation") &&
-           schema.defines("type") && schema.at("type").to_string() == "number";
+           vocabularies.contains(sourcemeta::core::Vocabularies::Known::
+                                     JSON_Schema_2020_12_Validation) &&
+           schema.is_object() && schema.defines("type") &&
+           schema.at("type").to_string() == "number";
   }
 
   auto transform(sourcemeta::core::JSON &schema,

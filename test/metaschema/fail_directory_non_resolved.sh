@@ -12,12 +12,15 @@ mkdir "$TMP/schemas"
 cat << 'EOF' > "$TMP/schemas/schema_1.json"
 {
   "$schema": "http://example.com",
+  "title": "Test",
+  "description": "Test schema",
   "type": "string"
 }
 EOF
 
-"$1" metaschema "$TMP/schemas" > "$TMP/stderr.txt" 2>&1 && CODE="$?" || CODE="$?"
-test "$CODE" = "1" || exit 1
+"$1" metaschema "$TMP/schemas" > "$TMP/stderr.txt" 2>&1 && EXIT_CODE="$?" || EXIT_CODE="$?"
+# Schema input error
+test "$EXIT_CODE" = "4" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
 error: Could not resolve the metaschema of the schema

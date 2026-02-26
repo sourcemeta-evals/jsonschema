@@ -7,7 +7,6 @@
 
 #include <sourcemeta/blaze/evaluator_string_set.h>
 
-#include <bitset>        // std::bitset
 #include <cstdint>       // std::uint8_t
 #include <optional>      // std::optional
 #include <string>        // std::string
@@ -21,7 +20,7 @@ namespace sourcemeta::blaze {
 /// @ingroup evaluator
 /// @brief Represents a compiler step empty value
 struct ValueNone {
-  auto to_json() const -> sourcemeta::core::JSON {
+  [[nodiscard]] auto to_json() const -> sourcemeta::core::JSON {
     return sourcemeta::core::JSON{nullptr};
   }
 
@@ -60,7 +59,7 @@ using ValueStringSet = StringSet;
 
 /// @ingroup evaluator
 /// Represents a compiler step JSON types value as a bitmask
-using ValueTypes = std::bitset<8>;
+using ValueTypes = sourcemeta::core::JSON::TypeSet;
 
 /// @ingroup evaluator
 /// Represents a compiler step JSON type value
@@ -71,13 +70,14 @@ using ValueType = sourcemeta::core::JSON::Type;
 /// original string and the regular expression as standard regular expressions
 /// do not keep a copy of their original value (which we need for serialization
 /// purposes)
+// NOLINTNEXTLINE(bugprone-exception-escape)
 struct ValueRegex {
   using second_type = ValueString;
   using first_type = sourcemeta::core::Regex;
-  const first_type first;
-  const second_type second;
+  first_type first;
+  second_type second;
 
-  auto to_json() const -> sourcemeta::core::JSON {
+  [[nodiscard]] auto to_json() const -> sourcemeta::core::JSON {
     return sourcemeta::core::to_json(this->second);
   }
 
@@ -93,6 +93,7 @@ struct ValueRegex {
       return std::nullopt;
     }
 
+    // NOLINTNEXTLINE(modernize-use-designated-initializers)
     return ValueRegex{std::move(regex).value(), std::move(string)};
   }
 };

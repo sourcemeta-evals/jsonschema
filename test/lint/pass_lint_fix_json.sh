@@ -10,6 +10,9 @@ trap clean EXIT
 cat << 'EOF' > "$TMP/schema.json"
 {
   "$schema": "http://json-schema.org/draft-06/schema#",
+  "title": "Test",
+  "description": "Test schema",
+  "examples": [ "foo" ],
   "type": "string",
   "enum": [ "foo" ]
 }
@@ -20,7 +23,7 @@ EOF
 cat << EOF > "$TMP/expected.json"
 {
   "valid": true,
-  "health": null,
+  "health": 100,
   "errors": []
 }
 EOF
@@ -30,6 +33,9 @@ diff "$TMP/output.json" "$TMP/expected.json"
 cat << 'EOF' > "$TMP/expected_fixed.json"
 {
   "$schema": "http://json-schema.org/draft-06/schema#",
+  "title": "Test",
+  "description": "Test schema",
+  "examples": [ "foo" ],
   "const": "foo"
 }
 EOF

@@ -11,14 +11,17 @@ mkdir -p "$TMP/this/is/a/very/very/very/long/path"
 
 cat << 'EOF' > "$TMP/this/is/a/very/very/very/long/path/schema.json"
 {
-  "type": 1,
-  "$schema": "http://json-schema.org/draft-04/schema#"
+  "type": "string",
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Test",
+  "description": "Test schema"
 }
 EOF
 
 "$1" fmt "$TMP/this/is/a/very/very/very/long/path/schema.json" \
-  --check --json --indentation 4 >"$TMP/output.json" 2>&1 && CODE="$?" || CODE="$?"
-test "$CODE" = "2" || exit 1
+  --check --json --indentation 4 >"$TMP/output.json" 2>&1 && EXIT_CODE="$?" || EXIT_CODE="$?"
+# Format check failure
+test "$EXIT_CODE" = "2" || exit 1
 
 cat << EOF > "$TMP/expected.json"
 {

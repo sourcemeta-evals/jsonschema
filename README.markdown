@@ -82,12 +82,15 @@ documentation:
 - [`jsonschema lint`](./docs/lint.markdown)
 - [`jsonschema bundle`](./docs/bundle.markdown) (for inlining remote references in a schema)
 - [`jsonschema inspect`](./docs/inspect.markdown) (for debugging references)
+- [`jsonschema canonicalize`](./docs/canonicalize.markdown) (for static analysis)
+- [`jsonschema codegen`](./docs/codegen.markdown) (for generating code from schemas)
 - [`jsonschema encode`](./docs/encode.markdown) (for binary compression)
 - [`jsonschema decode`](./docs/decode.markdown)
+- [`jsonschema install`](./docs/install.markdown) (for fetching external schema dependencies)
 
 > See [`jsonschema.json`](./docs/configuration.markdown) for an _experimental_
 manifest for describing JSON Schema data models inspired by NPM's
-`package.json`.
+`package.json`, including dependency management.
 
 Note that YAML is supported in most commands!
 
@@ -132,7 +135,7 @@ Where `X.Y.Z` is replaced with the desired version. For example:
   uses: actions/checkout@v4
 
 - name: Install the JSON Schema CLI
-  uses: sourcemeta/jsonschema@v12.9.1
+  uses: sourcemeta/jsonschema@v14.13.4
 
 # Then use as usual
 - run: jsonschema fmt path/to/schemas --check
@@ -171,9 +174,8 @@ curl -fsSL https://raw.githubusercontent.com/sourcemeta/jsonschema/main/install 
 ```
 
 Keep in mind that it is hard to provide binaries that work across GNU/Linux
-distributions, given they often have major differences such as C runtimes (GLIC
-vs MUSL). We conservatively target Ubuntu 22.04, but you might need to build
-from source if your distribution of choice is different.
+distributions. We conservatively target Ubuntu and Alpine, but you might need
+to build from source if your distribution of choice is different.
 
 To verify the GPG signature of the checksums file:
 
@@ -237,3 +239,9 @@ cmake --install ./build --prefix <prefix> \
 
 Where `<prefix>` can be any destination prefix of your choosing, such as `/opt`
 or `/usr/local`.
+
+For performance reasons, the build will take as much advantage of your specific
+machine capabilities. If you desire to build a portable binary, or if the
+aggressive processor-specific optimisations cause any issues (we heard of some
+`Illegal instruction` cases), then configure the project with
+`-DJSONSCHEMA_PORTABLE:BOOL=ON`.

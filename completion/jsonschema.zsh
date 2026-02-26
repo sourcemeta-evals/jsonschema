@@ -15,8 +15,11 @@ _jsonschema() {
     'lint:Lint schemas and optionally fix issues'
     'bundle:Inline remote references in a schema'
     'inspect:Display schema locations and references'
+    'canonicalize:Transform a schema into a canonical form'
     'encode:Encode JSON using JSON BinPack'
     'decode:Decode JSON using JSON BinPack'
+    'codegen:Generate code from a JSON Schema'
+    'install:Fetch and install external schema dependencies'
     'version:Print version information'
     'help:Print help information'
   )
@@ -28,6 +31,7 @@ _jsonschema() {
     '(--default-dialect -d)'{--default-dialect,-d}'[Specify default dialect URI]:dialect URI:_jsonschema_dialects'
     '(--json -j)'{--json,-j}'[Prefer JSON output if supported]'
     '(--http -h)'{--http,-h}'[Enable HTTP resolution]'
+    '(--debug -g)'{--debug,-g}'[Enable debug output]'
   )
 
   _arguments -C \
@@ -98,7 +102,6 @@ _jsonschema() {
             '(--exclude -x)'{--exclude,-x}'[Exclude specific rule]:rule name:' \
             '(--only -o)'{--only,-o}'[Only run specific rule]:rule name:' \
             '(--list -l)'{--list,-l}'[List all enabled rules]' \
-            '(--strict -s)'{--strict,-s}'[Enable strict mode]' \
             '(--indentation -n)'{--indentation,-n}'[Specify indentation spaces]:spaces:(2 4 8)' \
             '*:schema file:_files -g "*.json *.yaml *.yml"'
           ;;
@@ -115,6 +118,11 @@ _jsonschema() {
             ${global_options[@]} \
             '1:schema file:_files -g "*.json *.yaml *.yml"'
           ;;
+        canonicalize)
+          _arguments \
+            ${global_options[@]} \
+            '1:schema file:_files -g "*.json *.yaml *.yml"'
+          ;;
         encode)
           _arguments \
             ${global_options[@]} \
@@ -126,6 +134,21 @@ _jsonschema() {
             ${global_options[@]} \
             '1:input file:_files -g "*.binpack"' \
             '2:output file:_files -g "*.json *.jsonl"'
+          ;;
+        codegen)
+          _arguments \
+            ${global_options[@]} \
+            '(--name -n)'{--name,-n}'[Specify type name prefix]:name:' \
+            '(--target -t)'{--target,-t}'[Specify target language]:target:(typescript)' \
+            '1:schema file:_files -g "*.json *.yaml *.yml"'
+          ;;
+        install)
+          _arguments \
+            ${global_options[@]} \
+            '(--force -f)'{--force,-f}'[Re-fetch all dependencies]' \
+            '(--frozen -z)'{--frozen,-z}'[Strictly verify against the lock file]' \
+            '1:schema URI:' \
+            '2:destination path:_files'
           ;;
         version|help)
           ;;

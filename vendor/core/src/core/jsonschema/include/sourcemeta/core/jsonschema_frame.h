@@ -17,6 +17,7 @@
 #include <optional>      // std::optional
 #include <set>           // std::set
 #include <tuple>         // std::tuple
+#include <unordered_map> // std::unordered_map
 #include <unordered_set> // std::unordered_set
 #include <utility>       // std::pair
 #include <vector>        // std::vector
@@ -50,75 +51,35 @@ namespace sourcemeta::core {
 ///   frame{sourcemeta::core::SchemaFrame::Mode::References};
 ///
 /// frame.analyse(document,
-///   sourcemeta::core::schema_official_walker,
-///   sourcemeta::core::schema_official_resolver);
-///
-/// // IDs
-/// assert(frame.locations().contains({sourcemeta::core::SchemaReferenceType::Static,
-///   "https://www.example.com/schema"}));
-/// assert(frame.locations().contains({sourcemeta::core::SchemaReferenceType::Static,
-///   "https://www.example.com/foo"}));
-///
-/// // Anchors
-/// assert(frame.locations().contains({sourcemeta::core::SchemaReferenceType::Static,
-///   "https://www.example.com/schema#test"}));
-///
-/// // Root Pointers
-/// assert(frame.locations().contains({sourcemeta::core::SchemaReferenceType::Static,
-///   "https://www.example.com/schema#/$id"}));
-/// assert(frame.locations().contains({sourcemeta::core::SchemaReferenceType::Static,
-///   "https://www.example.com/schema#/$schema"}));
-/// assert(frame.locations().contains({sourcemeta::core::SchemaReferenceType::Static,
-///   "https://www.example.com/schema#/items"}));
-/// assert(frame.locations().contains({sourcemeta::core::SchemaReferenceType::Static,
-///   "https://www.example.com/schema#/items/$id"}));
-/// assert(frame.locations().contains({sourcemeta::core::SchemaReferenceType::Static,
-///   "https://www.example.com/schema#/items/type"}));
-/// assert(frame.locations().contains({sourcemeta::core::SchemaReferenceType::Static,
-///   "https://www.example.com/schema#/properties"}));
-/// assert(frame.locations().contains({sourcemeta::core::SchemaReferenceType::Static,
-///   "https://www.example.com/schema#/properties/foo"}));
-/// assert(frame.locations().contains({sourcemeta::core::SchemaReferenceType::Static,
-///   "https://www.example.com/schema#/properties/foo/$anchor"}));
-/// assert(frame.locations().contains({sourcemeta::core::SchemaReferenceType::Static,
-///   "https://www.example.com/schema#/properties/foo/type"}));
-/// assert(frame.locations().contains({sourcemeta::core::SchemaReferenceType::Static,
-///   "https://www.example.com/schema#/properties/bar"}));
-/// assert(frame.locations().contains({sourcemeta::core::SchemaReferenceType::Static,
-///   "https://www.example.com/schema#/properties/bar/$ref"}));
-///
-/// // Subpointers
-/// assert(frame.locations().contains({sourcemeta::core::SchemaReferenceType::Static,
-///   "https://www.example.com/foo#/$id"}));
-/// assert(frame.locations().contains({sourcemeta::core::SchemaReferenceType::Static,
-///   "https://www.example.com/foo#/type"}));
-///
-/// // References
-/// assert(frame.references().contains({sourcemeta::core::SchemaReferenceType::Static,
-///   { "properties", "bar", "$ref" }}));
-/// assert(frame.references().at({sourcemeta::core::SchemaReferenceType::Static,
-///   { "properties", "bar", "$ref" }}).destination ==
-///     "https://www.example.com/schema#/properties/foo");
+///   sourcemeta::core::schema_walker,
+///   sourcemeta::core::schema_resolver);
 /// ```
 class SOURCEMETA_CORE_JSONSCHEMA_EXPORT SchemaFrame {
 public:
   /// The mode of framing. More extensive analysis can be compute and memory
   /// intensive
-  enum class Mode : std::uint8_t { Locations, References, Instances };
+  enum class Mode : std::uint8_t { Locations, References };
 
   SchemaFrame(const Mode mode) : mode_{mode} {}
+
+  // We rely on internal caches that would be dangling otherwise
+  SchemaFrame(const SchemaFrame &) = delete;
+  auto operator=(const SchemaFrame &) -> SchemaFrame & = delete;
+  SchemaFrame(SchemaFrame &&) = delete;
+  auto operator=(SchemaFrame &&) -> SchemaFrame & = delete;
 
   // Query the current mode that the schema frame was configured with
   [[nodiscard]] auto mode() const noexcept -> Mode { return this->mode_; }
 
   /// A single entry in a JSON Schema reference map
   struct ReferencesEntry {
-    JSON::String original;
+    std::string_view original;
+    // TODO: This one is tricky to turn into a view, as there is no
+    // location entry to point to if it is an external unresolved reference
     JSON::String destination;
-    // TODO: This string can be a `string_view` over the `destination`
-    std::optional<JSON::String> base;
-    // TODO: This string can be a `string_view` over the `destination`
-    std::optional<JSON::String> fragment;
+    // Empty means no base
+    std::string_view base;
+    std::optional<std::string_view> fragment;
   };
 
   /// A JSON Schema reference map is a mapping of a JSON Pointer
@@ -129,7 +90,7 @@ public:
   /// have a static and a dynamic reference to the same location
   /// on the same schema object.
   using References =
-      std::map<std::pair<SchemaReferenceType, Pointer>, ReferencesEntry>;
+      std::map<std::pair<SchemaReferenceType, WeakPointer>, ReferencesEntry>;
 
 #if defined(__GNUC__)
 #pragma GCC diagnostic push
@@ -152,17 +113,15 @@ public:
 
   /// A location entry
   struct Location {
-    // TODO: Turn this into a weak pointer
-    std::optional<Pointer> parent;
+    std::optional<WeakPointer> parent;
     LocationType type;
-    std::optional<JSON::String> root;
-    JSON::String base;
-    // TODO: Turn this into a weak pointer
-    Pointer pointer;
-    // TODO: Turn this into a weak pointer
-    Pointer relative_pointer;
-    JSON::String dialect;
-    JSON::String base_dialect;
+    std::string_view base;
+    WeakPointer pointer;
+    std::size_t relative_pointer;
+    std::string_view dialect;
+    SchemaBaseDialect base_dialect;
+    bool property_name;
+    bool orphan;
   };
 
   /// A JSON Schema reference frame is a mapping of URIs to schema identifiers,
@@ -176,12 +135,8 @@ public:
       // point to different places.
       std::map<std::pair<SchemaReferenceType, JSON::String>, Location>;
 
-  // TODO: Turn the mapped value into a proper set
-  /// A set of unresolved instance locations
-  using Instances = std::map<Pointer, std::vector<PointerTemplate>>;
-
-  /// A set of paths to frame within a schema wrapper
-  using Paths = std::set<Pointer>;
+  /// A list of paths to frame within a schema wrapper
+  using Paths = std::vector<WeakPointer>;
 
   /// Export the frame entries as JSON
   [[nodiscard]] auto to_json(
@@ -190,12 +145,11 @@ public:
 
   /// Analyse a schema or set of schemas from a given root. Passing
   /// multiple paths that have any overlap is undefined behaviour
-  auto
-  analyse(const JSON &root, const SchemaWalker &walker,
-          const SchemaResolver &resolver,
-          const std::optional<JSON::String> &default_dialect = std::nullopt,
-          const std::optional<JSON::String> &default_id = std::nullopt,
-          const Paths &paths = {empty_pointer}) -> void;
+  auto analyse(const JSON &root, const SchemaWalker &walker,
+               const SchemaResolver &resolver,
+               std::string_view default_dialect = "",
+               std::string_view default_id = "",
+               const Paths &paths = {empty_weak_pointer}) -> void;
 
   /// Access the analysed schema locations
   [[nodiscard]] auto locations() const noexcept -> const Locations &;
@@ -203,8 +157,16 @@ public:
   /// Access the analysed schema references
   [[nodiscard]] auto references() const noexcept -> const References &;
 
+  /// Get a specific reference entry by type and pointer
+  [[nodiscard]] auto reference(const SchemaReferenceType type,
+                               const WeakPointer &pointer) const
+      -> std::optional<std::reference_wrapper<const ReferencesEntry>>;
+
   /// Check whether the analysed schema has no external references
-  [[nodiscard]] auto standalone() const -> bool;
+  [[nodiscard]] auto standalone() const noexcept -> bool;
+
+  /// Get the root schema identifier (empty if none)
+  [[nodiscard]] auto root() const noexcept -> const JSON::String &;
 
   /// Get the vocabularies associated with a location entry
   [[nodiscard]] auto vocabularies(const Location &location,
@@ -214,36 +176,76 @@ public:
   /// Get the URI associated with a location entry
   [[nodiscard]] auto
   uri(const Location &location,
-      const Pointer &relative_schema_location = empty_pointer) const
+      const WeakPointer &relative_schema_location = empty_weak_pointer) const
       -> JSON::String;
 
   /// Get the location associated by traversing a pointer from another location
   [[nodiscard]] auto traverse(const Location &location,
-                              const Pointer &relative_schema_location) const
+                              const WeakPointer &relative_schema_location) const
       -> const Location &;
 
   /// Get the location associated with a given URI
-  [[nodiscard]] auto traverse(const JSON::String &uri) const
+  [[nodiscard]] auto traverse(const std::string_view uri) const
+      -> std::optional<std::reference_wrapper<const Location>>;
+
+  /// Get the location associated with a given pointer
+  [[nodiscard]] auto traverse(const WeakPointer &pointer) const
+      -> std::optional<std::reference_wrapper<const Location>>;
+
+  /// Get the location of a specific type associated with a given pointer
+  [[nodiscard]] auto traverse(const WeakPointer &pointer,
+                              const LocationType type) const
       -> std::optional<std::reference_wrapper<const Location>>;
 
   /// Turn an absolute pointer into a location URI
-  [[nodiscard]] auto uri(const Pointer &pointer) const
+  [[nodiscard]] auto uri(const WeakPointer &pointer) const
       -> std::optional<std::reference_wrapper<const JSON::String>>;
 
   /// Try to dereference a reference location into its destination location
-  [[nodiscard]] auto
-  dereference(const Location &location,
-              const Pointer &relative_schema_location = empty_pointer) const
+  [[nodiscard]] auto dereference(
+      const Location &location,
+      const WeakPointer &relative_schema_location = empty_weak_pointer) const
       -> std::pair<SchemaReferenceType,
                    std::optional<std::reference_wrapper<const Location>>>;
 
-  /// Get the unresolved instance locations associated with a location entry
-  [[nodiscard]] auto instance_locations(const Location &location) const -> const
-      typename Instances::mapped_type &;
+  /// Iterate over all resource URIs in the frame
+  auto for_each_resource_uri(
+      const std::function<void(std::string_view)> &callback) const -> void;
 
-  /// Find all references to a given location pointer
-  [[nodiscard]] auto references_to(const Pointer &pointer) const -> std::vector<
-      std::reference_wrapper<const typename References::value_type>>;
+  /// Iterate over all unresolved references (where destination cannot be
+  /// traversed)
+  auto for_each_unresolved_reference(
+      const std::function<void(const WeakPointer &, const ReferencesEntry &)>
+          &callback) const -> void;
+
+  /// Check if there are any references to a given location pointer
+  [[nodiscard]] auto has_references_to(const WeakPointer &pointer) const
+      -> bool;
+
+  /// Check if there are any references that go through a given location pointer
+  [[nodiscard]] auto has_references_through(const WeakPointer &pointer) const
+      -> bool;
+  /// Check if there are any references that go through a given location pointer
+  /// with a tail token
+  [[nodiscard]] auto
+  has_references_through(const WeakPointer &pointer,
+                         const WeakPointer::Token &tail) const -> bool;
+
+  /// Get the relative instance location pointer for a given location entry
+  [[nodiscard]] auto relative_instance_location(const Location &location) const
+      -> WeakPointer;
+
+  /// Check if the frame has no analysed data
+  [[nodiscard]] auto empty() const noexcept -> bool;
+
+  /// Reset the frame, clearing all analysed data
+  auto reset() -> void;
+
+  /// Determines if a location could be evaluated during validation
+  [[nodiscard]] auto is_reachable(const Location &base,
+                                  const Location &location,
+                                  const SchemaWalker &walker,
+                                  const SchemaResolver &resolver) const -> bool;
 
 private:
   Mode mode_;
@@ -253,9 +255,79 @@ private:
 #if defined(_MSC_VER)
 #pragma warning(disable : 4251 4275)
 #endif
+  JSON::String root_;
   Locations locations_;
   References references_;
-  Instances instances_;
+  mutable std::unordered_map<std::reference_wrapper<const WeakPointer>,
+                             std::vector<const Location *>, WeakPointer::Hasher,
+                             WeakPointer::Comparator>
+      pointer_to_location_;
+  mutable std::unordered_set<std::reference_wrapper<const WeakPointer>,
+                             WeakPointer::Hasher, WeakPointer::Comparator>
+      pointers_with_non_orphan_;
+  using ReachabilityCache = std::unordered_map<const WeakPointer *, bool>;
+  struct ReachabilityKey {
+    const WeakPointer *pointer;
+    bool orphan;
+    auto operator==(const ReachabilityKey &other) const noexcept -> bool {
+      return this->pointer == other.pointer && this->orphan == other.orphan;
+    }
+  };
+  struct ReachabilityKeyHasher {
+    auto operator()(const ReachabilityKey &key) const noexcept -> std::size_t {
+      return std::hash<const void *>{}(key.pointer) ^
+             (std::hash<bool>{}(key.orphan) << 1);
+    }
+  };
+  mutable std::unordered_map<ReachabilityKey, ReachabilityCache,
+                             ReachabilityKeyHasher>
+      reachability_;
+  mutable std::unordered_map<std::reference_wrapper<const WeakPointer>,
+                             std::vector<const WeakPointer *>,
+                             WeakPointer::Hasher, WeakPointer::Comparator>
+      references_by_destination_;
+  mutable std::unordered_set<std::reference_wrapper<const WeakPointer>,
+                             WeakPointer::Hasher, WeakPointer::Comparator>
+      location_members_children_;
+  mutable std::unordered_map<std::reference_wrapper<const WeakPointer>,
+                             std::vector<const Location *>, WeakPointer::Hasher,
+                             WeakPointer::Comparator>
+      descendants_by_pointer_;
+  struct PotentialSource {
+    const WeakPointer *source_pointer;
+    WeakPointer source_parent;
+    bool crosses;
+  };
+  mutable std::unordered_map<const Location *, std::vector<PotentialSource>>
+      potential_sources_by_location_;
+  struct ReachabilityEdge {
+    const Location *target;
+    bool orphan_context_only;
+    bool is_reference;
+  };
+  mutable std::unordered_map<const Location *, std::vector<ReachabilityEdge>>
+      reachability_graph_;
+  mutable std::unordered_map<std::reference_wrapper<const WeakPointer>,
+                             const WeakPointer *, WeakPointer::Hasher,
+                             WeakPointer::Comparator>
+      canonical_pointer_;
+  mutable std::unordered_map<const Location *, const WeakPointer *>
+      location_to_canonical_;
+  bool standalone_{false};
+
+  auto populate_pointer_to_location() const -> void;
+  auto populate_reference_graph() const -> void;
+  auto populate_location_members(const SchemaWalker &walker,
+                                 const SchemaResolver &resolver) const -> void;
+  auto populate_descendants() const -> void;
+  auto populate_potential_sources(const SchemaWalker &walker,
+                                  const SchemaResolver &resolver) const -> void;
+  auto populate_reachability_graph(const SchemaWalker &walker,
+                                   const SchemaResolver &resolver) const
+      -> void;
+  auto populate_reachability(const Location &base, const SchemaWalker &walker,
+                             const SchemaResolver &resolver) const
+      -> const ReachabilityCache &;
 #if defined(_MSC_VER)
 #pragma warning(default : 4251 4275)
 #endif

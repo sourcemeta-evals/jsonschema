@@ -10,6 +10,9 @@ trap clean EXIT
 cat << 'EOF' > "$TMP/schema.json"
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Test",
+  "description": "Test schema",
+  "examples": [ "foo" ],
   "type": "string",
   "contentMediaType": "application/json",
   "enum": [ "foo" ]
@@ -17,24 +20,25 @@ cat << 'EOF' > "$TMP/schema.json"
 EOF
 
 cd "$TMP"
-"$1" lint "$TMP/schema.json" --verbose --exclude foo_bar >"$TMP/stderr.txt" 2>&1 && CODE="$?" || CODE="$?"
-test "$CODE" = "2" || exit 1
+"$1" lint "$TMP/schema.json" --verbose --exclude foo_bar >"$TMP/stderr.txt" 2>&1 && EXIT_CODE="$?" || EXIT_CODE="$?"
+# Lint violation
+test "$EXIT_CODE" = "2" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
 warning: Cannot exclude unknown rule: foo_bar
 Linting: $(realpath "$TMP")/schema.json
-schema.json:4:3:
+schema.json:7:3:
   The \`contentMediaType\` keyword is meaningless without the presence of the \`contentEncoding\` keyword (content_media_type_without_encoding)
     at location "/contentMediaType"
-schema.json:5:3:
-  An \`enum\` of a single value can be expressed as \`const\` (enum_to_const)
-    at location "/enum"
-schema.json:5:3:
+schema.json:8:3:
   Setting \`type\` alongside \`enum\` is considered an anti-pattern, as the enumeration choices already imply their respective types (enum_with_type)
     at location "/enum"
-schema.json:3:3:
+schema.json:6:3:
   Setting \`type\` alongside \`enum\` is considered an anti-pattern, as the enumeration choices already imply their respective types (enum_with_type)
     at location "/type"
+schema.json:8:3:
+  An \`enum\` of a single value can be expressed as \`const\` (enum_to_const)
+    at location "/enum"
 EOF
 
 diff "$TMP/stderr.txt" "$TMP/expected.txt"

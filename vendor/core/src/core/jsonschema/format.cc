@@ -2,8 +2,9 @@
 
 #include <cstdint>       // std::uint64_t
 #include <limits>        // std::numeric_limits
-#include <string>        // std::string
+#include <string_view>   // std::string_view
 #include <unordered_map> // std::unordered_map
+#include <vector>        // std::vector
 
 namespace {
 
@@ -32,7 +33,7 @@ auto keyword_rank(const sourcemeta::core::JSON::String &keyword,
 
                    // This is a placeholder for "x-"-prefixed unknown keywords,
                    // as they are almost always metadata
-                   {"x", 16},
+                   {"x-", 16},
 
                    // Then references
                    {"$ref", 17},
@@ -104,20 +105,11 @@ auto keyword_rank(const sourcemeta::core::JSON::String &keyword,
                    {"$defs", 71},
                    {"definitions", 72}};
 
-  // A common pattern that seems to come up often in practice is schema authors
-  // coming up with unknown annotation keywords that are meant to extend or
-  // complement existing ones. For example, `title:en` for `title`, etc. By
-  // checking the prefixes of a keyword, we can accomodate that pattern very
-  // nicely by keeping them right besides the keywords they are supposed to
-  // extend. For performance reasons, we only apply such logic to keywords
-  // that have certain special characters that are commonly used for these kind
-  // of extensions
-  const auto pivot{keyword.find_first_of("-_:")};
-  if (pivot != std::string::npos) {
-    const auto match{rank.find(keyword.substr(0, pivot))};
-    if (match != rank.cend()) {
-      return match->second;
-    }
+  // Handle `x-` prefixed unknown keywords
+  if (keyword.starts_with("x-")) {
+    const auto match{rank.find("x-")};
+    assert(match != rank.cend());
+    return match->second;
   }
 
   const auto match{rank.find(keyword)};
@@ -145,21 +137,29 @@ auto keyword_compare(const sourcemeta::core::JSON::String &left,
 namespace sourcemeta::core {
 
 auto format(JSON &schema, const SchemaWalker &walker,
-            const SchemaResolver &resolver,
-            const std::optional<JSON::String> &default_dialect) -> void {
+            const SchemaResolver &resolver, std::string_view default_dialect)
+    -> void {
   assert(is_schema(schema));
-  SchemaFrame frame{SchemaFrame::Mode::Locations};
-  frame.analyse(schema, walker, resolver, default_dialect);
+  std::vector<Pointer> subschemas;
 
-  for (const auto &entry : frame.locations()) {
-    if (entry.second.type != SchemaFrame::LocationType::Resource &&
-        entry.second.type != SchemaFrame::LocationType::Subschema) {
-      continue;
+  {
+    SchemaFrame frame{SchemaFrame::Mode::Locations};
+    frame.analyse(schema, walker, resolver, default_dialect);
+
+    for (const auto &entry : frame.locations()) {
+      if (entry.second.type != SchemaFrame::LocationType::Resource &&
+          entry.second.type != SchemaFrame::LocationType::Subschema) {
+        continue;
+      }
+
+      subschemas.push_back(to_pointer(entry.second.pointer));
     }
+  }
 
-    auto &value{get(schema, entry.second.pointer)};
-    if (value.is_object()) {
-      value.reorder(keyword_compare);
+  for (const auto &pointer : subschemas) {
+    auto &subschema{get(schema, pointer)};
+    if (subschema.is_object()) {
+      subschema.reorder(keyword_compare);
     }
   }
 }

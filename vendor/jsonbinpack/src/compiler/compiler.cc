@@ -6,14 +6,15 @@
 
 #include "encoding.h"
 
+#include <cassert>     // assert
+#include <type_traits> // std::true_type
+
 static auto
 transformer_callback_noop(const sourcemeta::core::Pointer &,
                           const std::string_view, const std::string_view,
-                          const sourcemeta::core::SchemaTransformRule::Result &)
-    -> void {
-  // This callback should never be called, as all the transformation rules
-  // we define in this project can indeed be transformed
-  assert(false);
+                          const sourcemeta::core::SchemaTransformRule::Result &,
+                          [[maybe_unused]] const bool applied) -> void {
+  assert(applied);
 }
 
 namespace sourcemeta::jsonbinpack {
@@ -21,12 +22,14 @@ namespace sourcemeta::jsonbinpack {
 auto canonicalize(sourcemeta::core::JSON &schema,
                   const sourcemeta::core::SchemaWalker &walker,
                   const sourcemeta::core::SchemaResolver &resolver,
-                  const std::optional<std::string> &default_dialect) -> void {
+                  const std::string_view default_dialect) -> void {
   sourcemeta::core::SchemaTransformer canonicalizer;
   sourcemeta::core::add(canonicalizer,
-                        sourcemeta::core::AlterSchemaMode::StaticAnalysis);
-  canonicalizer.apply(schema, walker, make_resolver(resolver),
-                      transformer_callback_noop, default_dialect);
+                        sourcemeta::core::AlterSchemaMode::Canonicalizer);
+  [[maybe_unused]] const auto result =
+      canonicalizer.apply(schema, walker, make_resolver(resolver),
+                          transformer_callback_noop, default_dialect);
+  assert(result.first);
 }
 
 auto make_encoding(sourcemeta::core::JSON &document,
@@ -57,7 +60,7 @@ auto make_encoding(sourcemeta::core::JSON &document,
 auto compile(sourcemeta::core::JSON &schema,
              const sourcemeta::core::SchemaWalker &walker,
              const sourcemeta::core::SchemaResolver &resolver,
-             const std::optional<std::string> &default_dialect) -> void {
+             const std::string_view default_dialect) -> void {
   canonicalize(schema, walker, resolver, default_dialect);
 
   sourcemeta::core::SchemaTransformer mapper;
@@ -83,12 +86,14 @@ auto compile(sourcemeta::core::JSON &schema,
   // Numbers
   mapper.add<NumberArbitrary>();
 
-  mapper.apply(schema, walker, make_resolver(resolver),
-               transformer_callback_noop, default_dialect);
+  [[maybe_unused]] const auto mapper_result =
+      mapper.apply(schema, walker, make_resolver(resolver),
+                   transformer_callback_noop, default_dialect);
+  assert(mapper_result.first);
 
   // The "any" encoding is always the last resort
   const auto dialect{sourcemeta::core::dialect(schema)};
-  if (!dialect.has_value() || dialect.value() != ENCODING_V1) {
+  if (dialect.empty() || dialect != ENCODING_V1) {
     make_encoding(schema, "ANY_PACKED_TYPE_TAG_BYTE_PREFIX",
                   sourcemeta::core::JSON::make_object());
   }

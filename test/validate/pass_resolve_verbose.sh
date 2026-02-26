@@ -11,6 +11,8 @@ cat << 'EOF' > "$TMP/schema.json"
 {
   "id": "https://example.com",
   "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Test",
+  "description": "Test schema",
   "properties": {
     "foo": { "$ref": "foo" },
     "bar": { "$ref": "bar" }
@@ -31,6 +33,8 @@ cat << 'EOF' > "$TMP/schemas/baz.json"
 {
   "id": "https://example.com/baz",
   "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Test",
+  "description": "Test schema",
   "type": "array"
 }
 EOF
@@ -44,6 +48,8 @@ cat << 'EOF' > "$TMP/schemas/nested/bar.json"
 {
   "id": "https://example.com/bar",
   "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Test",
+  "description": "Test schema",
   "type": "string"
 }
 EOF
@@ -56,15 +62,6 @@ EOF
   --resolve "$TMP/foo.json" --resolve "$TMP/schemas" --verbose 2> "$TMP/stderr.txt"
 
 cat << EOF > "$TMP/expected.txt"
-Detecting schema resources from file: $(realpath "$TMP")/foo.json
-Importing schema into the resolution context: file://$(realpath "$TMP")/foo.json
-Importing schema into the resolution context: https://example.com/foo
-Detecting schema resources from file: $(realpath "$TMP")/schemas/baz.json
-Importing schema into the resolution context: file://$(realpath "$TMP")/schemas/baz.json
-Importing schema into the resolution context: https://example.com/baz
-Detecting schema resources from file: $(realpath "$TMP")/schemas/nested/bar.json
-Importing schema into the resolution context: file://$(realpath "$TMP")/schemas/nested/bar.json
-Importing schema into the resolution context: https://example.com/bar
 ok: $(realpath "$TMP")/instance.json
   matches $(realpath "$TMP")/schema.json
 EOF

@@ -13,6 +13,7 @@ mkdir -p "$TMP/bar"
 cat << 'EOF' > "$TMP/foo/schema.json"
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Test schema",
   "additionalProperties": false,
   "title": "Hello World",
   "properties": {"foo": {}, "bar": {}}
@@ -29,7 +30,6 @@ cd "$TMP/bar"
 "$1" fmt --verbose >"$TMP/output.txt" 2>&1
 
 cat << EOF > "$TMP/expected.txt"
-Using configuration file: $(realpath "$TMP")/jsonschema.json
 Using extension: .json
 Using extension: .yaml
 Using extension: .yml
@@ -42,6 +42,7 @@ cat << 'EOF' > "$TMP/expected.json"
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Hello World",
+  "description": "Test schema",
   "properties": {
     "foo": {},
     "bar": {}

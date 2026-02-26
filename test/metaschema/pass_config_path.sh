@@ -13,6 +13,8 @@ mkdir -p "$TMP/bar"
 cat << 'EOF' > "$TMP/foo/schema.json"
 {
   "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Test",
+  "description": "Test schema",
   "type": "string"
 }
 EOF
@@ -27,7 +29,6 @@ cd "$TMP/bar"
 "$1" metaschema --verbose > "$TMP/output.txt" 2>&1
 
 cat << EOF > "$TMP/expected.txt"
-Using configuration file: $(realpath "$TMP")/jsonschema.json
 Using extension: .json
 Using extension: .yaml
 Using extension: .yml

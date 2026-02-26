@@ -10,6 +10,8 @@ trap clean EXIT
 cat << 'EOF' > "$TMP/schema.json"
 {
   "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Test",
+  "description": "Test schema",
   "type": "object"
 }
 EOF
@@ -22,6 +24,7 @@ EOF
 
 "$1" validate "$TMP/schema.json" "$TMP/instance.jsonl" --json > "$TMP/output.json" 2>&1 \
   && EXIT_CODE="$?" || EXIT_CODE="$?"
+# Validation failure
 test "$EXIT_CODE" = "2" || exit 1
 
 cat << EOF > "$TMP/expected.json"

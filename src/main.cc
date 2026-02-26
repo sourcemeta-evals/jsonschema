@@ -1,7 +1,7 @@
 #include <sourcemeta/core/jsonschema.h>
 #include <sourcemeta/core/options.h>
 
-#include <cstdlib>     // EXIT_FAILURE, EXIT_SUCCESS
+#include <cstdlib>     // EXIT_SUCCESS
 #include <filesystem>  // std::filesystem
 #include <iostream>    // std::cerr, std::cout
 #include <string>      // std::string
@@ -16,11 +16,13 @@ constexpr std::string_view USAGE_DETAILS{R"EOF(
 Global Options:
 
    --verbose, -v                  Enable verbose output
+   --debug, -g                    Enable even higher verbose output
    --resolve, -r                  Import the given JSON Schema (or directory of schemas)
                                   into the resolution context
    --default-dialect, -d <uri>    Specify the URI for the default dialect to be used
                                   if the `$schema` keyword is not set
    --json, -j                     Prefer JSON output if supported
+   --http, -h                     Allow network access to resolve remote schemas
 
 Commands:
 
@@ -32,11 +34,10 @@ Commands:
 
        Print this command reference help.
 
-   validate <schema.json|.yaml> <instance.json|.jsonl|.yaml|directory...> [--http/-h]
-            [--benchmark/-b] [--loop <iterations>]
-            [--extension/-e <extension>]
+   validate <schema.json|.yaml> <instance.json|.jsonl|.yaml|directory...>
+            [--benchmark/-b] [--loop <iterations>] [--extension/-e <extension>]
             [--ignore/-i <schemas-or-directories>] [--trace/-t] [--fast/-f]
-            [--template/-m <template.json>]
+            [--template/-m <template.json>] [--entrypoint/-p <pointer|uri>]
 
        Validate one or more instances against the given schema.
 
@@ -51,22 +52,25 @@ Commands:
        for error reporting purposes. Make sure they match or you will get
        non-sense results.
 
-   metaschema [schemas-or-directories...] [--http/-h]
-              [--extension/-e <extension>]
+   metaschema [schemas-or-directories...] [--extension/-e <extension>]
               [--ignore/-i <schemas-or-directories>] [--trace/-t]
 
        Validate that a schema or a set of schemas are valid with respect
        to their metaschemas.
 
-   compile <schema.json|.yaml> [--http/-h] [--extension/-e <extension>]
+   compile <schema.json|.yaml> [--extension/-e <extension>]
            [--ignore/-i <schemas-or-directories>] [--fast/-f] [--minify/-m]
+           [--include/-n <name>] [--entrypoint/-p <pointer|uri>]
 
        Compile the given schema into an internal optimised representation.
+       Use --include/-n to output as a C/C++ header file.
+       Use --entrypoint/-p to compile a subschema by JSON Pointer or URI.
 
-   test [schemas-or-directories...] [--http/-h] [--extension/-e <extension>]
+   test [schemas-or-directories...] [--extension/-e <extension>]
         [--ignore/-i <schemas-or-directories>]
 
        Run a set of unit tests against a schema.
+       Pass --json/-j to output results in CTRF format (https://ctrf.io).
 
    fmt [schemas-or-directories...] [--check/-c] [--extension/-e <extension>]
        [--ignore/-i <schemas-or-directories>] [--keep-ordering/-k]
@@ -75,18 +79,21 @@ Commands:
        Format the input schemas in-place or check they are formatted.
        This command does not support YAML schemas yet.
 
-   lint [schemas-or-directories...] [--fix/-f] [--extension/-e <extension>]
+   lint [schemas-or-directories...] [--fix/-f] [--format/-m]
+        [--keep-ordering/-k] [--extension/-e <extension>]
         [--ignore/-i <schemas-or-directories>] [--exclude/-x <rule-name>]
-        [--only/-o <rule-name>] [--list/-l] [--strict/-s]
-        [--indentation/-n <spaces>]
+        [--only/-o <rule-name>] [--list/-l] [--indentation/-n <spaces>]
+        [--rule/-a <rule-schema>]
 
        Lint the input schemas and potentially fix the reported issues.
        The --fix/-f option is not supported when passing YAML schemas.
+       Use --format/-m with --fix to format the output even when there
+       are no linting issues.
+       Use --keep-ordering/-k with --format to preserve key order.
        Use --list/-l to print a summary of all enabled rules.
-       Use --strict/-s to enable additional opinionated strict rules.
-       Use --indentation/-n to keep indentation when auto-fixing
+       Use --rule/-a to add a custom lint rule defined as a JSON Schema.
 
-   bundle <schema.json|.yaml> [--http/-h] [--extension/-e <extension>]
+   bundle <schema.json|.yaml> [--extension/-e <extension>]
           [--ignore/-i <schemas-or-directories>] [--without-id/-w]
 
        Perform JSON Schema Bundling on a schema to inline remote references,
@@ -97,6 +104,18 @@ Commands:
        Statically inspect a schema to display schema locations and
        references in a human-readable manner.
 
+   canonicalize <schema.json|.yaml>
+
+       Transform a JSON Schema into a canonical normalized form.
+       Canonicalization is a process that simplifies a schema into a
+       more verbose but semantically equivalent representation, making
+       it easier for static analysis.
+
+   codegen <schema.json|.yaml> --target/-t <target> [--name/-n <name>]
+
+       Generate code from a JSON Schema. Currently only supports
+       --target/-t set to typescript and JSON Schema 2020-12.
+
    encode <document.json|.jsonl> <output.binpack>
 
        Encode a JSON document or JSONL dataset using JSON BinPack.
@@ -104,6 +123,15 @@ Commands:
    decode <output.binpack> <output.json|.jsonl>
 
        Decode a JSON document or JSONL dataset using JSON BinPack.
+
+   install [<uri> <path>] [--force/-f] [--frozen/-z]
+
+       Fetch and install external schema dependencies declared in
+       jsonschema.json. Pass a URI and a local file path to add a new
+       dependency before installing. Pass --force/-f to re-fetch all
+       dependencies regardless of lock state. Pass --frozen to strictly
+       verify dependencies against the lock file without modifying it,
+       intended for CI/CD environments.
 
 For more documentation, visit https://github.com/sourcemeta/jsonschema
 )EOF"};
@@ -133,13 +161,15 @@ auto jsonschema_main(const std::string &program, const std::string &command,
     return EXIT_SUCCESS;
   } else if (command == "lint") {
     app.flag("fix", {"f"});
+    app.flag("format", {"m"});
+    app.flag("keep-ordering", {"k"});
     app.flag("list", {"l"});
-    app.flag("strict", {"s"});
     app.option("extension", {"e"});
     app.option("exclude", {"x"});
     app.option("only", {"o"});
     app.option("ignore", {"i"});
     app.option("indentation", {"n"});
+    app.option("rule", {"a"});
     app.parse(argc, argv, {.skip = 1});
     sourcemeta::jsonschema::lint(app);
     return EXIT_SUCCESS;
@@ -151,6 +181,7 @@ auto jsonschema_main(const std::string &program, const std::string &command,
     app.option("ignore", {"i"});
     app.option("template", {"m"});
     app.option("loop", {"l"});
+    app.option("entrypoint", {"p"});
     app.parse(argc, argv, {.skip = 1});
     sourcemeta::jsonschema::validate(app);
     return EXIT_SUCCESS;
@@ -164,8 +195,14 @@ auto jsonschema_main(const std::string &program, const std::string &command,
   } else if (command == "compile") {
     app.flag("fast", {"f"});
     app.flag("minify", {"m"});
+    app.option("include", {"n"});
+    app.option("entrypoint", {"p"});
     app.parse(argc, argv, {.skip = 1});
     sourcemeta::jsonschema::compile(app);
+    return EXIT_SUCCESS;
+  } else if (command == "canonicalize") {
+    app.parse(argc, argv, {.skip = 1});
+    sourcemeta::jsonschema::canonicalize(app);
     return EXIT_SUCCESS;
   } else if (command == "test") {
     app.option("extension", {"e"});
@@ -180,6 +217,18 @@ auto jsonschema_main(const std::string &program, const std::string &command,
   } else if (command == "decode") {
     app.parse(argc, argv, {.skip = 1});
     sourcemeta::jsonschema::decode(app);
+    return EXIT_SUCCESS;
+  } else if (command == "codegen") {
+    app.option("name", {"n"});
+    app.option("target", {"t"});
+    app.parse(argc, argv, {.skip = 1});
+    sourcemeta::jsonschema::codegen(app);
+    return EXIT_SUCCESS;
+  } else if (command == "install") {
+    app.flag("force", {"f"});
+    app.flag("frozen", {"z"});
+    app.parse(argc, argv, {.skip = 1});
+    sourcemeta::jsonschema::install(app);
     return EXIT_SUCCESS;
   } else if (command == "help" || command == "--help" || command == "-h") {
     std::cout << "JSON Schema CLI - v"
@@ -201,6 +250,7 @@ auto main(int argc, char *argv[]) noexcept -> int {
   sourcemeta::core::Options app;
   app.flag("http", {"h"});
   app.flag("verbose", {"v"});
+  app.flag("debug", {"g"});
   app.flag("json", {"j"});
   app.option("resolve", {"r"});
   app.option("default-dialect", {"d"});

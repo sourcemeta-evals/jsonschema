@@ -24,11 +24,11 @@ cat << 'EOF' > "$TMP/test.json"
 EOF
 
 "$1" test "$TMP/test.json" --verbose 1> "$TMP/output.txt" 2>&1 \
-  && CODE="$?" || CODE="$?"
-test "$CODE" = "1" || exit 1
+  && EXIT_CODE="$?" || EXIT_CODE="$?"
+# Schema input error
+test "$EXIT_CODE" = "4" || exit 1
 
 cat << EOF > "$TMP/expected.txt"
-Looking for target: https://example.com/unknown
 $(realpath "$TMP")/test.json:
 error: Could not resolve the reference to an external schema
   at identifier https://example.com/unknown

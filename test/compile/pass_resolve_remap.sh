@@ -10,6 +10,8 @@ trap clean EXIT
 cat << 'EOF' > "$TMP/schema.json"
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Test",
+  "description": "Test schema",
   "$id": "https://example.com",
   "$ref": "other"
 }
@@ -19,6 +21,8 @@ cat << 'EOF' > "$TMP/remote.json"
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/nested",
+  "title": "Test",
+  "description": "Test schema",
   "type": "string"
 }
 EOF
@@ -39,39 +43,68 @@ cat << 'EOF' > "$TMP/expected.json"
 [
   false,
   true,
-  [ "", "https://example.com", "https://example.com/other" ],
+  [ "", "https://example.com", "https://example.com/nested" ],
   [
     [
-      51,
-      "/$ref",
-      "",
-      "#/$ref",
-      2,
-      [ 0 ],
       [
-        [
-          11,
-          "/type",
-          "",
-          "#/type",
-          3,
-          [ 8, 4 ]
-        ]
+        91,
+        "/$ref",
+        "",
+        "#/$ref",
+        2,
+        [ 10, 1 ]
+      ],
+      [
+        44,
+        "/description",
+        "",
+        "#/description",
+        2,
+        [ 1, "Test schema" ]
+      ],
+      [
+        44,
+        "/title",
+        "",
+        "#/title",
+        2,
+        [ 1, "Test" ]
+      ]
+    ],
+    [
+      [
+        44,
+        "/description",
+        "",
+        "#/description",
+        3,
+        [ 1, "Test schema" ]
+      ],
+      [
+        44,
+        "/title",
+        "",
+        "#/title",
+        3,
+        [ 1, "Test" ]
+      ],
+      [
+        11,
+        "/type",
+        "",
+        "#/type",
+        3,
+        [ 8, 4 ]
       ]
     ]
-  ]
+  ],
+  []
 ]
 EOF
 
 diff "$TMP/template.json" "$TMP/expected.json"
 
-cat << EOF > "$TMP/expected.txt"
-Using configuration file: $(realpath "$TMP")/jsonschema.json
-Detecting schema resources from file: $(realpath "$TMP")/remote.json
-Importing schema into the resolution context: file://$(realpath "$TMP")/remote.json
-Importing schema into the resolution context: https://example.com/nested
-Resolving https://example.com/other as https://example.com/middle given the configuration file
-Resolving https://example.com/middle as https://example.com/nested given the configuration file
+cat << 'EOF' > "$TMP/expected.txt"
 EOF
 
 diff "$TMP/output.txt" "$TMP/expected.txt"

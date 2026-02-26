@@ -32,12 +32,12 @@ auto sourcemeta::jsonschema::metaschema(
 
   for (const auto &entry : for_each_json(options)) {
     if (!sourcemeta::core::is_schema(entry.second)) {
-      throw NotSchemaError{entry.first};
+      throw NotSchemaError{entry.resolution_base};
     }
 
-    const auto configuration_path{find_configuration(entry.first)};
+    const auto configuration_path{find_configuration(entry.resolution_base)};
     const auto &configuration{
-        read_configuration(options, configuration_path, entry.first)};
+        read_configuration(options, configuration_path, entry.resolution_base)};
     const auto default_dialect_option{default_dialect(options, configuration)};
 
     const auto &custom_resolver{resolver(options, options.contains("http"),
@@ -47,42 +47,42 @@ auto sourcemeta::jsonschema::metaschema(
     try {
       const auto dialect{
           sourcemeta::core::dialect(entry.second, default_dialect_option)};
-      if (!dialect) {
+      if (dialect.empty()) {
         throw FileError<sourcemeta::core::SchemaUnknownBaseDialectError>(
-            entry.first);
+            entry.resolution_base);
       }
 
       const auto metaschema{sourcemeta::core::metaschema(
           entry.second, custom_resolver, default_dialect_option)};
-      const sourcemeta::core::JSON bundled{sourcemeta::core::bundle(
-          metaschema, sourcemeta::core::schema_official_walker, custom_resolver,
-          default_dialect_option)};
+      const sourcemeta::core::JSON bundled{
+          sourcemeta::core::bundle(metaschema, sourcemeta::core::schema_walker,
+                                   custom_resolver, default_dialect_option)};
       sourcemeta::core::SchemaFrame frame{
           sourcemeta::core::SchemaFrame::Mode::References};
-      frame.analyse(bundled, sourcemeta::core::schema_official_walker,
-                    custom_resolver, default_dialect_option);
+      frame.analyse(bundled, sourcemeta::core::schema_walker, custom_resolver,
+                    default_dialect_option);
 
-      if (!cache.contains(dialect.value())) {
+      if (!cache.contains(std::string{dialect})) {
         const auto metaschema_template{sourcemeta::blaze::compile(
-            bundled, sourcemeta::core::schema_official_walker, custom_resolver,
-            sourcemeta::blaze::default_schema_compiler, frame,
-            sourcemeta::blaze::Mode::Exhaustive, default_dialect_option)};
-        cache.insert({dialect.value(), metaschema_template});
+            bundled, sourcemeta::core::schema_walker, custom_resolver,
+            sourcemeta::blaze::default_schema_compiler, frame, frame.root(),
+            sourcemeta::blaze::Mode::Exhaustive)};
+        cache.insert({std::string{dialect}, metaschema_template});
       }
 
       if (trace) {
         sourcemeta::blaze::TraceOutput output{
-            sourcemeta::core::schema_official_walker, custom_resolver,
+            sourcemeta::core::schema_walker, custom_resolver,
             sourcemeta::core::empty_weak_pointer, frame};
-        result = evaluator.validate(cache.at(dialect.value()), entry.second,
-                                    std::ref(output));
+        result = evaluator.validate(cache.at(std::string{dialect}),
+                                    entry.second, std::ref(output));
         print(output, entry.positions, std::cout);
       } else if (json_output) {
         // Otherwise its impossible to correlate the output
         // when validating i.e. a directory of schemas
-        std::cerr << entry.first.string() << "\n";
+        std::cerr << entry.first << "\n";
         const auto output{sourcemeta::blaze::standard(
-            evaluator, cache.at(dialect.value()), entry.second,
+            evaluator, cache.at(std::string{dialect}), entry.second,
             sourcemeta::blaze::StandardOutput::Basic, entry.positions)};
         assert(output.is_object());
         assert(output.defines("valid"));
@@ -95,34 +95,35 @@ auto sourcemeta::jsonschema::metaschema(
         std::cout << "\n";
       } else {
         sourcemeta::blaze::SimpleOutput output{entry.second};
-        if (evaluator.validate(cache.at(dialect.value()), entry.second,
+        if (evaluator.validate(cache.at(std::string{dialect}), entry.second,
                                std::ref(output))) {
           LOG_VERBOSE(options)
-              << "ok: "
-              << sourcemeta::core::weakly_canonical(entry.first).string()
-              << "\n  matches " << dialect.value() << "\n";
+              << "ok: " << entry.first << "\n  matches " << dialect << "\n";
         } else {
-          std::cerr << "fail: "
-                    << sourcemeta::core::weakly_canonical(entry.first).string()
-                    << "\n";
+          std::cerr << "fail: " << entry.first << "\n";
           print(output, entry.positions, std::cerr);
           result = false;
         }
       }
+    } catch (
+        const sourcemeta::blaze::CompilerReferenceTargetNotSchemaError &error) {
+      throw FileError<sourcemeta::blaze::CompilerReferenceTargetNotSchemaError>(
+          entry.resolution_base, error);
     } catch (const sourcemeta::core::SchemaRelativeMetaschemaResolutionError
                  &error) {
       throw FileError<
           sourcemeta::core::SchemaRelativeMetaschemaResolutionError>(
-          entry.first, error);
+          entry.resolution_base, error);
     } catch (const sourcemeta::core::SchemaResolutionError &error) {
-      throw FileError<sourcemeta::core::SchemaResolutionError>(entry.first,
-                                                               error);
+      throw FileError<sourcemeta::core::SchemaResolutionError>(
+          entry.resolution_base, error);
+    } catch (const sourcemeta::core::SchemaUnknownDialectError &) {
+      throw FileError<sourcemeta::core::SchemaUnknownDialectError>(
+          entry.resolution_base);
     }
   }
 
   if (!result) {
-    // Report a different exit code for validation failures, to
-    // distinguish them from other errors
-    throw Fail{2};
+    throw Fail{EXIT_EXPECTED_FAILURE};
   }
 }

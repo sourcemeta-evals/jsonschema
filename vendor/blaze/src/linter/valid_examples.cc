@@ -27,12 +27,11 @@ auto ValidExamples::condition(
     const sourcemeta::core::SchemaWalker &walker,
     const sourcemeta::core::SchemaResolver &resolver) const
     -> sourcemeta::core::SchemaTransformRule::Result {
-  if (!vocabularies.contains(
-          "https://json-schema.org/draft/2020-12/vocab/meta-data") &&
-      !vocabularies.contains(
-          "https://json-schema.org/draft/2019-09/vocab/meta-data") &&
-      !vocabularies.contains("http://json-schema.org/draft-07/schema#") &&
-      !vocabularies.contains("http://json-schema.org/draft-06/schema#")) {
+  using Known = sourcemeta::core::Vocabularies::Known;
+  if (!vocabularies.contains(Known::JSON_Schema_2020_12_Meta_Data) &&
+      !vocabularies.contains(Known::JSON_Schema_2019_09_Meta_Data) &&
+      !vocabularies.contains(Known::JSON_Schema_Draft_7) &&
+      !vocabularies.contains(Known::JSON_Schema_Draft_6)) {
     return false;
   }
 
@@ -42,38 +41,70 @@ auto ValidExamples::condition(
   }
 
   // We have to ignore siblings to `$ref`
-  if (vocabularies.contains("http://json-schema.org/draft-07/schema#") ||
-      vocabularies.contains("http://json-schema.org/draft-06/schema#") ||
-      vocabularies.contains("http://json-schema.org/draft-04/schema#")) {
+  if (vocabularies.contains(Known::JSON_Schema_Draft_7) ||
+      vocabularies.contains(Known::JSON_Schema_Draft_6) ||
+      vocabularies.contains(Known::JSON_Schema_Draft_4)) {
     if (schema.defines("$ref")) {
       return false;
     }
   }
 
-  const auto &root_base_dialect{frame.traverse(location.root.value_or(""))
-                                    .value_or(location)
-                                    .get()
-                                    .base_dialect};
-  std::optional<std::string> default_id{location.base};
-  if (sourcemeta::core::identify(root, root_base_dialect).has_value() ||
-      default_id.value().empty()) {
-    // We want to only set a default identifier if the root schema does not
-    // have an explicit identifier. Otherwise, we can get into corner case
-    // when wrapping the schema
-    default_id = std::nullopt;
+  std::size_t cursor{0};
+
+  if (frame.standalone()) {
+    const auto base{frame.uri(location.pointer)};
+    assert(base.has_value());
+    const auto schema_template{compile(root, walker, resolver, this->compiler_,
+                                       frame, base.value().get(),
+                                       Mode::Exhaustive)};
+
+    for (const auto &example : schema.at("examples").as_array()) {
+      SimpleOutput output{example};
+      Evaluator evaluator;
+      const auto result{
+          evaluator.validate(schema_template, example, std::ref(output))};
+      if (!result) {
+        std::ostringstream message;
+        message << "Invalid example instance at index " << cursor << "\n";
+        for (const auto &entry : output) {
+          message << "  " << entry.message << "\n";
+          message << "  "
+                  << "  at instance location \"";
+          sourcemeta::core::stringify(entry.instance_location, message);
+          message << "\"\n";
+          message << "  "
+                  << "  at evaluate path \"";
+          sourcemeta::core::stringify(entry.evaluate_path, message);
+          message << "\"\n";
+        }
+
+        return {{{"examples", cursor}}, std::move(message).str()};
+      }
+
+      cursor += 1;
+    }
+
+    return false;
   }
 
-  const auto subschema{sourcemeta::core::wrap(root, location.pointer, resolver,
-                                              location.dialect)};
+  const auto &root_base_dialect{
+      frame.traverse(frame.root()).value_or(location).get().base_dialect};
+  std::string_view default_id{location.base};
+  if (!sourcemeta::core::identify(root, root_base_dialect).empty() ||
+      default_id.empty()) {
+    default_id = "";
+  }
+
+  sourcemeta::core::WeakPointer base;
+  const auto subschema{
+      sourcemeta::core::wrap(root, frame, location, resolver, base)};
   const auto schema_template{compile(subschema, walker, resolver,
-                                     this->compiler_, Mode::FastValidation,
+                                     this->compiler_, Mode::Exhaustive,
                                      location.dialect, default_id)};
 
-  Evaluator evaluator;
-  std::size_t cursor{0};
   for (const auto &example : schema.at("examples").as_array()) {
-    const std::string ref{"$ref"};
-    SimpleOutput output{example, {std::cref(ref)}};
+    SimpleOutput output{example, base};
+    Evaluator evaluator;
     const auto result{
         evaluator.validate(schema_template, example, std::ref(output))};
     if (!result) {
