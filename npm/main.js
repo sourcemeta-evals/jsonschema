@@ -9,6 +9,16 @@ const EXTENSION = PLATFORM === 'windows' ? '.exe' : '';
 const EXECUTABLE = path.join(__dirname, '..', 'build', 'github-releases',
   `jsonschema-${PLATFORM}-${ARCH}${EXTENSION}`);
 
+/**
+ * Spawn the JSON Schema CLI with the given arguments and options.
+ * @param {string[]} args - The arguments to pass to the CLI.
+ * @param {Object} [options={}] - The options for spawning the process.
+ * @param {boolean} [options.json=false] - When set to true, automatically passes
+ *   the --json flag to the CLI and parses the standard output as JSON.
+ * @returns {Promise<{code: number, stdout: string|Object, stderr: string}>}
+ *   A promise that resolves with the exit code, stdout (string or parsed JSON
+ *   object if json option is true), and stderr.
+ */
 function spawn(args, options = {}) {
   const json = options.json === true;
   const spawnArgs = json ? [...args, '--json'] : args;
