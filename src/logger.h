@@ -3,10 +3,16 @@
 
 #include <sourcemeta/core/options.h>
 
-#include <fstream> // std::ofstream
-#include <ostream> // std::ostream
+#include <fstream>  // std::ofstream
+#include <iostream> // std::cerr
+#include <ostream>  // std::ostream
 
 namespace sourcemeta::jsonschema {
+
+inline auto LOG_WARNING() -> std::ostream & {
+  std::cerr << "warning: ";
+  return std::cerr;
+}
 
 inline auto LOG_VERBOSE(const sourcemeta::core::Options &options)
     -> std::ostream & {
