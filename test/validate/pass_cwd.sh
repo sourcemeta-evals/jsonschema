@@ -29,7 +29,7 @@ EOF
 
 BIN="$(realpath "$1")"
 cd "$TMP"
-"$BIN" validate schema.json --verbose 2> "$TMP/output.txt"
+"$BIN" validate schema.json . --verbose 2> "$TMP/output.txt"
 
 cat << EOF > "$TMP/expected.txt"
 ok: $(realpath "$TMP")/instance_1.json

@@ -140,6 +140,13 @@ auto sourcemeta::jsonschema::validate(const sourcemeta::core::Options &options)
         "jsonschema validate path/to/schema.json path/to/instance.json"};
   }
 
+  if (options.positional().size() < 2) {
+    throw PositionalArgumentError{
+        "In addition to the schema, you must also pass an argument\n"
+        "that represents the instance to validate against",
+        "jsonschema validate path/to/schema.json path/to/instance.json"};
+  }
+
   const auto &schema_path{options.positional().at(0)};
 
   if (std::filesystem::is_directory(schema_path)) {
@@ -254,12 +261,8 @@ auto sourcemeta::jsonschema::validate(const sourcemeta::core::Options &options)
   bool result{true};
 
   std::vector<std::string_view> instance_arguments;
-  if (options.positional().size() > 1) {
-    instance_arguments.assign(options.positional().cbegin() + 1,
-                              options.positional().cend());
-  } else {
-    instance_arguments.push_back(".");
-  }
+  instance_arguments.assign(options.positional().cbegin() + 1,
+                            options.positional().cend());
 
   if (trace && instance_arguments.size() > 1) {
     throw std::runtime_error{
