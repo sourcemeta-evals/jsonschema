@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert';
+import os from 'node:os';
+import path from 'node:path';
+import fs from 'node:fs/promises';
 import { spawn } from './main.js';
 import packageJson from '../package.json' with { type: 'json' };
 
@@ -25,4 +28,29 @@ test('spawn captures stderr on error', async () => {
   const result = await spawn(['validate']);
   assert.strictEqual(result.code, 1);
   assert.ok(result.stderr.length > 0);
+});
+
+test('spawn supports json option', async () => {
+  const tmpdir = await fs.mkdtemp(path.join(os.tmpdir(), 'jsonschema-npm-'));
+  const schemaPath = path.join(tmpdir, 'schema.json');
+  const instancePath = path.join(tmpdir, 'instance.json');
+
+  await fs.writeFile(schemaPath, JSON.stringify({
+    type: 'object',
+    properties: {
+      name: { type: 'string' }
+    },
+    required: ['name']
+  }));
+  await fs.writeFile(instancePath, JSON.stringify({ name: 'Devin' }));
+
+  try {
+    const result = await spawn(['validate', schemaPath, instancePath], { json: true });
+    assert.strictEqual(result.code, 0);
+    assert.strictEqual(typeof result.stdout, 'object');
+    assert.notStrictEqual(result.stdout, null);
+    assert.strictEqual(result.stderr, '');
+  } finally {
+    await fs.rm(tmpdir, { recursive: true, force: true });
+  }
 });
