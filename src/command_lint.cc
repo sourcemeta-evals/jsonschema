@@ -151,6 +151,9 @@ auto sourcemeta::jsonschema::cli::lint(
       }
 
       auto copy = entry.second;
+      std::ostringstream original;
+      sourcemeta::core::prettify(entry.second, original);
+      original << "\n";
 
       try {
         bundle.apply(
@@ -164,9 +167,14 @@ auto sourcemeta::jsonschema::cli::lint(
             entry.first);
       }
 
-      std::ofstream output{entry.first};
-      sourcemeta::core::prettify(copy, output);
-      output << "\n";
+      std::ostringstream updated;
+      sourcemeta::core::prettify(copy, updated);
+      updated << "\n";
+
+      if (original.str() != updated.str()) {
+        std::ofstream output{entry.first};
+        output << updated.str();
+      }
     }
   } else {
     for (const auto &entry :
