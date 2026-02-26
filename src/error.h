@@ -8,6 +8,8 @@
 #include <cassert>    // assert
 #include <filesystem> // std::filesystem
 #include <functional> // std::function
+#include <string>     // std::string
+#include <utility>    // std::move
 
 namespace sourcemeta::jsonschema {
 
@@ -25,6 +27,20 @@ public:
 
 private:
   std::filesystem::path path_;
+};
+
+class PositionalArgumentError : public std::runtime_error {
+public:
+  PositionalArgumentError(std::string message, std::string command_example)
+      : std::runtime_error{std::move(message)},
+        command_example_{std::move(command_example)} {}
+
+  [[nodiscard]] auto command_example() const noexcept -> const std::string & {
+    return command_example_;
+  }
+
+private:
+  std::string command_example_;
 };
 
 inline auto try_catch(const std::function<int()> &callback) noexcept -> int {
@@ -165,6 +181,10 @@ inline auto try_catch(const std::function<int()> &callback) noexcept -> int {
   } catch (const sourcemeta::core::OptionsUnknownOptionError &error) {
     std::cerr << "error: " << error.what() << " '" << error.name() << "'\n";
     std::cerr << "Use '--help' for usage information\n";
+    return EXIT_FAILURE;
+  } catch (const sourcemeta::jsonschema::PositionalArgumentError &error) {
+    std::cerr << "error: " << error.what() << "\n\n  "
+              << error.command_example() << "\n";
     return EXIT_FAILURE;
   } catch (const std::runtime_error &error) {
     std::cerr << "error: " << error.what() << "\n";
