@@ -8,6 +8,7 @@
 #include <cassert>    // assert
 #include <filesystem> // std::filesystem
 #include <functional> // std::function
+#include <string>     // std::string
 
 namespace sourcemeta::jsonschema {
 
@@ -27,9 +28,42 @@ private:
   std::filesystem::path path_;
 };
 
+class PositionalArgumentError : public std::exception {
+public:
+  PositionalArgumentError(std::string message, std::string example)
+      : message_{std::move(message)}, example_{std::move(example)} {
+    // Build the full what() message
+    this->what_ = "error: ";
+    this->what_ += this->message_;
+    this->what_ += ". For example:\n\n  ";
+    this->what_ += this->example_;
+    this->what_ += "\n";
+  }
+
+  [[nodiscard]] auto what() const noexcept -> const char * override {
+    return this->what_.c_str();
+  }
+
+  [[nodiscard]] auto message() const noexcept -> const std::string & {
+    return message_;
+  }
+
+  [[nodiscard]] auto example() const noexcept -> const std::string & {
+    return example_;
+  }
+
+private:
+  std::string message_;
+  std::string example_;
+  std::string what_;
+};
+
 inline auto try_catch(const std::function<int()> &callback) noexcept -> int {
   try {
     return callback();
+  } catch (const sourcemeta::jsonschema::PositionalArgumentError &error) {
+    std::cerr << error.what();
+    return EXIT_FAILURE;
   } catch (const sourcemeta::core::SchemaReferenceError &error) {
     std::cerr << "error: " << error.what() << "\n  " << error.id()
               << "\n    at schema location \"";
