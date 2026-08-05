@@ -31,9 +31,6 @@ EOF
 "$1" lint "$TMP/a_no_reformat.json" "$TMP/b_fixable.json" --fix \
   > "$TMP/stdout.txt" 2> "$TMP/stderr.txt"
 
-# The default (non-verbose) invocation must not emit any new stdout or stderr
-# output. The fix is scoped to file-write suppression, so it should not
-# broaden the CLI's observable output in any way.
 test ! -s "$TMP/stdout.txt"
 test ! -s "$TMP/stderr.txt"
 
