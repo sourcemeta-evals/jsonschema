@@ -14,8 +14,9 @@ trap clean EXIT
 
 cat << 'EOF' > "$TMP/a_no_reformat.json"
   {
-             "$schema":
-   "http://json-schema.org/draft-06/schema#",    "type"    : "string"
+        "title":     "A number",
+     "$schema":
+   "http://json-schema.org/draft-06/schema#",    "type"    : "number"
 }
 EOF
 
@@ -37,8 +38,9 @@ test ! -s "$TMP/stderr.txt"
 # File A has no applicable lint rule, so it must be left byte-for-byte intact.
 cat << 'EOF' > "$TMP/a_expected.json"
   {
-             "$schema":
-   "http://json-schema.org/draft-06/schema#",    "type"    : "string"
+        "title":     "A number",
+     "$schema":
+   "http://json-schema.org/draft-06/schema#",    "type"    : "number"
 }
 EOF
 
