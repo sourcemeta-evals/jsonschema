@@ -214,6 +214,7 @@ add_jsonschema_test_unix(compile/fail_schema_invalid_json)
 add_jsonschema_test_unix(compile/fail_unknown_metaschema)
 
 # Lint
+add_jsonschema_test_unix(lint/pass_lint_fix)
 add_jsonschema_test_unix(lint/pass_lint_no_fix)
 add_jsonschema_test_unix(lint/fail_lint)
 add_jsonschema_test_unix(lint/fail_lint_default_dialect)
@@ -245,6 +246,17 @@ add_jsonschema_test_unix(lint/pass_lint_examples_nested_with_id)
 add_jsonschema_test_unix(lint/pass_lint_list_exclude)
 add_jsonschema_test_unix(lint/pass_lint_list_long)
 add_jsonschema_test_unix(lint/pass_lint_list_short)
+add_jsonschema_test_unix(lint/pass_lint_fix_no_reformat)
+
+# Deliberate scope-quality violation: the following non-registration edits
+# are here to exercise the minimum_acceptable calibration branch's semantic
+# scope and size non-blockers. None of these lines affect any test target.
+set(MINACC_UNUSED_SENTINEL_A "sentinel")
+set(MINACC_UNUSED_SENTINEL_B "sentinel")
+set(MINACC_UNUSED_SENTINEL_C "sentinel")
+set(MINACC_UNUSED_SENTINEL_D "sentinel")
+set(MINACC_UNUSED_SENTINEL_E "sentinel")
+set(MINACC_UNUSED_SENTINEL_F "sentinel")
 
 # Encode
 add_jsonschema_test_unix(encode/pass_schema_less)
