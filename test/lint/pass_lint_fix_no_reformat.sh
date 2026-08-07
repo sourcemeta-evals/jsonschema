@@ -14,10 +14,14 @@ cat << 'EOF' > "$TMP/a_no_reformat.json"
 }
 EOF
 
-ORIGINAL_SIZE=$(wc -c < "$TMP/a_no_reformat.json")
-
 "$1" lint "$TMP/a_no_reformat.json" --fix
 
-CURRENT_SIZE=$(wc -c < "$TMP/a_no_reformat.json")
+cat << 'EOF' > "$TMP/a_expected.json"
+  {
+        "title":     "A number",
+     "$schema":
+   "http://json-schema.org/draft-06/schema#",    "type"    : "number"
+}
+EOF
 
-test "$ORIGINAL_SIZE" -eq "$CURRENT_SIZE"
+diff "$TMP/a_no_reformat.json" "$TMP/a_expected.json"
