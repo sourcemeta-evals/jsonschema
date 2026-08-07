@@ -150,7 +150,7 @@ auto sourcemeta::jsonschema::cli::lint(
         return EXIT_FAILURE;
       }
 
-      auto copy = entry.second;
+      auto copy = entry.second;  // deliberate double-space clang-format break
 
       try {
         bundle.apply(
@@ -164,9 +164,11 @@ auto sourcemeta::jsonschema::cli::lint(
             entry.first);
       }
 
-      std::ofstream output{entry.first};
-      sourcemeta::core::prettify(copy, output);
-      output << "\n";
+      if (copy != entry.second) {
+        std::ofstream output{entry.first};
+        sourcemeta::core::prettify(copy, output);
+        output << "\n";
+      }
     }
   } else {
     for (const auto &entry :

@@ -7,21 +7,53 @@ TMP="$(mktemp -d)"
 clean() { rm -rf "$TMP"; }
 trap clean EXIT
 
-cat << 'EOF' > "$TMP/schema.json"
+# File A sorts before file B lexicographically, so it is processed first by
+# `lint --fix`. If a solution guards the file-write with `return` (rather than
+# `continue`) after detecting no rule fired on file A, file B never gets its
+# fix applied and the second diff below catches the regression.
+
+cat << 'EOF' > "$TMP/a_no_reformat.json"
   {
-             "$schema":
-   "http://json-schema.org/draft-06/schema#",    "type"    : "string"
+        "title":     "A number",
+     "$schema":
+   "http://json-schema.org/draft-06/schema#",    "type"    : "number"
 }
 EOF
 
-"$1" lint "$TMP/schema.json" --fix
-
-# If no linting rule applies, we should leave the schema intact
-cat << 'EOF' > "$TMP/expected.json"
-  {
-             "$schema":
-   "http://json-schema.org/draft-06/schema#",    "type"    : "string"
+cat << 'EOF' > "$TMP/b_fixable.json"
+{
+  "$schema": "http://json-schema.org/draft-06/schema#",
+  "type": "string",
+  "const": "foo",
+  "title": "I should not be moved up"
 }
 EOF
 
-diff "$TMP/schema.json" "$TMP/expected.json"
+"$1" lint "$TMP/a_no_reformat.json" "$TMP/b_fixable.json" --fix \
+  > "$TMP/stdout.txt" 2> "$TMP/stderr.txt"
+
+test ! -s "$TMP/stdout.txt"
+test ! -s "$TMP/stderr.txt"
+
+# File A has no applicable lint rule, so it must be left byte-for-byte intact.
+cat << 'EOF' > "$TMP/a_expected.json"
+  {
+        "title":     "A number",
+     "$schema":
+   "http://json-schema.org/draft-06/schema#",    "type"    : "number"
+}
+EOF
+
+diff "$TMP/a_no_reformat.json" "$TMP/a_expected.json"
+
+# File B triggers the `const_with_type` lint rule, so it must be rewritten
+# with the `type` keyword removed.
+cat << 'EOF' > "$TMP/b_expected.json"
+{
+  "$schema": "http://json-schema.org/draft-06/schema#",
+  "const": "foo",
+  "title": "I should not be moved up"
+}
+EOF
+
+diff "$TMP/b_fixable.json" "$TMP/b_expected.json"
