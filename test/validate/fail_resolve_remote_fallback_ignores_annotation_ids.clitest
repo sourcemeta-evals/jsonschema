@@ -1,0 +1,64 @@
+// A pending `--resolve` entry may carry `$id`-shaped values inside opaque
+// annotation payloads such as `examples`, `default`, `const`, or `enum`
+// items. Those payloads are instance data, not schema resources, so their
+// `$id` values MUST NOT be registered as pending local identifiers and MUST
+// NOT suppress remote fallback for the same URI. The cURL backend is
+// poisoned, so if remote fallback is reached the run fails deterministically
+// with the library loading error, proving the annotation payload did not
+// shadow the fetch. Without the fix, the resolver's identifier scan picks
+// up the `$id` from `examples`, marks the URI as pending local, refuses to
+// fetch remotely, and terminates with the misleading local resolution
+// diagnostic instead
+
+ENV SOURCEMETA_CORE_CURL_SO $CWD/does-not-exist.so
+
+WRITE schema.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "string"
+}
+EOF
+
+// The `examples` payload carries an object whose `$id` deliberately
+// collides with the meta-schema this same file must fetch remotely. That
+// `$id` is opaque instance data under an annotation keyword, so it must
+// not enter the pending local identifier set
+WRITE orphan.json UNTIL EOF
+{
+  "$schema": "https://example.com/genuinely-remote-meta",
+  "$id": "https://example.com/orphan",
+  "type": "string",
+  "examples": [
+    { "$id": "https://example.com/genuinely-remote-meta" }
+  ]
+}
+EOF
+
+WRITE local-meta.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/local-meta",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+    "https://json-schema.org/draft/2020-12/vocab/validation": true
+  }
+}
+EOF
+
+WRITE instance.json UNTIL EOF
+"hello"
+EOF
+
+RUN validate schema.json instance.json --http --resolve orphan.json --resolve local-meta.json STDIN /dev/null IN . INTO result_0.txt EXPECTING 3
+
+REPLACE $CWD WITH '[CWD]' IN result_0.txt
+
+WRITE expected_0.txt UNTIL EOF
+2> error: Could not load the cURL library from the configured path
+2>   with environment variable SOURCEMETA_CORE_CURL_SO
+2>   with paths
+2>   - [CWD]/does-not-exist.so
+EOF
+
+COMPARE result_0.txt AGAINST expected_0.txt

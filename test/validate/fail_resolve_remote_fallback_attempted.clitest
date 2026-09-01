@@ -1,0 +1,84 @@
+// Suppressing remote fetches for pending local resources must not disable
+// remote resolution altogether. The cURL backend is poisoned, so reaching
+// remote resolution fails deterministically with the library loading error:
+// seeing that error proves the fallback was attempted. An implementation
+// that permanently disables remote resolution while handling `--resolve`
+// would report a schema resolution error instead and fail this comparison.
+
+ENV SOURCEMETA_CORE_CURL_SO $CWD/does-not-exist.so
+
+WRITE schema.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "string"
+}
+EOF
+
+WRITE orphan.json UNTIL EOF
+{
+  "$schema": "https://example.com/genuinely-remote-meta",
+  "$id": "https://example.com/orphan",
+  "type": "string"
+}
+EOF
+
+WRITE local-meta.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/local-meta",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+    "https://json-schema.org/draft/2020-12/vocab/validation": true
+  }
+}
+EOF
+
+WRITE uses-local.json UNTIL EOF
+{
+  "$schema": "https://example.com/local-meta",
+  "$id": "https://example.com/uses-local",
+  "type": "string"
+}
+EOF
+
+WRITE remote-ref.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "https://example.com/genuinely-remote-target"
+}
+EOF
+
+WRITE instance.json UNTIL EOF
+"hello"
+EOF
+
+// A meta-schema that no local input declares must reach remote fallback
+// once the local imports stall
+RUN validate schema.json instance.json --http --resolve orphan.json --resolve local-meta.json STDIN /dev/null IN . INTO result_0.txt EXPECTING 3
+
+REPLACE $CWD WITH '[CWD]' IN result_0.txt
+
+WRITE expected_0.txt UNTIL EOF
+2> error: Could not load the cURL library from the configured path
+2>   with environment variable SOURCEMETA_CORE_CURL_SO
+2>   with paths
+2>   - [CWD]/does-not-exist.so
+EOF
+
+COMPARE result_0.txt AGAINST expected_0.txt
+
+// Remote resolution must remain available after every local entry
+// imported successfully
+RUN validate remote-ref.json instance.json --http --resolve uses-local.json --resolve local-meta.json STDIN /dev/null IN . INTO result_1.txt EXPECTING 3
+
+REPLACE $CWD WITH '[CWD]' IN result_1.txt
+
+WRITE expected_1.txt UNTIL EOF
+2> error: Could not load the cURL library from the configured path
+2>   with environment variable SOURCEMETA_CORE_CURL_SO
+2>   with paths
+2>   - [CWD]/does-not-exist.so
+EOF
+
+COMPARE result_1.txt AGAINST expected_1.txt
