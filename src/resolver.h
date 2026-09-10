@@ -25,6 +25,7 @@
 #include <iostream>    // std::cerr
 #include <map>         // std::map
 #include <optional>    // std::optional
+#include <set>         // std::set
 #include <string>      // std::string
 #include <string_view> // std::string_view
 #include <thread>      // std::this_thread::sleep_for
@@ -295,6 +296,17 @@ public:
       const auto allow_remote{this->remote_};
       this->remote_ = false;
       while (!pending.empty()) {
+        // Remote fetching must never shadow a schema that a pending local
+        // entry still declares, so keep track of the identifiers that the
+        // remaining entries can contribute
+        this->pending_identifiers_.clear();
+        for (const auto index : pending) {
+          collect_identifiers(entries[index].second,
+                              this->pending_identifiers_);
+          this->pending_identifiers_.insert(
+              sourcemeta::jsonschema::default_id(entries[index]));
+        }
+
         std::vector<std::size_t> deferred;
         std::exception_ptr failure;
 
@@ -333,6 +345,7 @@ public:
         pending = std::move(deferred);
       }
 
+      this->pending_identifiers_.clear();
       this->remote_ = allow_remote;
     }
 
@@ -425,6 +438,10 @@ public:
       return this->schemas.at(target);
     }
 
+    if (this->remote_ && this->pending_identifiers_.contains(target)) {
+      return std::nullopt;
+    }
+
     auto fetched{fetch_schema(this->options_, target, this->remote_)};
     if (fetched.has_value()) {
       ensure_identifier(fetched.value(), string_identifier, *this);
@@ -434,6 +451,25 @@ public:
   }
 
 private:
+  static auto collect_identifiers(const sourcemeta::core::JSON &document,
+                                  std::set<std::string> &accumulator) -> void {
+    if (document.is_object()) {
+      for (const auto &keyword : {"$id", "id"}) {
+        if (document.defines(keyword) && document.at(keyword).is_string()) {
+          accumulator.insert(document.at(keyword).to_string());
+        }
+      }
+
+      for (const auto &pair : document.as_object()) {
+        collect_identifiers(pair.second, accumulator);
+      }
+    } else if (document.is_array()) {
+      for (const auto &element : document.as_array()) {
+        collect_identifiers(element, accumulator);
+      }
+    }
+  }
+
   auto import_entry(const InputJSON &entry,
                     const std::string_view default_dialect) -> void {
     LOG_DEBUG(this->options_)
@@ -508,6 +544,7 @@ private:
   const sourcemeta::core::Options &options_;
   const std::optional<sourcemeta::blaze::Configuration> configuration_;
   bool remote_{false};
+  std::set<std::string> pending_identifiers_{};
 };
 
 inline auto
