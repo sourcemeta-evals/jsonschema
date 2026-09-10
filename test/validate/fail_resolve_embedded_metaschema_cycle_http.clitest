@@ -1,3 +1,10 @@
+// Poison the cURL backend so that, on platforms that read
+// SOURCEMETA_CORE_CURL_SO, any attempt to initialize HTTP resolution
+// fails deterministically instead of depending on network state. The
+// expected runs never initialize the backend, so this variable is
+// never consulted on a passing run
+ENV SOURCEMETA_CORE_CURL_SO $CWD/does-not-exist.so
+
 // Two `--resolve` documents that each embed the other's required custom
 // meta-schema under `$defs` can never be imported: `doc-a`'s `$schema` names
 // an identifier declared inside `doc-b`, and the other way around. Every

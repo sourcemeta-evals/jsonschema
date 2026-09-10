@@ -1,3 +1,10 @@
+// Poison the cURL backend so that, on platforms that read
+// SOURCEMETA_CORE_CURL_SO, any attempt to initialize HTTP resolution
+// fails deterministically instead of depending on network state. The
+// expected runs never initialize the backend, so this variable is
+// never consulted on a passing run
+ENV SOURCEMETA_CORE_CURL_SO $CWD/does-not-exist.so
+
 // A custom meta-schema declared as an embedded resource inside another
 // `--resolve` document must be usable by an entry listed before its
 // containing document. The leaf's `$schema` points at an identifier that

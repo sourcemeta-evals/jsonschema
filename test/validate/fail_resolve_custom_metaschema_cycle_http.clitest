@@ -1,3 +1,10 @@
+// Poison the cURL backend so that, on platforms that read
+// SOURCEMETA_CORE_CURL_SO, any attempt to initialize HTTP resolution
+// fails deterministically instead of depending on network state. The
+// expected runs never initialize the backend, so this variable is
+// never consulted on a passing run
+ENV SOURCEMETA_CORE_CURL_SO $CWD/does-not-exist.so
+
 // A cycle of locally supplied custom meta-schemas must fail the same way
 // whether or not remote resolution is enabled. Every identifier in the
 // cycle is declared by a pending local `--resolve` input, so enabling
