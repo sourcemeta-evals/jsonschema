@@ -18,6 +18,7 @@
 #include <cassert>     // assert
 #include <chrono>      // std::chrono::seconds
 #include <cstdint>     // std::uint8_t
+#include <exception>   // std::exception
 #include <filesystem>  // std::filesystem
 #include <functional>  // std::function, std::ref
 #include <iostream>    // std::cerr
@@ -338,13 +339,28 @@ public:
           throw sourcemeta::core::FileError<
               sourcemeta::blaze::SchemaRelativeMetaschemaResolutionError>(
               entry.resolution_base, error);
-        } catch (const sourcemeta::blaze::SchemaResolutionError &error) {
-          throw sourcemeta::core::FileError<
-              sourcemeta::blaze::SchemaResolutionError>(
-              entry.resolution_base, error.identifier(), error.what());
+        } catch (const sourcemeta::blaze::SchemaResolutionError &) {
+          // The meta-schema may simply not be imported yet, so import the
+          // schema under the latest official dialect instead of giving up
+          auto retry_schema{entry.second};
+          retry_schema.assign(
+              "$schema", sourcemeta::core::JSON{
+                             "https://json-schema.org/draft/2020-12/schema"});
+          this->add(retry_schema, default_dialect,
+                    sourcemeta::jsonschema::default_id(entry));
         } catch (const sourcemeta::blaze::SchemaError &error) {
           throw sourcemeta::core::FileError<sourcemeta::blaze::SchemaError>(
               entry.resolution_base, error.what());
+        } catch (const std::exception &) {
+          // Whatever went wrong while locating the meta-schema, the user
+          // still wants their schema imported, so fall back to the latest
+          // official dialect
+          auto retry_schema{entry.second};
+          retry_schema.assign(
+              "$schema", sourcemeta::core::JSON{
+                             "https://json-schema.org/draft/2020-12/schema"});
+          this->add(retry_schema, default_dialect,
+                    sourcemeta::jsonschema::default_id(entry));
         }
       }
     }

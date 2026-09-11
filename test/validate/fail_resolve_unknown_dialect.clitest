@@ -17,31 +17,20 @@ WRITE instance.json UNTIL EOF
 { "foo": "bar" }
 EOF
 
-// Schema input error
-RUN validate schema.json instance.json --resolve resolve.json STDIN /dev/null IN . INTO result_0.txt EXPECTING 4
-
-REPLACE $CWD WITH '[CWD]' IN result_0.txt
+// Unknown meta-schemas now fall back to the latest official dialect
+RUN validate schema.json instance.json --resolve resolve.json STDIN /dev/null IN . INTO result_0.txt EXPECTING 0
 
 WRITE expected_0.txt UNTIL EOF
-2> error: Could not resolve the metaschema of the schema
-2>   at identifier https://example.com/unknown-metaschema
-2>   at file path [CWD]/resolve.json
-2>
-2> This is likely because you forgot to import such schema using `--resolve/-r`
 EOF
 
 COMPARE result_0.txt AGAINST expected_0.txt
 
-// Schema input error
-RUN validate schema.json instance.json --resolve resolve.json --json STDIN /dev/null IN . INTO result_1.txt EXPECTING 4
-
-REPLACE $CWD WITH '[CWD]' IN result_1.txt
+// Unknown meta-schemas now fall back to the latest official dialect
+RUN validate schema.json instance.json --resolve resolve.json --json STDIN /dev/null IN . INTO result_1.txt EXPECTING 0
 
 WRITE expected_1.txt UNTIL EOF
 1> {
-1>   "error": "Could not resolve the metaschema of the schema",
-1>   "identifier": "https://example.com/unknown-metaschema",
-1>   "filePath": "[CWD]/resolve.json"
+1>   "valid": true
 1> }
 EOF
 
