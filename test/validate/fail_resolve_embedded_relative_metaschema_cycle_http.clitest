@@ -1,0 +1,74 @@
+// Same mutual embedded meta-schema cycle as
+// `fail_resolve_embedded_metaschema_cycle_http`, except the embedded
+// resources declare RELATIVE `$id` values that only become the required
+// meta-schema identifiers once resolved against their containing resource
+// base. Local precedence must operate on the resolved identifiers, so
+// enabling `--http` must still not turn the stuck import into a network
+// request. The cURL backend is poisoned to make any attempted fetch fail
+// deterministically, and which symmetric participant gets blamed is not
+// pinned, so the identifier and file below are normalized before comparing.
+
+ENV SOURCEMETA_CORE_CURL_SO $CWD/does-not-exist.so
+
+WRITE schema.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "string"
+}
+EOF
+
+WRITE doc-a.json UNTIL EOF
+{
+  "$schema": "https://example.com/nested/embedded-meta-b",
+  "$id": "https://example.com/nested/doc-a",
+  "$defs": {
+    "meta": {
+      "$id": "embedded-meta-a",
+      "$vocabulary": {
+        "https://json-schema.org/draft/2020-12/vocab/core": true,
+        "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+        "https://json-schema.org/draft/2020-12/vocab/validation": true
+      }
+    }
+  }
+}
+EOF
+
+WRITE doc-b.json UNTIL EOF
+{
+  "$schema": "https://example.com/nested/embedded-meta-a",
+  "$id": "https://example.com/nested/doc-b",
+  "$defs": {
+    "meta": {
+      "$id": "embedded-meta-b",
+      "$vocabulary": {
+        "https://json-schema.org/draft/2020-12/vocab/core": true,
+        "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+        "https://json-schema.org/draft/2020-12/vocab/validation": true
+      }
+    }
+  }
+}
+EOF
+
+WRITE instance.json UNTIL EOF
+"hello"
+EOF
+
+RUN validate schema.json instance.json --http --resolve doc-a.json --resolve doc-b.json STDIN /dev/null IN . INTO result_0.txt EXPECTING 4
+
+REPLACE $CWD WITH '[CWD]' IN result_0.txt
+REPLACE 'https://example.com/nested/embedded-meta-a' WITH '[STUCK]' IN result_0.txt
+REPLACE 'https://example.com/nested/embedded-meta-b' WITH '[STUCK]' IN result_0.txt
+REPLACE '[CWD]/doc-a.json' WITH '[INPUT]' IN result_0.txt
+REPLACE '[CWD]/doc-b.json' WITH '[INPUT]' IN result_0.txt
+
+WRITE expected_0.txt UNTIL EOF
+2> error: Could not resolve the metaschema of the schema
+2>   at identifier [STUCK]
+2>   at file path [INPUT]
+2>
+2> This is likely because you forgot to import such schema using `--resolve/-r`
+EOF
+
+COMPARE result_0.txt AGAINST expected_0.txt

@@ -15,14 +15,17 @@
 #include "logger.h"
 #include "utils.h"
 
-#include <cassert>     // assert
-#include <chrono>      // std::chrono::seconds
-#include <cstdint>     // std::uint8_t
+#include <cassert> // assert
+#include <chrono>  // std::chrono::seconds
+#include <cstddef> // std::size_t
+#include <cstdint> // std::uint8_t
+#include <exception> // std::exception_ptr, std::current_exception, std::rethrow_exception
 #include <filesystem>  // std::filesystem
 #include <functional>  // std::function, std::ref
 #include <iostream>    // std::cerr
 #include <map>         // std::map
 #include <optional>    // std::optional
+#include <set>         // std::set
 #include <string>      // std::string
 #include <string_view> // std::string_view
 #include <thread>      // std::this_thread::sleep_for
@@ -274,79 +277,77 @@ public:
       const bool remote, const std::string_view default_dialect)
       : options_{options}, configuration_{configuration}, remote_{remote} {
     if (options.contains("resolve")) {
-      for (const auto &entry : for_each_json(options.at("resolve"), options)) {
-        LOG_DEBUG(options) << "Detecting schema resources from file: "
-                           << entry.first << "\n";
-
-        if (!entry.second.is_object() && !entry.second.is_boolean()) {
-          throw sourcemeta::core::FileError<sourcemeta::blaze::SchemaError>(
-              entry.resolution_base,
-              "The file you provided does not represent a valid JSON Schema");
-        }
-
-        try {
-          const auto result = this->add(
-              entry.second, default_dialect,
-              sourcemeta::jsonschema::default_id(entry),
-              [&options](const auto &identifier) {
-                LOG_DEBUG(options)
-                    << "Importing schema into the resolution context: "
-                    << identifier << "\n";
-              });
-          if (!result) {
-            LOG_WARNING()
-                << "No schema resources were imported from this file\n"
-                << "  at " << entry.first << "\n"
-                << "Are you sure this schema sets any identifiers?\n";
-          }
-        } catch (const sourcemeta::blaze::SchemaKeywordError &error) {
-          throw sourcemeta::core::FileError<
-              sourcemeta::blaze::SchemaKeywordError>(entry.resolution_base,
-                                                     error);
-        } catch (const sourcemeta::blaze::SchemaFrameError &error) {
-          throw sourcemeta::core::FileError<
-              sourcemeta::blaze::SchemaFrameError>(
-              entry.resolution_base, error.identifier(), error.what());
-        } catch (const sourcemeta::blaze::SchemaAnchorCollisionError &error) {
-          const auto position{entry.positions.get(error.location())};
-          if (position.has_value()) {
-            throw PositionError<sourcemeta::core::FileError<
-                sourcemeta::blaze::SchemaAnchorCollisionError>>(
-                std::get<0>(position.value()), std::get<1>(position.value()),
-                entry.resolution_base, error);
-          }
-
-          throw sourcemeta::core::FileError<
-              sourcemeta::blaze::SchemaAnchorCollisionError>(
-              entry.resolution_base, error);
-        } catch (const sourcemeta::blaze::SchemaReferenceError &error) {
-          throw sourcemeta::core::FileError<
-              sourcemeta::blaze::SchemaReferenceError>(
-              entry.resolution_base, error.identifier(), error.location(),
-              error.what());
-        } catch (const sourcemeta::blaze::SchemaUnknownBaseDialectError &) {
-          throw sourcemeta::core::FileError<
-              sourcemeta::blaze::SchemaUnknownBaseDialectError>(
-              entry.resolution_base);
-        } catch (const sourcemeta::blaze::SchemaUnknownDialectError &) {
-          throw sourcemeta::core::FileError<
-              sourcemeta::blaze::SchemaUnknownDialectError>(
-              entry.resolution_base);
-        } catch (
-            const sourcemeta::blaze::SchemaRelativeMetaschemaResolutionError
-                &error) {
-          throw sourcemeta::core::FileError<
-              sourcemeta::blaze::SchemaRelativeMetaschemaResolutionError>(
-              entry.resolution_base, error);
-        } catch (const sourcemeta::blaze::SchemaResolutionError &error) {
-          throw sourcemeta::core::FileError<
-              sourcemeta::blaze::SchemaResolutionError>(
-              entry.resolution_base, error.identifier(), error.what());
-        } catch (const sourcemeta::blaze::SchemaError &error) {
-          throw sourcemeta::core::FileError<sourcemeta::blaze::SchemaError>(
-              entry.resolution_base, error.what());
-        }
+      const auto entries{for_each_json(options.at("resolve"), options)};
+      std::vector<std::size_t> pending;
+      pending.reserve(entries.size());
+      for (std::size_t index = 0; index < entries.size(); index++) {
+        pending.push_back(index);
       }
+
+      // Importing a schema requires resolving its meta-schema, which may well
+      // be another one of the schemas that the user is importing. Rather than
+      // forcing the user to declare their files in dependency order, keep
+      // retrying the ones that cannot resolve yet for as long as every pass
+      // manages to import at least one more schema. Keep remote fetching
+      // disabled while the locally provided schemas can make progress, so
+      // that a schema imported before the local file that declares its
+      // meta-schema resolves against that local file instead of triggering
+      // a network fetch for it
+      const auto allow_remote{this->remote_};
+      this->remote_ = false;
+      while (!pending.empty()) {
+        // Remote fetching must never shadow a schema that a pending local
+        // entry still declares, so keep track of the identifiers that the
+        // remaining entries can contribute
+        this->pending_identifiers_.clear();
+        for (const auto index : pending) {
+          collect_identifiers(
+              entries[index].second, this->pending_identifiers_,
+              sourcemeta::jsonschema::default_id(entries[index]));
+          this->pending_identifiers_.insert(
+              sourcemeta::jsonschema::default_id(entries[index]));
+        }
+
+        std::vector<std::size_t> deferred;
+        std::exception_ptr failure;
+
+        for (const auto index : pending) {
+          try {
+            this->import_entry(entries[index], default_dialect);
+          } catch (const sourcemeta::core::FileError<
+                   sourcemeta::blaze::SchemaResolutionError> &) {
+            if (!failure) {
+              failure = std::current_exception();
+            }
+
+            LOG_DEBUG(options)
+                << "Deferring import until the remaining schemas are "
+                   "imported: "
+                << entries[index].first << "\n";
+            deferred.push_back(index);
+          }
+        }
+
+        // Nothing can make progress anymore, so report the first failure,
+        // which is exactly what the user would have seen if imports were
+        // never retried. Note that when several entries remain stuck, the
+        // one we report might be waiting on another stuck entry rather than
+        // on the schema that is genuinely missing
+        if (deferred.size() == pending.size()) {
+          // Before giving up, let the remaining entries try their remote
+          // fallback when the user enabled it
+          if (allow_remote && !this->remote_) {
+            this->remote_ = true;
+          } else {
+            std::rethrow_exception(failure);
+          }
+        }
+
+        pending = std::move(deferred);
+      }
+
+      this->pending_identifiers_.clear();
+      this->remote_ = allow_remote;
     }
 
     if (this->configuration_.has_value()) {
@@ -438,6 +439,10 @@ public:
       return this->schemas.at(target);
     }
 
+    if (this->remote_ && this->pending_identifiers_.contains(target)) {
+      return std::nullopt;
+    }
+
     auto fetched{fetch_schema(this->options_, target, this->remote_)};
     if (fetched.has_value()) {
       ensure_identifier(fetched.value(), string_identifier, *this);
@@ -447,10 +452,118 @@ public:
   }
 
 private:
+  static auto collect_identifiers(const sourcemeta::core::JSON &document,
+                                  std::set<std::string> &accumulator,
+                                  const std::string &base) -> void {
+    std::string effective_base{base};
+    if (document.is_object()) {
+      for (const auto &keyword : {"$id", "id"}) {
+        if (document.defines(keyword) && document.at(keyword).is_string()) {
+          const auto &identifier{document.at(keyword).to_string()};
+          accumulator.insert(identifier);
+          // A nested identifier may be relative to its containing resource,
+          // in which case the lookup target is its resolved form
+          if (!effective_base.empty()) {
+            try {
+              sourcemeta::core::URI uri{identifier};
+              uri.resolve_from(sourcemeta::core::URI{effective_base});
+              effective_base = uri.recompose();
+              accumulator.insert(effective_base);
+            } catch (const sourcemeta::core::URIParseError &) {
+              // An identifier that cannot be parsed as a URI can never
+              // become a resolution target either
+            }
+          } else {
+            effective_base = identifier;
+          }
+        }
+      }
+
+      for (const auto &pair : document.as_object()) {
+        collect_identifiers(pair.second, accumulator, effective_base);
+      }
+    } else if (document.is_array()) {
+      for (const auto &element : document.as_array()) {
+        collect_identifiers(element, accumulator, base);
+      }
+    }
+  }
+
+  auto import_entry(const InputJSON &entry,
+                    const std::string_view default_dialect) -> void {
+    LOG_DEBUG(this->options_)
+        << "Detecting schema resources from file: " << entry.first << "\n";
+
+    if (!entry.second.is_object() && !entry.second.is_boolean()) {
+      throw sourcemeta::core::FileError<sourcemeta::blaze::SchemaError>(
+          entry.resolution_base,
+          "The file you provided does not represent a valid JSON Schema");
+    }
+
+    try {
+      const auto result =
+          this->add(entry.second, default_dialect,
+                    sourcemeta::jsonschema::default_id(entry),
+                    [this](const auto &identifier) {
+                      LOG_DEBUG(this->options_)
+                          << "Importing schema into the resolution context: "
+                          << identifier << "\n";
+                    });
+      if (!result) {
+        LOG_WARNING() << "No schema resources were imported from this file\n"
+                      << "  at " << entry.first << "\n"
+                      << "Are you sure this schema sets any identifiers?\n";
+      }
+    } catch (const sourcemeta::blaze::SchemaKeywordError &error) {
+      throw sourcemeta::core::FileError<sourcemeta::blaze::SchemaKeywordError>(
+          entry.resolution_base, error);
+    } catch (const sourcemeta::blaze::SchemaFrameError &error) {
+      throw sourcemeta::core::FileError<sourcemeta::blaze::SchemaFrameError>(
+          entry.resolution_base, error.identifier(), error.what());
+    } catch (const sourcemeta::blaze::SchemaAnchorCollisionError &error) {
+      const auto position{entry.positions.get(error.location())};
+      if (position.has_value()) {
+        throw PositionError<sourcemeta::core::FileError<
+            sourcemeta::blaze::SchemaAnchorCollisionError>>(
+            std::get<0>(position.value()), std::get<1>(position.value()),
+            entry.resolution_base, error);
+      }
+
+      throw sourcemeta::core::FileError<
+          sourcemeta::blaze::SchemaAnchorCollisionError>(entry.resolution_base,
+                                                         error);
+    } catch (const sourcemeta::blaze::SchemaReferenceError &error) {
+      throw sourcemeta::core::FileError<
+          sourcemeta::blaze::SchemaReferenceError>(
+          entry.resolution_base, error.identifier(), error.location(),
+          error.what());
+    } catch (const sourcemeta::blaze::SchemaUnknownBaseDialectError &) {
+      throw sourcemeta::core::FileError<
+          sourcemeta::blaze::SchemaUnknownBaseDialectError>(
+          entry.resolution_base);
+    } catch (const sourcemeta::blaze::SchemaUnknownDialectError &) {
+      throw sourcemeta::core::FileError<
+          sourcemeta::blaze::SchemaUnknownDialectError>(entry.resolution_base);
+    } catch (const sourcemeta::blaze::SchemaRelativeMetaschemaResolutionError
+                 &error) {
+      throw sourcemeta::core::FileError<
+          sourcemeta::blaze::SchemaRelativeMetaschemaResolutionError>(
+          entry.resolution_base, error);
+    } catch (const sourcemeta::blaze::SchemaResolutionError &error) {
+      throw sourcemeta::core::FileError<
+          sourcemeta::blaze::SchemaResolutionError>(
+          entry.resolution_base, error.identifier(), error.what());
+    } catch (const sourcemeta::blaze::SchemaError &error) {
+      throw sourcemeta::core::FileError<sourcemeta::blaze::SchemaError>(
+          entry.resolution_base, error.what());
+    }
+  }
+
   std::map<std::string, sourcemeta::core::JSON> schemas{};
   const sourcemeta::core::Options &options_;
   const std::optional<sourcemeta::blaze::Configuration> configuration_;
   bool remote_{false};
+  std::set<std::string> pending_identifiers_{};
 };
 
 inline auto
