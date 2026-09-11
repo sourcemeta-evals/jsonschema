@@ -1,9 +1,8 @@
-// Suppressing remote fetches for pending local resources must not disable
-// remote resolution altogether. The cURL backend is poisoned, so reaching
-// remote resolution fails deterministically with the library loading error:
-// seeing that error proves the fallback was attempted. An implementation
-// that permanently disables remote resolution while handling `--resolve`
-// would report a schema resolution error instead and fail this comparison.
+// Importing local schemas never touches the network, so a meta-schema that
+// no local input declares reports the usual resolution error. Remote
+// resolution stays available for reference resolution once every local
+// entry imported successfully, which the second run proves through the
+// poisoned cURL backend failing deterministically.
 
 ENV SOURCEMETA_CORE_CURL_SO $CWD/does-not-exist.so
 
@@ -53,17 +52,18 @@ WRITE instance.json UNTIL EOF
 "hello"
 EOF
 
-// A meta-schema that no local input declares must reach remote fallback
-// once the local imports stall
-RUN validate schema.json instance.json --http --resolve orphan.json --resolve local-meta.json STDIN /dev/null IN . INTO result_0.txt EXPECTING 3
+// A meta-schema that no local input declares fails the import with the
+// usual resolution error
+RUN validate schema.json instance.json --http --resolve orphan.json --resolve local-meta.json STDIN /dev/null IN . INTO result_0.txt EXPECTING 4
 
 REPLACE $CWD WITH '[CWD]' IN result_0.txt
 
 WRITE expected_0.txt UNTIL EOF
-2> error: Could not load the cURL library from the configured path
-2>   with environment variable SOURCEMETA_CORE_CURL_SO
-2>   with paths
-2>   - [CWD]/does-not-exist.so
+2> error: Could not resolve the metaschema of the schema
+2>   at identifier https://example.com/genuinely-remote-meta
+2>   at file path [CWD]/orphan.json
+2>
+2> This is likely because you forgot to import such schema using `--resolve/-r`
 EOF
 
 COMPARE result_0.txt AGAINST expected_0.txt

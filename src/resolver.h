@@ -334,13 +334,7 @@ public:
         // one we report might be waiting on another stuck entry rather than
         // on the schema that is genuinely missing
         if (deferred.size() == pending.size()) {
-          // Before giving up, let the remaining entries try their remote
-          // fallback when the user enabled it
-          if (allow_remote && !this->remote_) {
-            this->remote_ = true;
-          } else {
-            std::rethrow_exception(failure);
-          }
+          std::rethrow_exception(failure);
         }
 
         pending = std::move(deferred);
