@@ -301,8 +301,9 @@ public:
         // remaining entries can contribute
         this->pending_identifiers_.clear();
         for (const auto index : pending) {
-          collect_identifiers(entries[index].second,
-                              this->pending_identifiers_);
+          collect_identifiers(
+              entries[index].second, this->pending_identifiers_,
+              sourcemeta::jsonschema::default_id(entries[index]));
           this->pending_identifiers_.insert(
               sourcemeta::jsonschema::default_id(entries[index]));
         }
@@ -452,20 +453,38 @@ public:
 
 private:
   static auto collect_identifiers(const sourcemeta::core::JSON &document,
-                                  std::set<std::string> &accumulator) -> void {
+                                  std::set<std::string> &accumulator,
+                                  const std::string &base) -> void {
+    std::string effective_base{base};
     if (document.is_object()) {
       for (const auto &keyword : {"$id", "id"}) {
         if (document.defines(keyword) && document.at(keyword).is_string()) {
-          accumulator.insert(document.at(keyword).to_string());
+          const auto &identifier{document.at(keyword).to_string()};
+          accumulator.insert(identifier);
+          // A nested identifier may be relative to its containing resource,
+          // in which case the lookup target is its resolved form
+          if (!effective_base.empty()) {
+            try {
+              sourcemeta::core::URI uri{identifier};
+              uri.resolve_from(sourcemeta::core::URI{effective_base});
+              effective_base = uri.recompose();
+              accumulator.insert(effective_base);
+            } catch (const sourcemeta::core::URIParseError &) {
+              // An identifier that cannot be parsed as a URI can never
+              // become a resolution target either
+            }
+          } else {
+            effective_base = identifier;
+          }
         }
       }
 
       for (const auto &pair : document.as_object()) {
-        collect_identifiers(pair.second, accumulator);
+        collect_identifiers(pair.second, accumulator, effective_base);
       }
     } else if (document.is_array()) {
       for (const auto &element : document.as_array()) {
-        collect_identifiers(element, accumulator);
+        collect_identifiers(element, accumulator, base);
       }
     }
   }
