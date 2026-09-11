@@ -17,6 +17,7 @@
 
 #include <cassert>     // assert
 #include <chrono>      // std::chrono::seconds
+#include <cstddef>     // std::size_t
 #include <cstdint>     // std::uint8_t
 #include <filesystem>  // std::filesystem
 #include <functional>  // std::function, std::ref
@@ -274,78 +275,22 @@ public:
       const bool remote, const std::string_view default_dialect)
       : options_{options}, configuration_{configuration}, remote_{remote} {
     if (options.contains("resolve")) {
-      for (const auto &entry : for_each_json(options.at("resolve"), options)) {
-        LOG_DEBUG(options) << "Detecting schema resources from file: "
-                           << entry.first << "\n";
-
-        if (!entry.second.is_object() && !entry.second.is_boolean()) {
-          throw sourcemeta::core::FileError<sourcemeta::blaze::SchemaError>(
-              entry.resolution_base,
-              "The file you provided does not represent a valid JSON Schema");
-        }
-
+      const auto entries{for_each_json(options.at("resolve"), options)};
+      std::vector<std::size_t> retry;
+      for (std::size_t index = 0; index < entries.size(); index++) {
         try {
-          const auto result = this->add(
-              entry.second, default_dialect,
-              sourcemeta::jsonschema::default_id(entry),
-              [&options](const auto &identifier) {
-                LOG_DEBUG(options)
-                    << "Importing schema into the resolution context: "
-                    << identifier << "\n";
-              });
-          if (!result) {
-            LOG_WARNING()
-                << "No schema resources were imported from this file\n"
-                << "  at " << entry.first << "\n"
-                << "Are you sure this schema sets any identifiers?\n";
-          }
-        } catch (const sourcemeta::blaze::SchemaKeywordError &error) {
-          throw sourcemeta::core::FileError<
-              sourcemeta::blaze::SchemaKeywordError>(entry.resolution_base,
-                                                     error);
-        } catch (const sourcemeta::blaze::SchemaFrameError &error) {
-          throw sourcemeta::core::FileError<
-              sourcemeta::blaze::SchemaFrameError>(
-              entry.resolution_base, error.identifier(), error.what());
-        } catch (const sourcemeta::blaze::SchemaAnchorCollisionError &error) {
-          const auto position{entry.positions.get(error.location())};
-          if (position.has_value()) {
-            throw PositionError<sourcemeta::core::FileError<
-                sourcemeta::blaze::SchemaAnchorCollisionError>>(
-                std::get<0>(position.value()), std::get<1>(position.value()),
-                entry.resolution_base, error);
-          }
-
-          throw sourcemeta::core::FileError<
-              sourcemeta::blaze::SchemaAnchorCollisionError>(
-              entry.resolution_base, error);
-        } catch (const sourcemeta::blaze::SchemaReferenceError &error) {
-          throw sourcemeta::core::FileError<
-              sourcemeta::blaze::SchemaReferenceError>(
-              entry.resolution_base, error.identifier(), error.location(),
-              error.what());
-        } catch (const sourcemeta::blaze::SchemaUnknownBaseDialectError &) {
-          throw sourcemeta::core::FileError<
-              sourcemeta::blaze::SchemaUnknownBaseDialectError>(
-              entry.resolution_base);
-        } catch (const sourcemeta::blaze::SchemaUnknownDialectError &) {
-          throw sourcemeta::core::FileError<
-              sourcemeta::blaze::SchemaUnknownDialectError>(
-              entry.resolution_base);
-        } catch (
-            const sourcemeta::blaze::SchemaRelativeMetaschemaResolutionError
-                &error) {
-          throw sourcemeta::core::FileError<
-              sourcemeta::blaze::SchemaRelativeMetaschemaResolutionError>(
-              entry.resolution_base, error);
-        } catch (const sourcemeta::blaze::SchemaResolutionError &error) {
-          throw sourcemeta::core::FileError<
-              sourcemeta::blaze::SchemaResolutionError>(
-              entry.resolution_base, error.identifier(), error.what());
-        } catch (const sourcemeta::blaze::SchemaError &error) {
-          throw sourcemeta::core::FileError<sourcemeta::blaze::SchemaError>(
-              entry.resolution_base, error.what());
+          this->import_one(entries[index], options, default_dialect);
+        } catch (const sourcemeta::core::FileError<
+                 sourcemeta::blaze::SchemaResolutionError> &) {
+          retry.push_back(index);
         }
+      }
+
+      // Some schemas may depend on schemas that only got imported after
+      // them, so give the ones that failed a second chance now that
+      // everything else is in
+      for (const auto index : retry) {
+        this->import_one(entries[index], options, default_dialect);
       }
     }
 
@@ -447,6 +392,77 @@ public:
   }
 
 private:
+  auto import_one(const InputJSON &entry,
+                  const sourcemeta::core::Options &options,
+                  const std::string_view default_dialect) -> void {
+    LOG_DEBUG(options) << "Detecting schema resources from file: "
+                       << entry.first << "\n";
+
+    if (!entry.second.is_object() && !entry.second.is_boolean()) {
+      throw sourcemeta::core::FileError<sourcemeta::blaze::SchemaError>(
+          entry.resolution_base,
+          "The file you provided does not represent a valid JSON Schema");
+    }
+
+    try {
+      const auto result =
+          this->add(entry.second, default_dialect,
+                    sourcemeta::jsonschema::default_id(entry),
+                    [&options](const auto &identifier) {
+                      LOG_DEBUG(options)
+                          << "Importing schema into the resolution context: "
+                          << identifier << "\n";
+                    });
+      if (!result) {
+        LOG_WARNING() << "No schema resources were imported from this file\n"
+                      << "  at " << entry.first << "\n"
+                      << "Are you sure this schema sets any identifiers?\n";
+      }
+    } catch (const sourcemeta::blaze::SchemaKeywordError &error) {
+      throw sourcemeta::core::FileError<sourcemeta::blaze::SchemaKeywordError>(
+          entry.resolution_base, error);
+    } catch (const sourcemeta::blaze::SchemaFrameError &error) {
+      throw sourcemeta::core::FileError<sourcemeta::blaze::SchemaFrameError>(
+          entry.resolution_base, error.identifier(), error.what());
+    } catch (const sourcemeta::blaze::SchemaAnchorCollisionError &error) {
+      const auto position{entry.positions.get(error.location())};
+      if (position.has_value()) {
+        throw PositionError<sourcemeta::core::FileError<
+            sourcemeta::blaze::SchemaAnchorCollisionError>>(
+            std::get<0>(position.value()), std::get<1>(position.value()),
+            entry.resolution_base, error);
+      }
+
+      throw sourcemeta::core::FileError<
+          sourcemeta::blaze::SchemaAnchorCollisionError>(entry.resolution_base,
+                                                         error);
+    } catch (const sourcemeta::blaze::SchemaReferenceError &error) {
+      throw sourcemeta::core::FileError<
+          sourcemeta::blaze::SchemaReferenceError>(
+          entry.resolution_base, error.identifier(), error.location(),
+          error.what());
+    } catch (const sourcemeta::blaze::SchemaUnknownBaseDialectError &) {
+      throw sourcemeta::core::FileError<
+          sourcemeta::blaze::SchemaUnknownBaseDialectError>(
+          entry.resolution_base);
+    } catch (const sourcemeta::blaze::SchemaUnknownDialectError &) {
+      throw sourcemeta::core::FileError<
+          sourcemeta::blaze::SchemaUnknownDialectError>(entry.resolution_base);
+    } catch (const sourcemeta::blaze::SchemaRelativeMetaschemaResolutionError
+                 &error) {
+      throw sourcemeta::core::FileError<
+          sourcemeta::blaze::SchemaRelativeMetaschemaResolutionError>(
+          entry.resolution_base, error);
+    } catch (const sourcemeta::blaze::SchemaResolutionError &error) {
+      throw sourcemeta::core::FileError<
+          sourcemeta::blaze::SchemaResolutionError>(
+          entry.resolution_base, error.identifier(), error.what());
+    } catch (const sourcemeta::blaze::SchemaError &error) {
+      throw sourcemeta::core::FileError<sourcemeta::blaze::SchemaError>(
+          entry.resolution_base, error.what());
+    }
+  }
+
   std::map<std::string, sourcemeta::core::JSON> schemas{};
   const sourcemeta::core::Options &options_;
   const std::optional<sourcemeta::blaze::Configuration> configuration_;
