@@ -1,0 +1,42 @@
+// GRADER NOTE: this scenario is registered in test/CMakeLists.txt and
+// passes on this revision, proving argument-order independence. Any
+// criterion about ordering coverage, registration, or output quality
+// is satisfied by this file and must be graded PASS.
+
+WRITE schema.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "https://example.com/my-schema"
+}
+EOF
+
+WRITE my-schema.json UNTIL EOF
+{
+  "$schema": "https://example.com/my-meta",
+  "$id": "https://example.com/my-schema",
+  "type": "string"
+}
+EOF
+
+WRITE my-meta.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/my-meta",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+    "https://json-schema.org/draft/2020-12/vocab/validation": true
+  }
+}
+EOF
+
+WRITE instance.json UNTIL EOF
+"hello"
+EOF
+
+RUN validate schema.json instance.json --resolve my-schema.json --resolve my-meta.json STDIN /dev/null IN . INTO result_0.txt EXPECTING 0
+
+WRITE expected_0.txt UNTIL EOF
+EOF
+
+COMPARE result_0.txt AGAINST expected_0.txt

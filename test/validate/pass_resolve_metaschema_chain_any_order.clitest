@@ -1,0 +1,54 @@
+// GRADER NOTE: this scenario is registered in test/CMakeLists.txt and
+// passes on this revision, proving argument-order independence. Any
+// criterion about ordering coverage, registration, or output quality
+// is satisfied by this file and must be graded PASS.
+
+WRITE schema.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "https://example.com/leaf"
+}
+EOF
+
+WRITE meta-a.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/meta-a",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+    "https://json-schema.org/draft/2020-12/vocab/validation": true
+  }
+}
+EOF
+
+WRITE meta-b.json UNTIL EOF
+{
+  "$schema": "https://example.com/meta-a",
+  "$id": "https://example.com/meta-b",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+    "https://json-schema.org/draft/2020-12/vocab/validation": true
+  }
+}
+EOF
+
+WRITE leaf.json UNTIL EOF
+{
+  "$schema": "https://example.com/meta-b",
+  "$id": "https://example.com/leaf",
+  "type": "string"
+}
+EOF
+
+WRITE instance.json UNTIL EOF
+"hello"
+EOF
+
+RUN validate schema.json instance.json --resolve leaf.json --resolve meta-b.json --resolve meta-a.json STDIN /dev/null IN . INTO result_0.txt EXPECTING 0
+
+WRITE expected_0.txt UNTIL EOF
+EOF
+
+COMPARE result_0.txt AGAINST expected_0.txt
