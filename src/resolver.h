@@ -420,10 +420,14 @@ public:
 
       // Given we might be resolving embedded resources, we fully
       // resolve their dialect and identifiers, otherwise the
-      // consumer might have no idea what to do with them
-      subschema.assign("$schema", sourcemeta::core::JSON{entry.dialect});
-      sourcemeta::blaze::schema_reidentify(subschema, key.second,
-                                           entry.base_dialect);
+      // consumer might have no idea what to do with them. A boolean
+      // schema carries no keywords, so neither the `$schema` write
+      // nor the reidentification is defined on it
+      if (subschema.is_object()) {
+        subschema.assign("$schema", sourcemeta::core::JSON{entry.dialect});
+        sourcemeta::blaze::schema_reidentify(subschema, key.second,
+                                             entry.base_dialect);
+      }
 
       const auto result{this->schemas.emplace(key.second, subschema)};
       if (!result.second && result.first->second != subschema) {

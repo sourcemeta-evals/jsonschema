@@ -1,0 +1,50 @@
+// A boolean schema imported through `--resolve` with a default dialect
+// must register cleanly. A boolean carries no keywords, so it cannot
+// hold a `$schema` value or a rewritten identifier, and any attempt to
+// assign one on it would abort the process. Both boolean roots below
+// register as bystanders through their file-URI defaults while the
+// main schema drives the validation
+
+WRITE schema.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "string"
+}
+EOF
+
+WRITE always-true.json UNTIL EOF
+true
+EOF
+
+WRITE always-false.json UNTIL EOF
+false
+EOF
+
+WRITE instance.json UNTIL EOF
+"hello"
+EOF
+
+// The two boolean --resolve inputs must register without crashing,
+// leaving the main object schema free to enforce its own type
+RUN validate schema.json instance.json --default-dialect https://json-schema.org/draft/2020-12/schema --resolve always-true.json --resolve always-false.json --verbose STDIN /dev/null IN . INTO result_0.txt EXPECTING 0
+
+REPLACE $CWD WITH '[CWD]' IN result_0.txt
+
+WRITE expected_0.txt UNTIL EOF
+2> ok: [CWD]/instance.json
+2>   matches [CWD]/schema.json
+EOF
+
+COMPARE result_0.txt AGAINST expected_0.txt
+
+// Reversed argument order must still hold
+RUN validate schema.json instance.json --default-dialect https://json-schema.org/draft/2020-12/schema --resolve always-false.json --resolve always-true.json --verbose STDIN /dev/null IN . INTO result_1.txt EXPECTING 0
+
+REPLACE $CWD WITH '[CWD]' IN result_1.txt
+
+WRITE expected_1.txt UNTIL EOF
+2> ok: [CWD]/instance.json
+2>   matches [CWD]/schema.json
+EOF
+
+COMPARE result_1.txt AGAINST expected_1.txt
