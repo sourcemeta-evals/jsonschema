@@ -240,6 +240,26 @@ static inline auto fetch_schema(const sourcemeta::core::Options &options,
   return std::nullopt;
 }
 
+// Different spellings of the same URI (empty fragment, default port,
+// mixed case) must resolve to the same identifier or the resolver
+// starts fetching pending local roots and missing completed imports.
+// Canonicalize once, on both the storage and the lookup side, so the
+// two sides agree
+static inline auto canonicalize_identifier(const std::string_view identifier)
+    -> std::string {
+  try {
+    sourcemeta::core::URI uri{std::string{identifier}};
+    uri.canonicalize();
+    auto recomposed{uri.recompose()};
+    if (!recomposed.empty() && recomposed.back() == '#') {
+      recomposed.pop_back();
+    }
+    return recomposed;
+  } catch (const sourcemeta::core::URIParseError &) {
+    return std::string{identifier};
+  }
+}
+
 static inline auto
 ensure_identifier(sourcemeta::core::JSON &schema, const std::string_view target,
                   const sourcemeta::blaze::SchemaResolver &resolver) -> void {
@@ -429,7 +449,8 @@ public:
                                              entry.base_dialect);
       }
 
-      const auto result{this->schemas.emplace(key.second, subschema)};
+      const auto canonical_identifier{canonicalize_identifier(key.second)};
+      const auto result{this->schemas.emplace(canonical_identifier, subschema)};
       if (!result.second && result.first->second != subschema) {
         throw sourcemeta::blaze::SchemaFrameError(
             key.second, "Cannot register the same identifier twice");
@@ -460,11 +481,14 @@ public:
                                 << target << " given the configuration file\n";
     }
 
-    if (this->schemas.contains(target)) {
-      return this->schemas.at(target);
+    const auto canonical_target{canonicalize_identifier(target)};
+
+    if (this->schemas.contains(canonical_target)) {
+      return this->schemas.at(canonical_target);
     }
 
-    if (this->remote_ && this->pending_identifiers_.contains(target)) {
+    if (this->remote_ &&
+        this->pending_identifiers_.contains(canonical_target)) {
       return std::nullopt;
     }
 
@@ -520,7 +544,7 @@ private:
                                    const std::string_view default_dialect)
       -> void {
     const auto default_id{sourcemeta::jsonschema::default_id(entry)};
-    this->pending_identifiers_.insert(default_id);
+    this->pending_identifiers_.insert(canonicalize_identifier(default_id));
 
     if (!entry.second.is_object()) {
       return;
@@ -533,15 +557,12 @@ private:
                     default_dialect, default_id);
       for (const auto &[key, location] : frame.locations()) {
         if (location.type !=
-            sourcemeta::blaze::SchemaFrame::LocationType::Resource) {
+                sourcemeta::blaze::SchemaFrame::LocationType::Resource ||
+            !location.pointer.empty()) {
           continue;
         }
 
-        if (!location.pointer.empty()) {
-          continue;
-        }
-
-        this->pending_identifiers_.insert(std::string{key.second});
+        this->pending_identifiers_.insert(canonicalize_identifier(key.second));
       }
       return;
     } catch (...) {
@@ -555,12 +576,14 @@ private:
       }
 
       const auto &identifier_string{identifier->to_string()};
-      this->pending_identifiers_.insert(identifier_string);
+      this->pending_identifiers_.insert(
+          canonicalize_identifier(identifier_string));
       if (!default_id.empty()) {
         try {
           sourcemeta::core::URI uri{identifier_string};
           uri.resolve_from(sourcemeta::core::URI{default_id});
-          this->pending_identifiers_.insert(uri.recompose());
+          this->pending_identifiers_.insert(
+              canonicalize_identifier(uri.recompose()));
         } catch (const sourcemeta::core::URIParseError &) {
           // An identifier that cannot be parsed as a URI can never
           // become a resolution target either

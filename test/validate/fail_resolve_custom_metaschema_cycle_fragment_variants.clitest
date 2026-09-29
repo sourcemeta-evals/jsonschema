@@ -1,0 +1,92 @@
+// Two `--resolve` inputs that describe each other must be treated as a
+// cycle no matter which URI spelling they use for `$schema`. An empty
+// fragment does not change the identifier under RFC 3986, so a schema
+// declaring `$id: https://example.com/foo` and another referring to it
+// as `$schema: https://example.com/foo#` name the same resource. When
+// the resolver stores raw identifiers and compares them exact-match,
+// the pending-local suppression misses the trailing-`#` variant and
+// the run reaches for the network even though every dialect in the
+// cycle is supplied locally
+//
+// Under `--http` with the cURL backend poisoned, the correct
+// behaviour is to terminate with the same file-anchored resolution
+// diagnostic used for ordinary cycles, and never initialize the
+// network backend
+
+ENV SOURCEMETA_CORE_CURL_SO $CWD/does-not-exist.so
+
+WRITE schema.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "string"
+}
+EOF
+
+WRITE meta-x.json UNTIL EOF
+{
+  "$schema": "https://example.com/meta-y#",
+  "$id": "https://example.com/meta-x",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+    "https://json-schema.org/draft/2020-12/vocab/validation": true
+  }
+}
+EOF
+
+WRITE meta-y.json UNTIL EOF
+{
+  "$schema": "https://example.com/meta-x",
+  "$id": "https://example.com/meta-y",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+    "https://json-schema.org/draft/2020-12/vocab/validation": true
+  }
+}
+EOF
+
+WRITE instance.json UNTIL EOF
+"hello"
+EOF
+
+RUN validate schema.json instance.json --http --resolve meta-x.json --resolve meta-y.json STDIN /dev/null IN . INTO result_0.txt EXPECTING 4
+
+REPLACE $CWD WITH '[CWD]' IN result_0.txt
+REPLACE 'https://example.com/meta-y#' WITH '[STUCK]' IN result_0.txt
+REPLACE 'https://example.com/meta-x#' WITH '[STUCK]' IN result_0.txt
+REPLACE 'https://example.com/meta-x' WITH '[STUCK]' IN result_0.txt
+REPLACE 'https://example.com/meta-y' WITH '[STUCK]' IN result_0.txt
+REPLACE '[CWD]/meta-x.json' WITH '[INPUT]' IN result_0.txt
+REPLACE '[CWD]/meta-y.json' WITH '[INPUT]' IN result_0.txt
+
+WRITE expected_0.txt UNTIL EOF
+2> error: Could not resolve the metaschema of the schema
+2>   at identifier [STUCK]
+2>   at file path [INPUT]
+2>
+2> This is likely because you forgot to import such schema using `--resolve/-r`
+EOF
+
+COMPARE result_0.txt AGAINST expected_0.txt
+
+// Reversed argument order must produce the same file-anchored diagnostic
+RUN validate schema.json instance.json --http --resolve meta-y.json --resolve meta-x.json STDIN /dev/null IN . INTO result_1.txt EXPECTING 4
+
+REPLACE $CWD WITH '[CWD]' IN result_1.txt
+REPLACE 'https://example.com/meta-y#' WITH '[STUCK]' IN result_1.txt
+REPLACE 'https://example.com/meta-x#' WITH '[STUCK]' IN result_1.txt
+REPLACE 'https://example.com/meta-x' WITH '[STUCK]' IN result_1.txt
+REPLACE 'https://example.com/meta-y' WITH '[STUCK]' IN result_1.txt
+REPLACE '[CWD]/meta-x.json' WITH '[INPUT]' IN result_1.txt
+REPLACE '[CWD]/meta-y.json' WITH '[INPUT]' IN result_1.txt
+
+WRITE expected_1.txt UNTIL EOF
+2> error: Could not resolve the metaschema of the schema
+2>   at identifier [STUCK]
+2>   at file path [INPUT]
+2>
+2> This is likely because you forgot to import such schema using `--resolve/-r`
+EOF
+
+COMPARE result_1.txt AGAINST expected_1.txt
