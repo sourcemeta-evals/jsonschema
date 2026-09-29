@@ -1,0 +1,79 @@
+// A pending `--resolve` entry may carry `$schema` strings inside
+// non-applicator keywords like `examples`, `default`, `const`, or
+// `enum` items. Those payloads are instance data, not schema
+// resources, so their `$schema` values must not establish import
+// dependencies. Otherwise, a meta-schema whose annotation payload
+// happens to name another local input as its `$schema` would create
+// a false cycle even though the two are not genuinely related.
+//
+// meta-a's annotation payload names meta-b as a `$schema`. leaf uses
+// meta-a as its meta-schema. If the implementation walks annotation
+// payloads syntactically for `$schema` strings, meta-a is treated as
+// depending on meta-b: without meta-b supplied, the import either
+// fails locally with the missing-meta-schema diagnostic or reaches
+// for the network. The correct behaviour ignores the annotation
+// `$schema` and resolves meta-a directly against 2020-12. The cURL
+// backend is poisoned, so a stray fallback would fail deterministically
+// with the library loading error
+
+ENV SOURCEMETA_CORE_CURL_SO $CWD/does-not-exist.so
+
+WRITE schema.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "https://example.com/leaf"
+}
+EOF
+
+WRITE meta-a.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/meta-a",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+    "https://json-schema.org/draft/2020-12/vocab/validation": true
+  },
+  "examples": [
+    { "$schema": "https://example.com/meta-b" }
+  ]
+}
+EOF
+
+WRITE leaf.json UNTIL EOF
+{
+  "$schema": "https://example.com/meta-a",
+  "$id": "https://example.com/leaf",
+  "type": "string"
+}
+EOF
+
+WRITE instance.json UNTIL EOF
+"hello"
+EOF
+
+// meta-b is not supplied. The annotation `$schema` naming meta-b must
+// not create a real dependency, so meta-a and leaf both resolve
+// locally against 2020-12 without touching the network
+RUN validate schema.json instance.json --http --resolve leaf.json --resolve meta-a.json --verbose STDIN /dev/null IN . INTO result_0.txt EXPECTING 0
+
+REPLACE $CWD WITH '[CWD]' IN result_0.txt
+
+WRITE expected_0.txt UNTIL EOF
+2> ok: [CWD]/instance.json
+2>   matches [CWD]/schema.json
+EOF
+
+COMPARE result_0.txt AGAINST expected_0.txt
+
+// Reversed argument order must still hold
+RUN validate schema.json instance.json --http --resolve meta-a.json --resolve leaf.json --verbose STDIN /dev/null IN . INTO result_1.txt EXPECTING 0
+
+REPLACE $CWD WITH '[CWD]' IN result_1.txt
+
+WRITE expected_1.txt UNTIL EOF
+2> ok: [CWD]/instance.json
+2>   matches [CWD]/schema.json
+EOF
+
+COMPARE result_1.txt AGAINST expected_1.txt
