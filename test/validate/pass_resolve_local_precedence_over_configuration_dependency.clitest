@@ -1,0 +1,130 @@
+// A schema supplied through `--resolve` must take precedence over a
+// same-identifier dependency loaded from the configuration file. The
+// retry loop that reconciles `--resolve` entries needs to finish
+// before the configuration dependencies are processed, otherwise a
+// dependency can occupy the deferred local's identifier and the
+// later local import throws a same-identifier registration error.
+//
+// The local schema below is deferred once because its meta-schema is
+// supplied as another `--resolve` entry. The configuration dependency
+// carries a colliding `$id` but a conflicting definition. Under any
+// argument order the run must resolve against the local schema, so a
+// string instance validates and an integer instance fails, without
+// any identifier-registration crash.
+
+WRITE main.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "https://example.com/local"
+}
+EOF
+
+WRITE local.json UNTIL EOF
+{
+  "$schema": "https://example.com/custom-meta",
+  "$id": "https://example.com/local",
+  "type": "string"
+}
+EOF
+
+WRITE custom-meta.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/custom-meta",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+    "https://json-schema.org/draft/2020-12/vocab/validation": true
+  }
+}
+EOF
+
+WRITE integer-dep.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/local",
+  "type": "integer"
+}
+EOF
+
+WRITE jsonschema.json UNTIL EOF
+{
+  "dependencies": {
+    "https://example.com/integer-dep-uri": "integer-dep.json"
+  }
+}
+EOF
+
+WRITE string.json UNTIL EOF
+"hello"
+EOF
+
+WRITE number.json UNTIL EOF
+42
+EOF
+
+// Order 1: local before its meta-schema, string accepted
+RUN validate main.json string.json --resolve local.json --resolve custom-meta.json --verbose STDIN /dev/null IN . INTO result_0.txt EXPECTING 0
+
+REPLACE $CWD WITH '[CWD]' IN result_0.txt
+
+WRITE expected_0.txt UNTIL EOF
+2> Using extension: .json
+2> Using extension: .yaml
+2> Using extension: .yml
+2> ok: [CWD]/string.json
+2>   matches [CWD]/main.json
+EOF
+
+COMPARE result_0.txt AGAINST expected_0.txt
+
+// Order 1: integer rejected by local
+RUN validate main.json number.json --resolve local.json --resolve custom-meta.json STDIN /dev/null IN . INTO result_1.txt EXPECTING 2
+
+REPLACE $CWD WITH '[CWD]' IN result_1.txt
+
+WRITE expected_1.txt UNTIL EOF
+2> fail: [CWD]/number.json
+2> error: Schema validation failure
+2>   The value was expected to be of type string but it was of type integer
+2>     at instance location "" (line 1, column 1)
+2>     at evaluate path "/$ref/type"
+2>   The integer value was expected to validate against the referenced schema
+2>     at instance location "" (line 1, column 1)
+2>     at evaluate path "/$ref"
+EOF
+
+COMPARE result_1.txt AGAINST expected_1.txt
+
+// Order 2: meta-schema before local, string accepted
+RUN validate main.json string.json --resolve custom-meta.json --resolve local.json --verbose STDIN /dev/null IN . INTO result_2.txt EXPECTING 0
+
+REPLACE $CWD WITH '[CWD]' IN result_2.txt
+
+WRITE expected_2.txt UNTIL EOF
+2> Using extension: .json
+2> Using extension: .yaml
+2> Using extension: .yml
+2> ok: [CWD]/string.json
+2>   matches [CWD]/main.json
+EOF
+
+COMPARE result_2.txt AGAINST expected_2.txt
+
+// Order 2: integer rejected by local
+RUN validate main.json number.json --resolve custom-meta.json --resolve local.json STDIN /dev/null IN . INTO result_3.txt EXPECTING 2
+
+REPLACE $CWD WITH '[CWD]' IN result_3.txt
+
+WRITE expected_3.txt UNTIL EOF
+2> fail: [CWD]/number.json
+2> error: Schema validation failure
+2>   The value was expected to be of type string but it was of type integer
+2>     at instance location "" (line 1, column 1)
+2>     at evaluate path "/$ref/type"
+2>   The integer value was expected to validate against the referenced schema
+2>     at instance location "" (line 1, column 1)
+2>     at evaluate path "/$ref"
+EOF
+
+COMPARE result_3.txt AGAINST expected_3.txt
