@@ -388,14 +388,15 @@ public:
            const std::string_view default_dialect = "",
            const std::string_view default_id = "",
            const std::function<void(const sourcemeta::core::JSON::String &)>
-               &callback = nullptr) -> bool {
+               &callback = nullptr,
+           const sourcemeta::blaze::SchemaFrame::Mode mode =
+               sourcemeta::blaze::SchemaFrame::Mode::References) -> bool {
     assert(schema.is_object() || schema.is_boolean());
 
     // Framing the whole document is what vets it, from the vocabularies
     // every resource declares to the anchors it collides on, so the
     // analysis stays as wide as the file. What gets registered does not
-    sourcemeta::blaze::SchemaFrame frame{
-        sourcemeta::blaze::SchemaFrame::Mode::References};
+    sourcemeta::blaze::SchemaFrame frame{mode};
     frame.analyse(schema, sourcemeta::blaze::schema_walker, *this,
                   default_dialect, default_id);
 
@@ -487,39 +488,11 @@ private:
     }
 
     try {
-      sourcemeta::blaze::SchemaFrame frame{
-          sourcemeta::blaze::SchemaFrame::Mode::Root};
-      frame.analyse(entry.second, sourcemeta::blaze::schema_walker, *this,
-                    default_dialect, sourcemeta::jsonschema::default_id(entry));
-
-      bool added_any_schema{false};
-      for (const auto &[key, location] : frame.locations()) {
-        if (location.type !=
-            sourcemeta::blaze::SchemaFrame::LocationType::Resource) {
-          continue;
-        }
-
-        if (!location.pointer.empty()) {
-          continue;
-        }
-
-        auto subschema{entry.second};
-        subschema.assign("$schema", sourcemeta::core::JSON{location.dialect});
-        sourcemeta::blaze::schema_reidentify(subschema, key.second,
-                                             location.base_dialect);
-
-        const auto result{this->schemas.emplace(key.second, subschema)};
-        if (!result.second && result.first->second != subschema) {
-          throw sourcemeta::blaze::SchemaFrameError(
-              key.second, "Cannot register the same identifier twice");
-        }
-
-        if (result.second) {
-          added_any_schema = true;
-        }
-      }
-
-      return added_any_schema;
+      const auto size_before{this->schemas.size()};
+      this->add(entry.second, default_dialect,
+                sourcemeta::jsonschema::default_id(entry), nullptr,
+                sourcemeta::blaze::SchemaFrame::Mode::Root);
+      return this->schemas.size() > size_before;
     } catch (const sourcemeta::blaze::SchemaResolutionError &) {
       // The root's own dialect chain terminates in an entry still
       // pending on this pass, so try again once more roots have been
