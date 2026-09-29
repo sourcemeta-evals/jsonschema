@@ -1,0 +1,96 @@
+// A finite chain of locally supplied schemas whose meta-schemas
+// eventually terminate in a known base dialect must resolve without
+// the network, no matter the argument order. `orphan` names `target`
+// as its meta-schema, and `target` declares itself under 2020-12 but
+// embeds a resource whose own meta-schema is `orphan`. A single-pass
+// import cannot frame either document up front, but registering each
+// entry's root under its declared dialect first (whenever that root
+// dialect chain terminates in something already known) lets both
+// finish framing on a later pass. The cURL backend is poisoned so a
+// stray fallback would fail deterministically with the library
+// loading error, proving the resolution reached no network
+
+ENV SOURCEMETA_CORE_CURL_SO $CWD/does-not-exist.so
+
+WRITE schema.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "https://example.com/orphan"
+}
+EOF
+
+WRITE orphan.json UNTIL EOF
+{
+  "$schema": "https://example.com/target-meta",
+  "$id": "https://example.com/orphan",
+  "type": "string"
+}
+EOF
+
+WRITE target.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/target-meta",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+    "https://json-schema.org/draft/2020-12/vocab/validation": true
+  },
+  "$defs": {
+    "inner": {
+      "$schema": "https://example.com/orphan",
+      "$id": "https://example.com/inner"
+    }
+  }
+}
+EOF
+
+WRITE instance.json UNTIL EOF
+"hello"
+EOF
+
+WRITE number.json UNTIL EOF
+42
+EOF
+
+// Dependent listed before its meta-schema, under --http
+RUN validate schema.json instance.json --http --resolve orphan.json --resolve target.json --verbose STDIN /dev/null IN . INTO result_0.txt EXPECTING 0
+
+REPLACE $CWD WITH '[CWD]' IN result_0.txt
+
+WRITE expected_0.txt UNTIL EOF
+2> ok: [CWD]/instance.json
+2>   matches [CWD]/schema.json
+EOF
+
+COMPARE result_0.txt AGAINST expected_0.txt
+
+// Reversed order, under --http
+RUN validate schema.json instance.json --http --resolve target.json --resolve orphan.json --verbose STDIN /dev/null IN . INTO result_1.txt EXPECTING 0
+
+REPLACE $CWD WITH '[CWD]' IN result_1.txt
+
+WRITE expected_1.txt UNTIL EOF
+2> ok: [CWD]/instance.json
+2>   matches [CWD]/schema.json
+EOF
+
+COMPARE result_1.txt AGAINST expected_1.txt
+
+// The resolved orphan schema must actually enforce its constraints
+RUN validate schema.json number.json --http --resolve orphan.json --resolve target.json STDIN /dev/null IN . INTO result_2.txt EXPECTING 2
+
+REPLACE $CWD WITH '[CWD]' IN result_2.txt
+
+WRITE expected_2.txt UNTIL EOF
+2> fail: [CWD]/number.json
+2> error: Schema validation failure
+2>   The value was expected to be of type string but it was of type integer
+2>     at instance location "" (line 1, column 1)
+2>     at evaluate path "/$ref/type"
+2>   The integer value was expected to validate against the referenced schema
+2>     at instance location "" (line 1, column 1)
+2>     at evaluate path "/$ref"
+EOF
+
+COMPARE result_2.txt AGAINST expected_2.txt

@@ -298,10 +298,12 @@ public:
       while (!pending.empty()) {
         std::vector<std::size_t> deferred;
         std::exception_ptr failure;
+        bool made_progress{false};
 
         for (const auto index : pending) {
           try {
             this->import_entry(entries[index], default_dialect);
+            made_progress = true;
           } catch (const sourcemeta::core::FileError<
                    sourcemeta::blaze::SchemaResolutionError> &) {
             if (!failure) {
@@ -313,6 +315,17 @@ public:
                    "imported: "
                 << entries[index].first << "\n";
             deferred.push_back(index);
+
+            // Full framing needs every meta-schema resolved up front,
+            // yet registering just the root only needs the root's own
+            // dialect chain to terminate in something already known.
+            // Attempt that as a partial step so a later pass can
+            // complete framings that name this entry, which turns a
+            // finite chain of locally supplied schemas into a
+            // resolvable one no matter the argument order
+            if (this->register_root(entries[index], default_dialect)) {
+              made_progress = true;
+            }
           }
         }
 
@@ -321,7 +334,7 @@ public:
         // never retried. Note that when several entries remain stuck, the
         // one we report might be waiting on another stuck entry rather than
         // on the schema that is genuinely missing
-        if (deferred.size() == pending.size()) {
+        if (!made_progress) {
           // Before giving up, let the remaining entries try their remote
           // fallback when the user enabled it
           if (allow_remote && !this->remote_) {
@@ -459,6 +472,62 @@ public:
   }
 
 private:
+  // A finite chain of locally supplied schemas whose meta-schemas
+  // eventually terminate in a known base dialect can resolve without
+  // the network even when a single-pass full framing cannot, because
+  // full framing needs every embedded resource's meta-schema known
+  // up front while a root registration only needs the root's own
+  // dialect chain to terminate in something already known. Frame the
+  // top schema alone and register its root resource so that a later
+  // pass can complete framings that name this entry as their meta
+  auto register_root(const InputJSON &entry,
+                     const std::string_view default_dialect) -> bool {
+    if (!entry.second.is_object() && !entry.second.is_boolean()) {
+      return false;
+    }
+
+    try {
+      sourcemeta::blaze::SchemaFrame frame{
+          sourcemeta::blaze::SchemaFrame::Mode::Root};
+      frame.analyse(entry.second, sourcemeta::blaze::schema_walker, *this,
+                    default_dialect, sourcemeta::jsonschema::default_id(entry));
+
+      bool added_any_schema{false};
+      for (const auto &[key, location] : frame.locations()) {
+        if (location.type !=
+            sourcemeta::blaze::SchemaFrame::LocationType::Resource) {
+          continue;
+        }
+
+        if (!location.pointer.empty()) {
+          continue;
+        }
+
+        auto subschema{entry.second};
+        subschema.assign("$schema", sourcemeta::core::JSON{location.dialect});
+        sourcemeta::blaze::schema_reidentify(subschema, key.second,
+                                             location.base_dialect);
+
+        const auto result{this->schemas.emplace(key.second, subschema)};
+        if (!result.second && result.first->second != subschema) {
+          throw sourcemeta::blaze::SchemaFrameError(
+              key.second, "Cannot register the same identifier twice");
+        }
+
+        if (result.second) {
+          added_any_schema = true;
+        }
+      }
+
+      return added_any_schema;
+    } catch (const sourcemeta::blaze::SchemaResolutionError &) {
+      // The root's own dialect chain terminates in an entry still
+      // pending on this pass, so try again once more roots have been
+      // registered
+      return false;
+    }
+  }
+
   // Framing a schema reveals the identifiers it declares, but framing
   // needs its meta-schema resolved first, which is precisely what an
   // entry that cannot be imported is missing. Ask the library for the
