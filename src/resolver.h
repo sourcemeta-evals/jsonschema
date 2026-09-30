@@ -13,7 +13,6 @@
 #include "error.h"
 #include "input.h"
 #include "logger.h"
-#include "resolver_staging.h"
 #include "utils.h"
 
 #include <cassert> // assert
@@ -241,6 +240,26 @@ static inline auto fetch_schema(const sourcemeta::core::Options &options,
   return std::nullopt;
 }
 
+// Different spellings of the same URI (empty fragment, default port,
+// mixed case) must resolve to the same identifier or the resolver
+// starts fetching pending local roots and missing completed imports.
+// Canonicalize once, on both the storage and the lookup side, so the
+// two sides agree
+static inline auto canonicalize_identifier(const std::string_view identifier)
+    -> std::string {
+  try {
+    sourcemeta::core::URI uri{std::string{identifier}};
+    uri.canonicalize();
+    auto recomposed{uri.recompose()};
+    if (!recomposed.empty() && recomposed.back() == '#') {
+      recomposed.pop_back();
+    }
+    return recomposed;
+  } catch (const sourcemeta::core::URIParseError &) {
+    return std::string{identifier};
+  }
+}
+
 static inline auto
 ensure_identifier(sourcemeta::core::JSON &schema, const std::string_view target,
                   const sourcemeta::blaze::SchemaResolver &resolver) -> void {
@@ -297,36 +316,36 @@ public:
       const auto allow_remote{this->remote_};
       this->remote_ = false;
       while (!pending.empty()) {
-        // Remote fetching must never shadow a schema that a pending local
-        // entry still declares, so keep track of the identifiers that the
-        // remaining entries can contribute
-        this->pending_identifiers_.clear();
-        for (const auto index : pending) {
-          if (!this->staged_.contains(entries[index].first)) {
-            this->staged_.stage(entries[index].first, entries[index].second);
-          }
-
-          collect_identifiers(
-              this->staged_.at(entries[index].first),
-              this->pending_identifiers_,
-              sourcemeta::jsonschema::default_id(entries[index]));
-          this->pending_identifiers_.insert(
-              sourcemeta::jsonschema::default_id(entries[index]));
-        }
-
         std::vector<std::size_t> deferred;
         std::exception_ptr failure;
+        bool made_progress{false};
 
         for (const auto index : pending) {
           try {
             this->import_entry(entries[index], default_dialect);
+            made_progress = true;
           } catch (const sourcemeta::core::FileError<
                    sourcemeta::blaze::SchemaResolutionError> &) {
             if (!failure) {
               failure = std::current_exception();
             }
 
+            LOG_DEBUG(options)
+                << "Deferring import until the remaining schemas are "
+                   "imported: "
+                << entries[index].first << "\n";
             deferred.push_back(index);
+
+            // Full framing needs every meta-schema resolved up front,
+            // yet registering just the root only needs the root's own
+            // dialect chain to terminate in something already known.
+            // Attempt that as a partial step so a later pass can
+            // complete framings that name this entry, which turns a
+            // finite chain of locally supplied schemas into a
+            // resolvable one no matter the argument order
+            if (this->register_root(entries[index], default_dialect)) {
+              made_progress = true;
+            }
           }
         }
 
@@ -335,10 +354,20 @@ public:
         // never retried. Note that when several entries remain stuck, the
         // one we report might be waiting on another stuck entry rather than
         // on the schema that is genuinely missing
-        if (deferred.size() == pending.size()) {
+        if (!made_progress) {
           // Before giving up, let the remaining entries try their remote
           // fallback when the user enabled it
           if (allow_remote && !this->remote_) {
+            // Remote fetching must still never shadow a schema that the
+            // user supplied locally, so remember what the entries that are
+            // still stuck declare before letting the network in. Entries
+            // that did get imported are found among the imported schemas
+            // before this ever comes into play
+            for (const auto index : deferred) {
+              this->collect_pending_identifiers(entries[index],
+                                                default_dialect);
+            }
+
             this->remote_ = true;
           } else {
             std::rethrow_exception(failure);
@@ -353,8 +382,6 @@ public:
     }
 
     if (this->configuration_.has_value()) {
-      std::vector<std::pair<std::string, sourcemeta::core::JSON>>
-          dependency_documents;
       for (const auto &[dependency_uri, dependency_path] :
            this->configuration_.value().dependencies) {
         if (!std::filesystem::exists(dependency_path)) {
@@ -366,12 +393,13 @@ public:
           continue;
         }
 
-        dependency_documents.emplace_back(dependency_uri, std::move(schema));
-      }
+        try {
+          this->add(schema, default_dialect);
+        } catch (...) {
+          continue;
+        }
 
-      for (const auto &dependency : dependency_documents) {
-        this->import_configuration_dependency(
-            dependency.first, dependency.second, default_dialect);
+        this->schemas.emplace(dependency_uri, schema);
       }
     }
   }
@@ -380,13 +408,15 @@ public:
            const std::string_view default_dialect = "",
            const std::string_view default_id = "",
            const std::function<void(const sourcemeta::core::JSON::String &)>
-               &callback = nullptr) -> bool {
+               &callback = nullptr,
+           const sourcemeta::blaze::SchemaFrame::Mode mode =
+               sourcemeta::blaze::SchemaFrame::Mode::References) -> bool {
     assert(schema.is_object() || schema.is_boolean());
 
-    // Registering the top-level schema is not enough. We need to check
-    // and register every embedded schema resource too
-    sourcemeta::blaze::SchemaFrame frame{
-        sourcemeta::blaze::SchemaFrame::Mode::References};
+    // Framing the whole document is what vets it, from the vocabularies
+    // every resource declares to the anchors it collides on, so the
+    // analysis stays as wide as the file. What gets registered does not
+    sourcemeta::blaze::SchemaFrame frame{mode};
     frame.analyse(schema, sourcemeta::blaze::schema_walker, *this,
                   default_dialect, default_id);
 
@@ -397,17 +427,30 @@ public:
         continue;
       }
 
+      // A file stands for the single schema it declares. A resource that
+      // the schema merely embeds is reachable from within that schema,
+      // and answering for it on its own would hand back a schema that
+      // the user never supplied as one
+      if (!entry.pointer.empty()) {
+        continue;
+      }
+
       auto subschema{sourcemeta::core::get(schema, entry.pointer)};
       const auto subschema_vocabularies{frame.vocabularies(entry, *this)};
 
       // Given we might be resolving embedded resources, we fully
       // resolve their dialect and identifiers, otherwise the
-      // consumer might have no idea what to do with them
-      subschema.assign("$schema", sourcemeta::core::JSON{entry.dialect});
-      sourcemeta::blaze::schema_reidentify(subschema, key.second,
-                                           entry.base_dialect);
+      // consumer might have no idea what to do with them. A boolean
+      // schema carries no keywords, so neither the `$schema` write
+      // nor the reidentification is defined on it
+      if (subschema.is_object()) {
+        subschema.assign("$schema", sourcemeta::core::JSON{entry.dialect});
+        sourcemeta::blaze::schema_reidentify(subschema, key.second,
+                                             entry.base_dialect);
+      }
 
-      const auto result{this->schemas.emplace(key.second, subschema)};
+      const auto canonical_identifier{canonicalize_identifier(key.second)};
+      const auto result{this->schemas.emplace(canonical_identifier, subschema)};
       if (!result.second && result.first->second != subschema) {
         throw sourcemeta::blaze::SchemaFrameError(
             key.second, "Cannot register the same identifier twice");
@@ -438,71 +481,134 @@ public:
                                 << target << " given the configuration file\n";
     }
 
-    if (this->schemas.contains(target)) {
-      return this->schemas.at(target);
+    const auto canonical_target{canonicalize_identifier(target)};
+
+    if (this->schemas.contains(canonical_target)) {
+      return this->schemas.at(canonical_target);
     }
 
-    if (this->remote_ && this->pending_identifiers_.contains(target)) {
+    // Suppress even when remote fetching is off, because a
+    // configuration alias can map an identifier to a local file
+    // whose own frame analysis would call back into the resolver
+    // and read the same document again without terminating
+    if (this->pending_identifiers_.contains(canonical_target)) {
       return std::nullopt;
     }
 
-    auto fetched{fetch_schema(this->options_, target, this->remote_)};
-    if (fetched.has_value()) {
-      ensure_identifier(fetched.value(), string_identifier, *this);
+    // Reserve the target while its document is being fetched and
+    // framed so any recursive lookup for the same identifier short
+    // circuits instead of walking the same cycle again
+    const auto reserved{
+        this->pending_identifiers_.insert(canonical_target).second};
+    std::optional<sourcemeta::core::JSON> fetched;
+    try {
+      fetched = fetch_schema(this->options_, target, this->remote_);
+      if (fetched.has_value()) {
+        ensure_identifier(fetched.value(), string_identifier, *this);
+      }
+    } catch (...) {
+      if (reserved) {
+        this->pending_identifiers_.erase(canonical_target);
+      }
+      throw;
+    }
+    if (reserved) {
+      this->pending_identifiers_.erase(canonical_target);
     }
 
     return fetched;
   }
 
 private:
-  static auto collect_identifiers(const sourcemeta::core::JSON &document,
-                                  std::set<std::string> &accumulator,
-                                  const std::string &base) -> void {
-    std::string effective_base{base};
-    if (document.is_object()) {
-      for (const auto &keyword : {"$id", "id"}) {
-        if (document.defines(keyword) && document.at(keyword).is_string()) {
-          const auto &identifier{document.at(keyword).to_string()};
-          accumulator.insert(identifier);
-          // A nested identifier may be relative to its containing resource,
-          // in which case the lookup target is its resolved form
-          if (!effective_base.empty()) {
-            try {
-              sourcemeta::core::URI uri{identifier};
-              uri.resolve_from(sourcemeta::core::URI{effective_base});
-              effective_base = uri.recompose();
-              accumulator.insert(effective_base);
-            } catch (const sourcemeta::core::URIParseError &) {
-              // An identifier that cannot be parsed as a URI can never
-              // become a resolution target either
-            }
-          } else {
-            effective_base = identifier;
-          }
-        }
-      }
+  // A finite chain of locally supplied schemas whose meta-schemas
+  // eventually terminate in a known base dialect can resolve without
+  // the network even when a single-pass full framing cannot, because
+  // full framing needs every embedded resource's meta-schema known
+  // up front while a root registration only needs the root's own
+  // dialect chain to terminate in something already known. Frame the
+  // top schema alone and register its root resource so that a later
+  // pass can complete framings that name this entry as their meta
+  auto register_root(const InputJSON &entry,
+                     const std::string_view default_dialect) -> bool {
+    if (!entry.second.is_object() && !entry.second.is_boolean()) {
+      return false;
+    }
 
-      for (const auto &pair : document.as_object()) {
-        collect_identifiers(pair.second, accumulator, effective_base);
-      }
-    } else if (document.is_array()) {
-      for (const auto &element : document.as_array()) {
-        collect_identifiers(element, accumulator, base);
-      }
+    try {
+      const auto size_before{this->schemas.size()};
+      this->add(entry.second, default_dialect,
+                sourcemeta::jsonschema::default_id(entry), nullptr,
+                sourcemeta::blaze::SchemaFrame::Mode::Root);
+      return this->schemas.size() > size_before;
+    } catch (const sourcemeta::blaze::SchemaResolutionError &) {
+      // The root's own dialect chain terminates in an entry still
+      // pending on this pass, so try again once more roots have been
+      // registered
+      return false;
     }
   }
 
-  auto import_configuration_dependency(const std::string &dependency_uri,
-                                       const sourcemeta::core::JSON &schema,
-                                       const std::string_view default_dialect)
+  // Framing a schema reveals the identifiers it declares, but framing
+  // needs its meta-schema resolved first, which is precisely what an
+  // entry that cannot be imported is missing. Ask the library for the
+  // root claim instead: framing the top schema alone stays clear of
+  // embedded resources, so an unresolvable meta-schema deeper in the
+  // document does not stop us from learning which keyword its dialect
+  // names as the identifier. When the root's own dialect chain also
+  // terminates in an entry still pending on this pass, fall back to
+  // whichever of the two keywords the entry spells at its root, since
+  // either one might turn out to be the legitimate claim once the
+  // dialect finally resolves
+  auto collect_pending_identifiers(const InputJSON &entry,
+                                   const std::string_view default_dialect)
       -> void {
-    try {
-      this->add(schema, default_dialect);
-    } catch (...) {
+    const auto default_id{sourcemeta::jsonschema::default_id(entry)};
+    this->pending_identifiers_.insert(canonicalize_identifier(default_id));
+
+    if (!entry.second.is_object()) {
       return;
     }
 
-    this->schemas.emplace(dependency_uri, schema);
+    try {
+      sourcemeta::blaze::SchemaFrame frame{
+          sourcemeta::blaze::SchemaFrame::Mode::Root};
+      frame.analyse(entry.second, sourcemeta::blaze::schema_walker, *this,
+                    default_dialect, default_id);
+      for (const auto &[key, location] : frame.locations()) {
+        if (location.type !=
+                sourcemeta::blaze::SchemaFrame::LocationType::Resource ||
+            !location.pointer.empty()) {
+          continue;
+        }
+
+        this->pending_identifiers_.insert(canonicalize_identifier(key.second));
+      }
+      return;
+    } catch (...) {
+      // Fall through to the syntactic scan
+    }
+
+    for (const auto &keyword : {"$id", "id"}) {
+      const auto *identifier{entry.second.try_at(keyword)};
+      if (identifier == nullptr || !identifier->is_string()) {
+        continue;
+      }
+
+      const auto &identifier_string{identifier->to_string()};
+      this->pending_identifiers_.insert(
+          canonicalize_identifier(identifier_string));
+      if (!default_id.empty()) {
+        try {
+          sourcemeta::core::URI uri{identifier_string};
+          uri.resolve_from(sourcemeta::core::URI{default_id});
+          this->pending_identifiers_.insert(
+              canonicalize_identifier(uri.recompose()));
+        } catch (const sourcemeta::core::URIParseError &) {
+          // An identifier that cannot be parsed as a URI can never
+          // become a resolution target either
+        }
+      }
+    }
   }
 
   auto import_entry(const InputJSON &entry,
@@ -579,8 +685,7 @@ private:
   const sourcemeta::core::Options &options_;
   const std::optional<sourcemeta::blaze::Configuration> configuration_;
   bool remote_{false};
-  std::set<std::string> pending_identifiers_{};
-  StagedDocuments staged_{};
+  mutable std::set<std::string> pending_identifiers_{};
 };
 
 inline auto
