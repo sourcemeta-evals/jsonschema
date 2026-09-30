@@ -1,0 +1,162 @@
+// Concurrent test runners must resolve a custom meta-schema through
+// a configuration `resolve` alias that points at a local file, without
+// preloading the target through `--resolve`. Each worker walks the
+// same alias entry and reads the same file, so the fetch-recursion
+// guard must handle that traffic without spurious deadlocks, false
+// cycle diagnostics, or crashes. Both offline and `--http` runs must
+// produce the same six suite results in parallel and serial modes,
+// with the cURL backend poisoned so any stray fallback fails
+// deterministically
+
+ENV SOURCEMETA_CORE_CURL_SO $CWD/does-not-exist.so
+
+WRITE meta.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/local-meta",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+    "https://json-schema.org/draft/2020-12/vocab/validation": true
+  }
+}
+EOF
+
+WRITE schema.json UNTIL EOF
+{
+  "$schema": "https://example.com/local-meta",
+  "$id": "https://example.com/aliased-target",
+  "type": "string"
+}
+EOF
+
+WRITE jsonschema.json UNTIL EOF
+{
+  "resolve": {
+    "https://example.com/local-meta": "meta.json"
+  }
+}
+EOF
+
+MAKE DIRECTORY tests
+
+WRITE tests/1.json UNTIL EOF
+{
+  "target": "https://example.com/aliased-target",
+  "tests": [
+    {
+      "description": "First test",
+      "valid": true,
+      "data": "foo"
+    }
+  ]
+}
+EOF
+
+WRITE tests/2.json UNTIL EOF
+{
+  "target": "https://example.com/aliased-target",
+  "tests": [
+    {
+      "description": "First test",
+      "valid": true,
+      "data": "bar"
+    }
+  ]
+}
+EOF
+
+WRITE tests/3.json UNTIL EOF
+{
+  "target": "https://example.com/aliased-target",
+  "tests": [
+    {
+      "description": "First test",
+      "valid": true,
+      "data": "baz"
+    }
+  ]
+}
+EOF
+
+WRITE tests/4.json UNTIL EOF
+{
+  "target": "https://example.com/aliased-target",
+  "tests": [
+    {
+      "description": "First test",
+      "valid": true,
+      "data": "qux"
+    }
+  ]
+}
+EOF
+
+WRITE tests/5.json UNTIL EOF
+{
+  "target": "https://example.com/aliased-target",
+  "tests": [
+    {
+      "description": "First test",
+      "valid": true,
+      "data": "quux"
+    }
+  ]
+}
+EOF
+
+WRITE tests/6.json UNTIL EOF
+{
+  "target": "https://example.com/aliased-target",
+  "tests": [
+    {
+      "description": "First test",
+      "valid": true,
+      "data": "corge"
+    }
+  ]
+}
+EOF
+
+// Parallel offline through the configuration alias
+RUN test tests --resolve schema.json --jobs 3 STDIN /dev/null IN . INTO result_0.txt EXPECTING 0
+
+REPLACE $CWD WITH '[CWD]' IN result_0.txt
+
+SORT result_0.txt
+
+WRITE expected_0.txt UNTIL EOF
+1> [CWD]/tests/1.json: PASS 1/1
+1> [CWD]/tests/2.json: PASS 1/1
+1> [CWD]/tests/3.json: PASS 1/1
+1> [CWD]/tests/4.json: PASS 1/1
+1> [CWD]/tests/5.json: PASS 1/1
+1> [CWD]/tests/6.json: PASS 1/1
+EOF
+
+SORT expected_0.txt
+
+COMPARE result_0.txt AGAINST expected_0.txt
+
+// Serial offline through the configuration alias
+RUN test tests --resolve schema.json --jobs 1 STDIN /dev/null IN . INTO result_1.txt EXPECTING 0
+
+REPLACE $CWD WITH '[CWD]' IN result_1.txt
+
+COMPARE result_1.txt AGAINST expected_0.txt
+
+// Parallel under --http with the cURL backend poisoned
+RUN test tests --resolve schema.json --http --jobs 3 STDIN /dev/null IN . INTO result_2.txt EXPECTING 0
+
+REPLACE $CWD WITH '[CWD]' IN result_2.txt
+
+SORT result_2.txt
+
+COMPARE result_2.txt AGAINST expected_0.txt
+
+// Serial under --http with the cURL backend poisoned
+RUN test tests --resolve schema.json --http --jobs 1 STDIN /dev/null IN . INTO result_3.txt EXPECTING 0
+
+REPLACE $CWD WITH '[CWD]' IN result_3.txt
+
+COMPARE result_3.txt AGAINST expected_0.txt
