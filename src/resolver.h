@@ -487,14 +487,33 @@ public:
       return this->schemas.at(canonical_target);
     }
 
-    if (this->remote_ &&
-        this->pending_identifiers_.contains(canonical_target)) {
+    // Suppress even when remote fetching is off, because a
+    // configuration alias can map an identifier to a local file
+    // whose own frame analysis would call back into the resolver
+    // and read the same document again without terminating
+    if (this->pending_identifiers_.contains(canonical_target)) {
       return std::nullopt;
     }
 
-    auto fetched{fetch_schema(this->options_, target, this->remote_)};
-    if (fetched.has_value()) {
-      ensure_identifier(fetched.value(), string_identifier, *this);
+    // Reserve the target while its document is being fetched and
+    // framed so any recursive lookup for the same identifier short
+    // circuits instead of walking the same cycle again
+    const auto reserved{
+        this->pending_identifiers_.insert(canonical_target).second};
+    std::optional<sourcemeta::core::JSON> fetched;
+    try {
+      fetched = fetch_schema(this->options_, target, this->remote_);
+      if (fetched.has_value()) {
+        ensure_identifier(fetched.value(), string_identifier, *this);
+      }
+    } catch (...) {
+      if (reserved) {
+        this->pending_identifiers_.erase(canonical_target);
+      }
+      throw;
+    }
+    if (reserved) {
+      this->pending_identifiers_.erase(canonical_target);
     }
 
     return fetched;
@@ -666,7 +685,7 @@ private:
   const sourcemeta::core::Options &options_;
   const std::optional<sourcemeta::blaze::Configuration> configuration_;
   bool remote_{false};
-  std::set<std::string> pending_identifiers_{};
+  mutable std::set<std::string> pending_identifiers_{};
 };
 
 inline auto

@@ -1,0 +1,87 @@
+// A `jsonschema.json` `resolve` alias that points at a local file
+// whose own frame analysis walks another aliased identifier can loop
+// back to the first alias. File reads bypass the remote flag, so
+// without a scope guard around each fetch the resolver keeps reading
+// and framing the same document until the stack runs out. The two
+// aliases below map to files whose `$schema` values circle back to
+// each other; the correct behaviour terminates with the file-anchored
+// resolution diagnostic and no crash, in both offline and `--http`
+// runs, with the cURL backend poisoned so any stray fallback would
+// fail deterministically
+
+ENV SOURCEMETA_CORE_CURL_SO $CWD/does-not-exist.so
+
+WRITE meta-x.json UNTIL EOF
+{
+  "$schema": "https://example.com/meta-y",
+  "$id": "https://example.com/meta-x",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+    "https://json-schema.org/draft/2020-12/vocab/validation": true
+  }
+}
+EOF
+
+WRITE meta-y.json UNTIL EOF
+{
+  "$schema": "https://example.com/meta-x",
+  "$id": "https://example.com/meta-y",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+    "https://json-schema.org/draft/2020-12/vocab/validation": true
+  }
+}
+EOF
+
+WRITE jsonschema.json UNTIL EOF
+{
+  "resolve": {
+    "https://example.com/meta-x": "meta-x.json",
+    "https://example.com/meta-y": "meta-y.json"
+  }
+}
+EOF
+
+WRITE schema.json UNTIL EOF
+{
+  "$schema": "https://example.com/meta-x",
+  "$id": "https://example.com/leaf",
+  "type": "string"
+}
+EOF
+
+WRITE instance.json UNTIL EOF
+"hello"
+EOF
+
+// Offline
+RUN validate schema.json instance.json STDIN /dev/null IN . INTO result_0.txt EXPECTING 4
+
+REPLACE $CWD WITH '[CWD]' IN result_0.txt
+
+WRITE expected_0.txt UNTIL EOF
+2> error: Could not resolve the metaschema of the schema
+2>   at identifier https://example.com/meta-x
+2>   at file path [CWD]/schema.json
+2>
+2> This is likely because you forgot to import such schema using `--resolve/-r`
+EOF
+
+COMPARE result_0.txt AGAINST expected_0.txt
+
+// Under --http with the cURL backend poisoned
+RUN validate schema.json instance.json --http STDIN /dev/null IN . INTO result_1.txt EXPECTING 4
+
+REPLACE $CWD WITH '[CWD]' IN result_1.txt
+
+WRITE expected_1.txt UNTIL EOF
+2> error: Could not resolve the metaschema of the schema
+2>   at identifier https://example.com/meta-x
+2>   at file path [CWD]/schema.json
+2>
+2> This is likely because you forgot to import such schema using `--resolve/-r`
+EOF
+
+COMPARE result_1.txt AGAINST expected_1.txt
