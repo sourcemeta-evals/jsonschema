@@ -1,0 +1,45 @@
+// An `$id` declared inside a non-applicator keyword such as
+// `examples` of a `--resolve` input is instance data, not a real
+// schema resource dependency, so it must not enter the resolver's
+// pending-local identifier set. When the same URI is later looked
+// up, the resolver must reach for a real remote fetch rather than
+// short-circuit the lookup as though the identifier were locally
+// supplied. The cURL backend is poisoned, so the outbound attempt
+// surfaces as the library loading diagnostic and proves the remote
+// path was reached rather than suppressed.
+
+ENV SOURCEMETA_CORE_CURL_SO $CWD/does-not-exist.so
+
+WRITE schema.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "https://example.com/leaf-hidden"
+}
+EOF
+
+WRITE base.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/base",
+  "examples": [
+    { "$id": "https://example.com/leaf-hidden" }
+  ]
+}
+EOF
+
+WRITE instance.json UNTIL EOF
+"hello"
+EOF
+
+RUN validate schema.json instance.json --http --resolve base.json STDIN /dev/null IN . INTO result_0.txt EXPECTING 3
+
+REPLACE $CWD WITH '[CWD]' IN result_0.txt
+
+WRITE expected_0.txt UNTIL EOF
+2> error: Could not load the cURL library from the configured path
+2>   with environment variable SOURCEMETA_CORE_CURL_SO
+2>   with paths
+2>   - [CWD]/does-not-exist.so
+EOF
+
+COMPARE result_0.txt AGAINST expected_0.txt

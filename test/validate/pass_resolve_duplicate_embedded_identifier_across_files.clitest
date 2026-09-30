@@ -1,0 +1,48 @@
+// Two `--resolve` inputs both declare `https://example.com/shared`
+// as `$id`, one at the root of `aaa.json` and one under `$defs` in
+// `zzz.json`. Their declared schemas are identical, so answering the
+// shared URI from either registration is equivalent, and the import
+// must succeed with the shared URI resolvable for validation.
+
+WRITE aaa.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/shared",
+  "type": "string"
+}
+EOF
+
+WRITE zzz.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/outer",
+  "$defs": {
+    "buried": {
+      "$id": "https://example.com/shared",
+      "type": "string"
+    }
+  }
+}
+EOF
+
+WRITE schema.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "https://example.com/shared"
+}
+EOF
+
+WRITE instance.json UNTIL EOF
+"hello"
+EOF
+
+RUN validate schema.json instance.json --resolve aaa.json --resolve zzz.json --verbose STDIN /dev/null IN . INTO result_0.txt EXPECTING 0
+
+REPLACE $CWD WITH '[CWD]' IN result_0.txt
+
+WRITE expected_0.txt UNTIL EOF
+2> ok: [CWD]/instance.json
+2>   matches [CWD]/schema.json
+EOF
+
+COMPARE result_0.txt AGAINST expected_0.txt
