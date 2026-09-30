@@ -1,0 +1,74 @@
+// Configured `resolve` aliases point at local meta-schema files that
+// declare no `$id`. Each file's identity is supplied by the alias
+// URI itself, so the resolver must synthesize identity through
+// `ensure_identifier` when framing the file. The correct behaviour
+// still terminates with the file-anchored resolution diagnostic and
+// never crashes, in both offline and `--http` runs with the cURL
+// backend poisoned
+
+ENV SOURCEMETA_CORE_CURL_SO $CWD/does-not-exist.so
+
+WRITE meta-x.json UNTIL EOF
+{
+  "$schema": "https://example.com/meta-y",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+    "https://json-schema.org/draft/2020-12/vocab/validation": true
+  }
+}
+EOF
+
+WRITE meta-y.json UNTIL EOF
+{
+  "$schema": "https://example.com/meta-x",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+    "https://json-schema.org/draft/2020-12/vocab/validation": true
+  }
+}
+EOF
+
+WRITE jsonschema.json UNTIL EOF
+{
+  "resolve": {
+    "https://example.com/meta-x": "meta-x.json",
+    "https://example.com/meta-y": "meta-y.json"
+  }
+}
+EOF
+
+WRITE schema.json UNTIL EOF
+{
+  "$schema": "https://example.com/meta-x",
+  "$id": "https://example.com/leaf",
+  "type": "string"
+}
+EOF
+
+WRITE instance.json UNTIL EOF
+"hello"
+EOF
+
+// Offline
+RUN validate schema.json instance.json STDIN /dev/null IN . INTO result_0.txt EXPECTING 4
+
+REPLACE $CWD WITH '[CWD]' IN result_0.txt
+
+WRITE expected_0.txt UNTIL EOF
+2> error: Could not resolve the metaschema of the schema
+2>   at identifier https://example.com/meta-x
+2>   at file path [CWD]/schema.json
+2>
+2> This is likely because you forgot to import such schema using `--resolve/-r`
+EOF
+
+COMPARE result_0.txt AGAINST expected_0.txt
+
+// Under --http with the cURL backend poisoned
+RUN validate schema.json instance.json --http STDIN /dev/null IN . INTO result_1.txt EXPECTING 4
+
+REPLACE $CWD WITH '[CWD]' IN result_1.txt
+
+COMPARE result_1.txt AGAINST expected_0.txt

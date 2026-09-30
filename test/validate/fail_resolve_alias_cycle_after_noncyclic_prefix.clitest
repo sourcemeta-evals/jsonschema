@@ -1,0 +1,97 @@
+// A well-formed local meta-schema is imported successfully first
+// through a configured alias, then the schema enters an unrelated
+// aliased cycle. The earlier successful resolution must not taint
+// the recursion guard: the cycle still terminates with the file-
+// anchored resolution diagnostic in both offline and `--http` runs
+// with the cURL backend poisoned
+
+ENV SOURCEMETA_CORE_CURL_SO $CWD/does-not-exist.so
+
+WRITE pre-meta.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/pre-meta",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+    "https://json-schema.org/draft/2020-12/vocab/validation": true
+  }
+}
+EOF
+
+WRITE pre-schema.json UNTIL EOF
+{
+  "$schema": "https://example.com/pre-meta",
+  "$id": "https://example.com/pre-schema",
+  "type": "string"
+}
+EOF
+
+WRITE meta-x.json UNTIL EOF
+{
+  "$schema": "https://example.com/meta-y",
+  "$id": "https://example.com/meta-x",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+    "https://json-schema.org/draft/2020-12/vocab/validation": true
+  }
+}
+EOF
+
+WRITE meta-y.json UNTIL EOF
+{
+  "$schema": "https://example.com/meta-x",
+  "$id": "https://example.com/meta-y",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+    "https://json-schema.org/draft/2020-12/vocab/validation": true
+  }
+}
+EOF
+
+WRITE jsonschema.json UNTIL EOF
+{
+  "resolve": {
+    "https://example.com/pre-meta": "pre-meta.json",
+    "https://example.com/meta-x": "meta-x.json",
+    "https://example.com/meta-y": "meta-y.json"
+  }
+}
+EOF
+
+WRITE schema.json UNTIL EOF
+{
+  "$schema": "https://example.com/meta-x",
+  "$id": "https://example.com/leaf",
+  "$ref": "https://example.com/pre-schema",
+  "type": "string"
+}
+EOF
+
+WRITE instance.json UNTIL EOF
+"hello"
+EOF
+
+// Offline
+RUN validate schema.json instance.json STDIN /dev/null IN . INTO result_0.txt EXPECTING 4
+
+REPLACE $CWD WITH '[CWD]' IN result_0.txt
+
+WRITE expected_0.txt UNTIL EOF
+2> error: Could not resolve the metaschema of the schema
+2>   at identifier https://example.com/meta-x
+2>   at file path [CWD]/schema.json
+2>
+2> This is likely because you forgot to import such schema using `--resolve/-r`
+EOF
+
+COMPARE result_0.txt AGAINST expected_0.txt
+
+// Under --http with the cURL backend poisoned
+RUN validate schema.json instance.json --http STDIN /dev/null IN . INTO result_1.txt EXPECTING 4
+
+REPLACE $CWD WITH '[CWD]' IN result_1.txt
+
+COMPARE result_1.txt AGAINST expected_0.txt
