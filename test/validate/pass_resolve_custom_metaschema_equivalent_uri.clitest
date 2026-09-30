@@ -1,0 +1,77 @@
+// A locally supplied `--resolve` chain where the leaf's `$schema`
+// names the meta-schema using an empty trailing fragment. Under
+// RFC 3986 an empty fragment does not change the identifier, so
+// `https://example.com/meta-a` and `https://example.com/meta-a#`
+// name the same resource. A resolver that canonicalizes identifiers
+// on the pending side but reads back the completed-import map with
+// raw keys misses the trailing-`#` lookup and either falls through
+// to remote fetching or fails with a missing-meta-schema diagnostic.
+// The correct behaviour resolves the completed local import in both
+// argument orders, both offline and under `--http` with the cURL
+// backend poisoned so any stray fallback fails deterministically
+
+ENV SOURCEMETA_CORE_CURL_SO $CWD/does-not-exist.so
+
+WRITE meta-a.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/meta-a",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+    "https://json-schema.org/draft/2020-12/vocab/validation": true
+  }
+}
+EOF
+
+WRITE leaf.json UNTIL EOF
+{
+  "$schema": "https://example.com/meta-a#",
+  "$id": "https://example.com/leaf",
+  "type": "string"
+}
+EOF
+
+WRITE schema.json UNTIL EOF
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "https://example.com/leaf"
+}
+EOF
+
+WRITE instance.json UNTIL EOF
+"hello"
+EOF
+
+// Offline, leaf before meta
+RUN validate schema.json instance.json --resolve leaf.json --resolve meta-a.json --verbose STDIN /dev/null IN . INTO result_0.txt EXPECTING 0
+
+REPLACE $CWD WITH '[CWD]' IN result_0.txt
+
+WRITE expected_0.txt UNTIL EOF
+2> ok: [CWD]/instance.json
+2>   matches [CWD]/schema.json
+EOF
+
+COMPARE result_0.txt AGAINST expected_0.txt
+
+// Offline, meta before leaf
+RUN validate schema.json instance.json --resolve meta-a.json --resolve leaf.json --verbose STDIN /dev/null IN . INTO result_1.txt EXPECTING 0
+
+REPLACE $CWD WITH '[CWD]' IN result_1.txt
+
+COMPARE result_1.txt AGAINST expected_0.txt
+
+// Under --http with the cURL backend poisoned, leaf before meta
+RUN validate schema.json instance.json --http --resolve leaf.json --resolve meta-a.json --verbose STDIN /dev/null IN . INTO result_2.txt EXPECTING 0
+
+REPLACE $CWD WITH '[CWD]' IN result_2.txt
+
+COMPARE result_2.txt AGAINST expected_0.txt
+
+// Under --http with the cURL backend poisoned, meta before leaf
+RUN validate schema.json instance.json --http --resolve meta-a.json --resolve leaf.json --verbose STDIN /dev/null IN . INTO result_3.txt EXPECTING 0
+
+REPLACE $CWD WITH '[CWD]' IN result_3.txt
+
+COMPARE result_3.txt AGAINST expected_0.txt

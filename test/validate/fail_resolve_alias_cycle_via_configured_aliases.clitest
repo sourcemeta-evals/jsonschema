@@ -1,0 +1,118 @@
+// Two `--resolve` inputs whose `$schema` values name configuration
+// aliases in `jsonschema.json` that in turn map to each other's root
+// `$id`. Both roots are supplied locally, so the correct behaviour
+// terminates with the file-anchored meta-schema resolution diagnostic
+// rather than reaching for the network. A resolver that checks its
+// pending-local set BEFORE applying the configuration alias mapping
+// sees no match for the alias URI, falls through to the remote path,
+// and surfaces the poisoned-backend load error under `--http` even
+// though every root is present locally. The correct behaviour maps
+// the alias to the root URI first, sees the pending root, and emits
+// the local diagnostic in both argument orders and both offline and
+// `--http` runs
+
+ENV SOURCEMETA_CORE_CURL_SO $CWD/does-not-exist.so
+
+WRITE meta-x.json UNTIL EOF
+{
+  "$schema": "https://example.com/meta-x-alias",
+  "$id": "https://example.com/meta-x",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+    "https://json-schema.org/draft/2020-12/vocab/validation": true
+  }
+}
+EOF
+
+WRITE meta-y.json UNTIL EOF
+{
+  "$schema": "https://example.com/meta-y-alias",
+  "$id": "https://example.com/meta-y",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+    "https://json-schema.org/draft/2020-12/vocab/validation": true
+  }
+}
+EOF
+
+WRITE jsonschema.json UNTIL EOF
+{
+  "resolve": {
+    "https://example.com/meta-x-alias": "https://example.com/meta-y",
+    "https://example.com/meta-y-alias": "https://example.com/meta-x"
+  }
+}
+EOF
+
+WRITE schema.json UNTIL EOF
+{
+  "$schema": "https://example.com/meta-x",
+  "type": "string"
+}
+EOF
+
+WRITE instance.json UNTIL EOF
+"hello"
+EOF
+
+// Offline, meta-x before meta-y
+RUN validate schema.json instance.json --resolve meta-x.json --resolve meta-y.json STDIN /dev/null IN . INTO result_0.txt EXPECTING 4
+
+REPLACE $CWD WITH '[CWD]' IN result_0.txt
+REPLACE 'https://example.com/meta-x-alias' WITH '[STUCK]' IN result_0.txt
+REPLACE 'https://example.com/meta-y-alias' WITH '[STUCK]' IN result_0.txt
+REPLACE 'https://example.com/meta-x' WITH '[STUCK]' IN result_0.txt
+REPLACE 'https://example.com/meta-y' WITH '[STUCK]' IN result_0.txt
+REPLACE '[CWD]/meta-x.json' WITH '[INPUT]' IN result_0.txt
+REPLACE '[CWD]/meta-y.json' WITH '[INPUT]' IN result_0.txt
+
+WRITE expected_0.txt UNTIL EOF
+2> error: Could not resolve the metaschema of the schema
+2>   at identifier [STUCK]
+2>   at file path [INPUT]
+2>
+2> This is likely because you forgot to import such schema using `--resolve/-r`
+EOF
+
+COMPARE result_0.txt AGAINST expected_0.txt
+
+// Offline, meta-y before meta-x
+RUN validate schema.json instance.json --resolve meta-y.json --resolve meta-x.json STDIN /dev/null IN . INTO result_1.txt EXPECTING 4
+
+REPLACE $CWD WITH '[CWD]' IN result_1.txt
+REPLACE 'https://example.com/meta-x-alias' WITH '[STUCK]' IN result_1.txt
+REPLACE 'https://example.com/meta-y-alias' WITH '[STUCK]' IN result_1.txt
+REPLACE 'https://example.com/meta-x' WITH '[STUCK]' IN result_1.txt
+REPLACE 'https://example.com/meta-y' WITH '[STUCK]' IN result_1.txt
+REPLACE '[CWD]/meta-x.json' WITH '[INPUT]' IN result_1.txt
+REPLACE '[CWD]/meta-y.json' WITH '[INPUT]' IN result_1.txt
+
+COMPARE result_1.txt AGAINST expected_0.txt
+
+// Under --http with the cURL backend poisoned, meta-x before meta-y
+RUN validate schema.json instance.json --http --resolve meta-x.json --resolve meta-y.json STDIN /dev/null IN . INTO result_2.txt EXPECTING 4
+
+REPLACE $CWD WITH '[CWD]' IN result_2.txt
+REPLACE 'https://example.com/meta-x-alias' WITH '[STUCK]' IN result_2.txt
+REPLACE 'https://example.com/meta-y-alias' WITH '[STUCK]' IN result_2.txt
+REPLACE 'https://example.com/meta-x' WITH '[STUCK]' IN result_2.txt
+REPLACE 'https://example.com/meta-y' WITH '[STUCK]' IN result_2.txt
+REPLACE '[CWD]/meta-x.json' WITH '[INPUT]' IN result_2.txt
+REPLACE '[CWD]/meta-y.json' WITH '[INPUT]' IN result_2.txt
+
+COMPARE result_2.txt AGAINST expected_0.txt
+
+// Under --http with the cURL backend poisoned, meta-y before meta-x
+RUN validate schema.json instance.json --http --resolve meta-y.json --resolve meta-x.json STDIN /dev/null IN . INTO result_3.txt EXPECTING 4
+
+REPLACE $CWD WITH '[CWD]' IN result_3.txt
+REPLACE 'https://example.com/meta-x-alias' WITH '[STUCK]' IN result_3.txt
+REPLACE 'https://example.com/meta-y-alias' WITH '[STUCK]' IN result_3.txt
+REPLACE 'https://example.com/meta-x' WITH '[STUCK]' IN result_3.txt
+REPLACE 'https://example.com/meta-y' WITH '[STUCK]' IN result_3.txt
+REPLACE '[CWD]/meta-x.json' WITH '[INPUT]' IN result_3.txt
+REPLACE '[CWD]/meta-y.json' WITH '[INPUT]' IN result_3.txt
+
+COMPARE result_3.txt AGAINST expected_0.txt
