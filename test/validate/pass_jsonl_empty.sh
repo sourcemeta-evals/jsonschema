@@ -20,10 +20,15 @@ EOF
 
 touch "$TMP/instance.jsonl"
 
-"$1" validate "$TMP/schema.json" "$TMP/instance.jsonl" 2> "$TMP/output.txt" 1>&2
+"$1" validate "$TMP/schema.json" "$TMP/instance.jsonl" > "$TMP/stdout.txt" 2> "$TMP/stderr.txt"
 
-cat << EOF > "$TMP/expected.txt"
+cat << EOF > "$TMP/expected-stderr.txt"
 warning: The JSONL file is empty
 EOF
 
-diff "$TMP/output.txt" "$TMP/expected.txt"
+diff "$TMP/stderr.txt" "$TMP/expected-stderr.txt"
+
+cat << EOF > "$TMP/expected-stdout.txt"
+EOF
+
+diff "$TMP/stdout.txt" "$TMP/expected-stdout.txt"
