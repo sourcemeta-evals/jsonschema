@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
+const child_process = require('child_process');
 const os = require('os');
 const path = require('path');
 const { spawn } = require('./main.js');
@@ -52,4 +53,51 @@ test('spawn preserves multibyte output that spans stream chunks', async () => {
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test('spawn forwards caller options to the child', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'jsonschema-spawn-'));
+
+  try {
+    fs.writeFileSync(path.join(directory, 'schema.json'), JSON.stringify({
+      $schema: 'http://json-schema.org/draft-07/schema#',
+      type: 'string'
+    }));
+
+    // The relative path only resolves if `cwd` reached the child
+    const result = await spawn([ 'bundle', 'schema.json' ], { cwd: directory });
+    assert.strictEqual(result.code, 0);
+    assert.strictEqual(JSON.parse(result.stdout).type, 'string');
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('spawn reports no captured output when nothing is piped', async () => {
+  const result = await spawn([ '--version' ], { stdio: 'ignore' });
+  assert.strictEqual(result.code, 0);
+  assert.ok(result.stdout === '' || result.stdout === null || result.stdout === undefined,
+    `expected no captured stdout, got ${JSON.stringify(result.stdout)}`);
+});
+
+test('the command line entrypoint delegates and forwards the exit status', async () => {
+  function run(args) {
+    return new Promise((resolve) => {
+      const child = child_process.spawn(process.execPath,
+        [ path.join(__dirname, 'cli.js'), ...args ], { stdio: [ 'ignore', 'pipe', 'pipe' ] });
+      let stdout = '';
+      child.stdout.setEncoding('utf8');
+      child.stdout.on('data', (data) => {
+        stdout += data;
+      });
+      child.on('close', (code) => resolve({ code, stdout }));
+    });
+  }
+
+  const succeeded = await run([ '--version' ]);
+  assert.strictEqual(succeeded.code, 0);
+  assert.strictEqual(succeeded.stdout.trim(), packageJson.version);
+
+  const failed = await run([ 'definitely-not-a-command' ]);
+  assert.notStrictEqual(failed.code, 0);
 });
