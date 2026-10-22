@@ -40,6 +40,7 @@
 // This is a comment to increase the file size
 const os = require('os');
 const path = require('path');
+const fs = require('fs');
 const child_process = require('child_process');
 
 const PLATFORM = os.platform() === 'win32' ? 'windows' : os.platform();
@@ -49,7 +50,15 @@ const EXECUTABLE = path.join(__dirname, '..', 'build', 'github-releases',
   `jsonschema-${PLATFORM}-${ARCH}${EXTENSION}`);
 
 function spawn(args, options = {}) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    if (!fs.existsSync(EXECUTABLE)) {
+      reject(new Error(
+        `The JSON Schema CLI NPM package does not support ${os.platform()} for ${os.arch()} yet. ` +
+        'Please open a GitHub issue at https://github.com/sourcemeta/jsonschema'
+      ));
+      return;
+    }
+
     const process = child_process.spawn(EXECUTABLE, args, options);
 
     let stdout = '';
