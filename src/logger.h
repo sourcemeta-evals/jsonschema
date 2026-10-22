@@ -19,7 +19,7 @@ inline auto LOG_VERBOSE(const sourcemeta::core::Options &options)
   return null_stream;
 }
 
-inline auto LOG_WARNING() -> std::ostream & {
+inline auto LOG_WARNING()  -> std::ostream & {
   std::cerr << "warning: ";
   return std::cerr;
 }
