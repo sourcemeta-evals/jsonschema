@@ -102,7 +102,7 @@ test('the command line entrypoint delegates and forwards the exit status', async
   assert.strictEqual(succeeded.stdout.trim(), packageJson.version);
 
   const failed = await run([ 'definitely-not-a-command' ]);
-  assert.notStrictEqual(failed.code, 0);
+  assert.strictEqual(failed.code, 1);
 });
 
 test('spawn keeps caller options when the arguments are omitted', async () => {
