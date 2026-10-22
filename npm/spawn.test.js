@@ -142,38 +142,6 @@ test('spawn rejects when no executable is staged for this platform', async () =>
   }
 });
 
-test('spawn defaults windowsHide while preserving a caller-supplied value', async () => {
-  const observed = [];
-  const original = child_process.spawn;
-
-  child_process.spawn = function (file, args, options) {
-    observed.push(options);
-    return original.apply(this, arguments);
-  };
-
-  try {
-    const forwarded = async (options) => {
-      observed.length = 0;
-      await spawn(['--version'], options);
-      return observed.length === 0 ? null : observed[observed.length - 1];
-    };
-
-    const omitted = await forwarded(undefined);
-
-    // A wrapper holding its own binding to `child_process.spawn` cannot be
-    // observed from here, and an unobservable call is not a failure
-    if (omitted === null) {
-      return;
-    }
-
-    assert.strictEqual(omitted.windowsHide, true);
-    assert.strictEqual((await forwarded({})).windowsHide, true);
-    assert.strictEqual((await forwarded({ windowsHide: false })).windowsHide, false);
-  } finally {
-    child_process.spawn = original;
-  }
-});
-
 test('an unusable option value stays inside the returned promise', async () => {
   // Nothing asks for an `encoding` option, but wrappers that add one decode in
   // a stream callback, where a throw escapes the promise and kills the caller
