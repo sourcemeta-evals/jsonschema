@@ -20,6 +20,6 @@ EOF
 
 touch "$TMP/instance.jsonl"
 
-"$1" validate "$TMP/schema.json" "$TMP/instance.jsonl" 2> "$TMP/output.txt" 1>&2
+"$1" validate "$TMP/schema.json" "$TMP/instance.jsonl" > "$TMP/stdout.txt" 2> "$TMP/stderr.txt"
 
-grep -q "warning: The JSONL file is empty" "$TMP/output.txt"
+grep -q "warning: The JSONL file is empty" "$TMP/stderr.txt"
