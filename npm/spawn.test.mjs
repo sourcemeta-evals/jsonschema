@@ -77,3 +77,7 @@ test('spawn with null options still resolves', async () => {
 test('spawn with json option and omitted arguments rejects', async () => {
   await assert.rejects(spawn(undefined, { json: true }), SyntaxError);
 });
+
+test('spawn with json option and null arguments rejects', async () => {
+  await assert.rejects(spawn(null, { json: true }), SyntaxError);
+});
