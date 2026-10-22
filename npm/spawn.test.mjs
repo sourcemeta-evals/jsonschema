@@ -101,3 +101,24 @@ test('the command line entrypoint delegates and forwards the exit status', async
   const failed = await run([ 'definitely-not-a-command' ]);
   assert.notStrictEqual(failed.code, 0);
 });
+
+test('spawn keeps caller options when the arguments are omitted', async () => {
+  // `child_process.spawn` turns a null or undefined `args` into an empty list
+  // before it treats a non-array as the options object. Refusing the call
+  // outright is a stricter contract and stays correct, so only silently
+  // dropping the options the caller did supply is a failure here
+  for (const omitted of [ undefined, null ]) {
+    let result;
+
+    try {
+      result = await spawn(omitted, { stdio: 'ignore' });
+    } catch (error) {
+      continue;
+    }
+
+    assert.ok(result.stdout === '' || result.stdout === null || result.stdout === undefined,
+      `expected no captured stdout for ${omitted}, got ${JSON.stringify(result.stdout)}`);
+    assert.ok(result.stderr === '' || result.stderr === null || result.stderr === undefined,
+      `expected no captured stderr for ${omitted}, got ${JSON.stringify(result.stderr)}`);
+  }
+});
