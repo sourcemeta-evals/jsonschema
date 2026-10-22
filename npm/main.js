@@ -59,7 +59,10 @@ function spawn(args, options = {}) {
       return;
     }
 
-    const process = child_process.spawn(EXECUTABLE, args, options);
+    const process = child_process.spawn(EXECUTABLE, args, {
+      windowsHide: true,
+      ...options
+    });
 
     let stdout = '';
     let stderr = '';
