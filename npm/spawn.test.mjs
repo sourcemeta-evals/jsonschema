@@ -104,6 +104,24 @@ test('the command line entrypoint delegates and forwards the exit status', async
 
   const failed = await run([ 'definitely-not-a-command' ]);
   assert.strictEqual(failed.code, 1);
+
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'jsonschema-spawn-'));
+
+  try {
+    fs.writeFileSync(path.join(directory, 'schema.json'), JSON.stringify({
+      $schema: 'http://json-schema.org/draft-07/schema#',
+      type: 'string'
+    }));
+    fs.writeFileSync(path.join(directory, 'instance.json'), '42');
+
+    // The CLI answers a failed validation with 2 rather than 1, so a wrapper
+    // that reports any failure as 1 cannot be told apart by the status alone
+    const invalid = await run([ 'validate', path.join(directory, 'schema.json'),
+      path.join(directory, 'instance.json') ]);
+    assert.strictEqual(invalid.code, 2);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test('spawn keeps caller options when the arguments are omitted', async () => {
@@ -155,5 +173,47 @@ test('an unusable option value stays inside the returned promise', async () => {
     await promise;
   } catch (error) {
     assert.ok(error instanceof Error);
+  }
+});
+
+test('a launch failure reaches the caller instead of the process', () => {
+  // A working directory that does not exist makes the launch fail through an
+  // asynchronous `error` event rather than at the call itself. A wrapper that
+  // never listens for that event, or that throws out of the executor right
+  // after launching and so never gets as far as listening, leaves the event
+  // unhandled, and an unhandled `error` event takes the caller's process down
+  // with it instead of reaching the `catch` the interface promises
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'jsonschema-spawn-'));
+  const missing = path.join(directory, 'missing');
+
+  try {
+    for (const options of [ {}, { encoding: 'not-an-encoding' }, { stdio: 'ignore', input: 'x' } ]) {
+      const caller = child_process.spawnSync(process.execPath, [ '--input-type=module', '-e', `
+        const loaded = await import(${JSON.stringify(url.pathToFileURL(path.join(import.meta.dirname, 'main.js')).href)});
+        const spawn = loaded.spawn || loaded.default.spawn;
+        let promise = null;
+
+        try {
+          promise = spawn([ '--version' ],
+            Object.assign({ cwd: ${JSON.stringify(missing)} }, ${JSON.stringify(options)}));
+        } catch {
+          console.log('outcome:threw');
+        }
+
+        if (promise && typeof promise.then === 'function') {
+          promise.then(() => console.log('outcome:resolved'),
+            () => console.log('outcome:rejected'));
+        }
+
+        setTimeout(() => {}, 200);
+      ` ], { encoding: 'utf8' });
+
+      assert.strictEqual(caller.status, 0,
+        `the caller did not survive the launch failure with ${JSON.stringify(options)}: ${caller.stderr}`);
+      assert.match(caller.stdout, /outcome:rejected/,
+        `the launch failure did not reach the caller with ${JSON.stringify(options)}: ${caller.stdout}`);
+    }
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
   }
 });
