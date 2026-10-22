@@ -112,7 +112,7 @@ test('spawn keeps caller options when the arguments are omitted', async () => {
 
     try {
       result = await spawn(omitted, { stdio: 'ignore' });
-    } catch (error) {
+    } catch {
       continue;
     }
 
