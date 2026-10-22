@@ -12,6 +12,9 @@ test('spawn returns version with --version flag', async () => {
   const result = await spawn(['--version']);
   assert.strictEqual(result.code, 0);
   assert.strictEqual(result.stdout.trim(), packageJson.version);
+  assert.strictEqual(typeof result.stdout, 'string');
+  assert.strictEqual(typeof result.stderr, 'string');
+  assert.strictEqual(typeof result.code, 'number');
 });
 
 test('spawn returns help with --help flag', async () => {
