@@ -51,9 +51,10 @@ function spawn(args, options = {}) {
       reject(error);
     });
 
-    process.on('close', (code) => {
+    process.on('close', (code, signal) => {
       resolve({
         code: code,
+        signal: signal,
         stdout: stdout,
         stderr: stderr
       });

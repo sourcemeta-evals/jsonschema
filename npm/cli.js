@@ -3,6 +3,11 @@ const { spawn } = require('./main.js');
 
 spawn(process.argv.slice(2), { stdio: 'inherit' })
   .then((result) => {
+    if (result.signal) {
+      process.kill(process.pid, result.signal);
+      return;
+    }
+
     process.exit(result.code);
   })
   .catch((error) => {
