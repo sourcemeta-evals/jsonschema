@@ -34,14 +34,16 @@ function spawn(args, options = {}) {
     let stderr = '';
 
     if (process.stdout) {
+      process.stdout.setEncoding('utf8');
       process.stdout.on('data', (data) => {
-        stdout += data.toString();
+        stdout += data;
       });
     }
 
     if (process.stderr) {
+      process.stderr.setEncoding('utf8');
       process.stderr.on('data', (data) => {
-        stderr += data.toString();
+        stderr += data;
       });
     }
 
