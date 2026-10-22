@@ -57,3 +57,13 @@ test('spawn with json option on error returns parsed JSON error', async () => {
     filePath: '/nonexistent/path.json'
   });
 });
+
+test('spawn with json option rejects on non-JSON output', async () => {
+  await assert.rejects(spawn(['--help'], { json: true }), SyntaxError);
+});
+
+test('spawn without arguments still resolves', async () => {
+  const result = await spawn();
+  assert.strictEqual(typeof result.code, 'number');
+  assert.strictEqual(typeof result.stdout, 'string');
+});

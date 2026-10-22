@@ -55,9 +55,19 @@ function spawn(args, options = {}) {
     });
 
     process.on('close', (code) => {
+      let result = stdout;
+      if (json) {
+        try {
+          result = JSON.parse(stdout);
+        } catch (error) {
+          reject(error);
+          return;
+        }
+      }
+
       resolve({
         code: code,
-        stdout: json ? JSON.parse(stdout) : stdout,
+        stdout: result,
         stderr: stderr
       });
     });
