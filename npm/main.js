@@ -11,6 +11,15 @@ const EXECUTABLE = path.join(__dirname, '..', 'build', 'github-releases',
 
 function spawn(args, options = {}) {
   return new Promise((resolve, reject) => {
+    // `child_process.spawn` lets options stand in for the arguments, but it
+    // reads them from the first parameter and ignores the third, which would
+    // drop the defaults merged in below. Resolve that here instead, and note
+    // that a null or undefined `args` is an empty list rather than options
+    if (typeof args === 'object' && args !== null && !Array.isArray(args)) {
+      options = args;
+      args = [];
+    }
+
     if (!fs.existsSync(EXECUTABLE)) {
       reject(new Error(
         `The JSON Schema CLI NPM package does not support ${os.platform()} for ${os.arch()} yet. ` +
