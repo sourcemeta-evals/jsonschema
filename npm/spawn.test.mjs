@@ -67,3 +67,13 @@ test('spawn without arguments still resolves', async () => {
   assert.strictEqual(typeof result.code, 'number');
   assert.strictEqual(typeof result.stdout, 'string');
 });
+
+test('spawn with null options still resolves', async () => {
+  const result = await spawn(['--version'], null);
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(typeof result.stdout, 'string');
+});
+
+test('spawn with json option and omitted arguments rejects', async () => {
+  await assert.rejects(spawn(undefined, { json: true }), SyntaxError);
+});

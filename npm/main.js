@@ -10,8 +10,8 @@ const EXECUTABLE = path.join(__dirname, '..', 'build', 'github-releases',
   `jsonschema-${PLATFORM}-${ARCH}${EXTENSION}`);
 
 function spawn(args, options = {}) {
-  const json = options.json === true;
-  const spawnArgs = json ? [...args, '--json'] : args;
+  const json = options?.json === true;
+  const spawnArgs = json ? [...(args ?? []), '--json'] : args;
 
   return new Promise((resolve, reject) => {
     if (!fs.existsSync(EXECUTABLE)) {
