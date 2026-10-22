@@ -178,8 +178,12 @@ test('an unusable option value stays inside the returned promise', async () => {
   // Nothing asks for an `encoding` option, but wrappers that add one decode in
   // a stream callback, where a throw escapes the promise and kills the caller
   // instead of reaching the `catch` the interface promises
+  const promise = spawn(['--version'], { encoding: 'not-an-encoding' });
+  assert.strictEqual(typeof promise.then, 'function',
+    'an unusable option must come back as a rejected promise, not a synchronous throw');
+
   try {
-    await spawn(['--version'], { encoding: 'not-an-encoding' });
+    await promise;
   } catch (error) {
     assert.ok(error instanceof Error);
   }
