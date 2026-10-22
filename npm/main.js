@@ -64,6 +64,8 @@ function spawn(args, options = {}) {
       ...options
     });
 
+    process.on('error', reject);
+
     let stdout = '';
     let stderr = '';
 
