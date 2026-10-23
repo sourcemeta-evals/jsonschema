@@ -156,6 +156,14 @@ test('spawn rejects when no executable is staged for this platform', async () =>
     const isolated = await import(url.pathToFileURL(path.join(directory, 'npm', 'main.js')).href);
     const isolatedSpawn = isolated.spawn || isolated.default.spawn;
     await assert.rejects(() => isolatedSpawn(['--version']), (error) => error instanceof Error);
+
+    // A shell hides the absent file from Node: the shell itself starts, reports
+    // `command not found` and exits 127, so a wrapper that only maps the launch
+    // error hands back an ordinary result for a CLI that never ran. Refusing the
+    // option outright satisfies this too, since either way the caller is not told
+    // the CLI ran and exited
+    await assert.rejects(() => isolatedSpawn(['--version'], { shell: true }),
+      (error) => error instanceof Error);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
