@@ -22,7 +22,6 @@
 #include <cassert>     // assert
 #include <filesystem>  // std::filesystem
 #include <functional>  // std::function, std::ref
-#include <iostream>    // std::cerr
 #include <map>         // std::map
 #include <optional>    // std::optional
 #include <sstream>     // std::ostringstream
@@ -96,10 +95,9 @@ public:
                             << identifier << "\n";
                       });
         if (!result) {
-          std::cerr
-              << "warning: No schema resources were imported from this file\n";
-          std::cerr << "  at " << entry.first.string() << "\n";
-          std::cerr << "Are you sure this schema sets any identifiers?\n";
+          LOG_WARNING() << "No schema resources were imported from this file\n"
+                        << "  at " << entry.first.string() << "\n"
+                        << "Are you sure this schema sets any identifiers?\n";
         }
       }
     }
