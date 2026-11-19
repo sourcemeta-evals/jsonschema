@@ -27,7 +27,7 @@ cat << 'EOF' > "$TMP/template.json"
 EOF
 
 "$1" validate "$TMP/schema.json" "$TMP/instance.json" \
-  --verbose --template "$TMP/template.json" 2> "$TMP/stderr.txt"
+  --verbose --template "$TMP/template.json" > "$TMP/stdout.txt" 2> "$TMP/stderr.txt"
 
 cat << EOF > "$TMP/expected.txt"
 Parsing pre-compiled schema template: $(realpath "$TMP")/template.json
@@ -40,3 +40,4 @@ annotation: "foo"
 EOF
 
 diff "$TMP/stderr.txt" "$TMP/expected.txt"
+test ! -s "$TMP/stdout.txt"
