@@ -27,10 +27,15 @@ cat << 'EOF' > "$TMP/template.json"
 EOF
 
 "$1" validate "$TMP/schema.json" "$TMP/instance.json" \
-  --template "$TMP/template.json" 2> "$TMP/stderr.txt"
+  --template "$TMP/template.json" \
+  > "$TMP/stdout.txt" 2> "$TMP/stderr.txt"
 
-cat << EOF > "$TMP/expected.txt"
+cat << 'EOF' > "$TMP/expected-stdout.txt"
+EOF
+
+cat << 'EOF' > "$TMP/expected-stderr.txt"
 warning: Failed to parse pre-compiled schema template. Compiling from scratch
 EOF
 
-diff "$TMP/stderr.txt" "$TMP/expected.txt"
+diff "$TMP/stdout.txt" "$TMP/expected-stdout.txt"
+diff "$TMP/stderr.txt" "$TMP/expected-stderr.txt"
