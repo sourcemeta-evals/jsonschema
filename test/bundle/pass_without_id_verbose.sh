@@ -24,9 +24,9 @@ cat << 'EOF' > "$TMP/schemas/remote.json"
 }
 EOF
 
-"$1" bundle "$TMP/schema.json" --resolve "$TMP/schemas" --without-id --verbose 1> "$TMP/result.json" 2>&1
+"$1" bundle "$TMP/schema.json" --resolve "$TMP/schemas" --without-id --verbose > "$TMP/result.json" 2> "$TMP/stderr.txt"
 
-cat << EOF > "$TMP/expected.json"
+cat << EOF > "$TMP/expected-stderr.txt"
 Detecting schema resources from file: $(realpath "$TMP")/schemas/remote.json
 Importing schema into the resolution context: file://$(realpath "$TMP")/schemas/remote.json
 Importing schema into the resolution context: https://example.com/nested
@@ -36,6 +36,9 @@ non-compliant JSON Schema implementations such as Visual Studio Code.
 Otherwise, this is not needed and may harm other use cases. For example,
 you will be unable to reference the resulting schema from other schemas
 using the --resolve/-r option.
+EOF
+
+cat << EOF > "$TMP/expected.json"
 {
   "\$schema": "https://json-schema.org/draft/2020-12/schema",
   "\$ref": "#/\$defs/https:~1~1example.com~1nested",
@@ -49,3 +52,4 @@ using the --resolve/-r option.
 EOF
 
 diff "$TMP/result.json" "$TMP/expected.json"
+diff "$TMP/stderr.txt" "$TMP/expected-stderr.txt"
